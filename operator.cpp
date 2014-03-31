@@ -126,6 +126,3 @@ MPIReceive::MPIReceive(){
 
 void MPIReceive::operator() (){
 }
-
-void main(){
-}

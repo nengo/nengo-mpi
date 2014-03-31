@@ -1,4 +1,6 @@
-// Don't use virtual functions!
+#ifndef NENGO_MPI_OPERATOR_HPP
+#define NENGO_MPI_OPERATOR_HPP
+
 //
 //#include <boost/python.hpp>
 
@@ -127,3 +129,5 @@ public:
     MPIReceive();
     void operator()();
 };
+
+#endif
