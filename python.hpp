@@ -6,11 +6,14 @@
 #include "simulator.hpp"
 
 namespace bpy = boost::python;
+namespace bpyn = bpy::numeric;
+
+//void Vector* int_ndarray_to_vector(bpy::numeric::array a){}
+//void Vector* float_ndarray_to_vector(bpy::numeric::array a){}
 
 class PythonMpiSimulatorChunk{
 public:
-    //void add_signal(bpy::object key, bpy::object sig);
-    void add_signal(bpy::object key, bpy::numeric::array sig);
+    void add_signal(bpy::object key, bpyn::array sig);
     void create_Reset(bpy::object dst, bpy::object value);
     void create_Copy(bpy::object dst, bpy::object src);
     void create_DotInc(bpy::object A, bpy::object X, bpy::object Y);

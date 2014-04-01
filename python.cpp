@@ -1,17 +1,13 @@
 #include <iostream>
 
-#include <boost/python.hpp>
-
 #include "python.hpp"
-#include "simulator.hpp"
-#include "operator.hpp"
 
-namespace bpy = boost::python;
+//void Vector* int_ndarray_to_vector(bpyn::array a){}
+//void Vector* float_ndarray_to_vector(bpyn:array a){}
 
-//void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpy::object sig){
-void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpy::numeric::array sig){
+void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
     // This is how to get floats
-    std::cout << "First array item" << bpy::extract<float>(sig[0]) << std::endl;
+    //std::cout << "First array item" << bpy::extract<float>(sig[0]) << std::endl;
 
     // And this is how to get ints
     std::cout << "First array item" << bpy::extract<int>(sig[0].attr("__int__")()) << std::endl;
