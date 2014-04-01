@@ -9,7 +9,8 @@ namespace bpy = boost::python;
 
 class PythonMpiSimulatorChunk{
 public:
-    void add_signal(bpy::object key, bpy::object sig);
+    //void add_signal(bpy::object key, bpy::object sig);
+    void add_signal(bpy::object key, bpy::numeric::array sig);
     void create_Reset(bpy::object dst, bpy::object value);
     void create_Copy(bpy::object dst, bpy::object src);
     void create_DotInc(bpy::object A, bpy::object X, bpy::object Y);

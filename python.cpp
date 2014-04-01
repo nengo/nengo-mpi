@@ -1,11 +1,22 @@
+#include <iostream>
+
 #include <boost/python.hpp>
+
 #include "python.hpp"
 #include "simulator.hpp"
 #include "operator.hpp"
 
 namespace bpy = boost::python;
 
-void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpy::object sig){}
+//void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpy::object sig){
+void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpy::numeric::array sig){
+    // This is how to get floats
+    std::cout << "First array item" << bpy::extract<float>(sig[0]) << std::endl;
+
+    // And this is how to get ints
+    std::cout << "First array item" << bpy::extract<int>(sig[0].attr("__int__")()) << std::endl;
+}
+
 void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){}
 void PythonMpiSimulatorChunk::create_Copy(bpy::object dst, bpy::object src){}
 void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::object Y){}
@@ -17,6 +28,7 @@ void PythonMpiSimulatorChunk::create_MPIReceive(){}
 
 BOOST_PYTHON_MODULE(nengo_mpi)
 {
+    bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk")
         .def("add_signal", &PythonMpiSimulatorChunk::add_signal)
         .def("create_Reset", &PythonMpiSimulatorChunk::create_Reset)
