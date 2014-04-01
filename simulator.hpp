@@ -1,17 +1,39 @@
 #ifndef NENGO_MPI_SIMULATOR_HPP
 #define NENGO_MPI_SIMULATOR_HPP
 
+#include <map>
+#include <list>
+
+
 #include "operator.hpp"
 
+typedef int key_type;
+
 //TODO: add a probing system
-class Simulator{
+class MpiSimulatorChunk{
 public:
-    Simulator(Operator* operators);
+    void run_n_steps(int steps);
+    void add_signal(key_type key, Vector* sig);
+    void add_operator(Operator* op);
+    
+public:
+    void build();
+
+private:
+    std::map<key_type, Vector> signal_map;
+    std::list<Operator*> operator_list;
+    Operator* operators;
+    int num_operators;
+};
+
+class MpiSimulator{
+public:
+    MpiSimulator(MpiSimulatorChunk* chunks);
     void run_n_steps(int steps);
 
 private:
-    Operator* operators;
-    int num_operators;
+    MpiSimulatorChunk* chunks;
+    int num_chunks;
 };
 
 #endif
