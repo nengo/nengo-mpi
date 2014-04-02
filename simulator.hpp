@@ -20,7 +20,7 @@ public:
     void build();
 
 private:
-    std::map<key_type, Vector> signal_map;
+    std::map<key_type, Vector*> signal_map;
     std::list<Operator*> operator_list;
     Operator* operators;
     int num_operators;

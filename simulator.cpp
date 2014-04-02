@@ -14,13 +14,12 @@ void MpiSimulatorChunk::run_n_steps(int steps){
     }
 }
 
-//Vectors will be created by python.
-//Operators will be created by python, and will have references to the appropriate vectors passed in
 void MpiSimulatorChunk::add_operator(Operator *op){
     operator_list.push_front(op);
 }
 
 void MpiSimulatorChunk::add_signal(key_type key, Vector* sig){
+    signal_map[key] = sig;
 }
 
 void MpiSimulatorChunk::build(){
