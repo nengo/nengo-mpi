@@ -15,6 +15,7 @@ Matrix* ndarray_to_matrix(bpyn::array a);
 
 class PythonMpiSimulatorChunk{
 public:
+    void run_n_steps(bpy::object steps);
     void add_signal(bpy::object key, bpyn::array sig);
     void create_Reset(bpy::object dst, bpy::object val);
     void create_Copy(bpy::object dst, bpy::object src);

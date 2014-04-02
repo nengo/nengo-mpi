@@ -75,6 +75,10 @@ Matrix* ndarray_to_matrix(bpyn::array a){
 
     return ret;
 }
+void PythonMpiSimulatorChunk::run_n_steps(bpy::object pysteps){
+    int steps = bpy::extract<int>(pysteps);
+    mpi_sim_chunk.run_n_steps(steps);
+}
 
 void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
     if( is_vector(sig) ){
@@ -114,10 +118,12 @@ void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::obje
 void PythonMpiSimulatorChunk::create_MPISend(){}
 void PythonMpiSimulatorChunk::create_MPIReceive(){}
 
+
 BOOST_PYTHON_MODULE(nengo_mpi)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk")
+        .def("run_n_steps", &PythonMpiSimulatorChunk::run_n_steps)
         .def("add_signal", &PythonMpiSimulatorChunk::add_signal)
         .def("create_Reset", &PythonMpiSimulatorChunk::create_Reset)
         .def("create_Copy", &PythonMpiSimulatorChunk::create_Copy)

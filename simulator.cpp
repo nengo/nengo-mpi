@@ -3,19 +3,15 @@
 #include "simulator.hpp"
 
 void MpiSimulatorChunk::run_n_steps(int steps){
-    Operator* o = operators;
-    for(unsigned i = 0; i < num_operators; ++i){
-
+    std::list<Operator*>::const_iterator it; 
+    for(it = operator_list.begin(); it != operator_list.end(); ++it){
         //Call the operator
-        (*o)();
-
-        //Move to next operator
-        o++;
+        (**it)();
     }
 }
 
 void MpiSimulatorChunk::add_operator(Operator *op){
-    operator_list.push_front(op);
+    operator_list.push_back(op);
 }
 
 
