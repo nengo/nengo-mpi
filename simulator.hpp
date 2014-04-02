@@ -13,14 +13,16 @@ typedef int key_type;
 class MpiSimulatorChunk{
 public:
     void run_n_steps(int steps);
-    void add_signal(key_type key, Vector* sig);
+    void add_vector_signal(key_type key, Vector* sig);
+    void add_matrix_signal(key_type key, Matrix* sig);
     void add_operator(Operator* op);
     
 public:
     void build();
 
 private:
-    std::map<key_type, Vector*> signal_map;
+    std::map<key_type, Matrix*> matrix_signal_map;
+    std::map<key_type, Vector*> vector_signal_map;
     std::list<Operator*> operator_list;
     Operator* operators;
     int num_operators;
