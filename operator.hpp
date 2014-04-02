@@ -15,9 +15,10 @@ typedef boost::numeric::ublas::matrix<double> Matrix;
 
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures will be in an array, and we simply call
-// them sequentially. The () operator is a virtual function, which 
-// comes with some overhead. Future optimizations should look at another scheme,
-// either function pointers or, ideally, finding some way to make these functions 
+// them sequentially. The order they are called in will be determined by python.
+// The () operator is a virtual function, which comes with some overhead. 
+// Future optimizations should look at another scheme, either function pointers 
+// or, ideally, finding some way to make these functions 
 // non-pointers and non-virtual.
 
 class Operator{
@@ -27,60 +28,60 @@ public:
 
 class Reset: public Operator{
 public:
-    Reset(Vector dst, float value);
+    Reset(Vector* dst, float value);
     void operator() ();
 
 private:
-    Vector dst;
+    Vector* dst;
     float value;
     int size;
 };
 
 class Copy: public Operator{
 public:
-    Copy(Vector dst, Vector src);
+    Copy(Vector* dst, Vector* src);
     void operator()();
 
 private:
-    Vector dst;
-    Vector src;
+    Vector* dst;
+    Vector* src;
 };
 
 // Increment signal Y by dot(A,X)
 class DotInc: public Operator{
 public:
-    DotInc(Matrix A, Vector X, Vector Y);
+    DotInc(Matrix* A, Vector* X, Vector* Y);
     void operator()();
 
 private:
-    Matrix A;
-    Vector X;
-    Vector Y;
+    Matrix* A;
+    Vector* X;
+    Vector* Y;
 };
 
 // Sets Y <- dot(A, X) + B * Y
 class ProdUpdate: public Operator{
 public:
-    ProdUpdate(Matrix A, Vector X, Vector B, Vector Y);
+    ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y);
     void operator()();
 
 private:
-    Matrix A;
-    Vector X;
-    Vector B;
-    Vector Y;
+    Matrix* A;
+    Vector* X;
+    Vector* B;
+    Vector* Y;
     int size;
 };
 
 //class PyFunc: public Operator{
 //public:
-//    PyFunc(Vector output, boost::python::object fn, Vector time, Vector input);
+//    PyFunc(Vector* output, boost::python::object fn, Vector* time, Vector* input);
 //    void operator()();
 //};
 
 class SimLIF: public Operator{
 public:
-    SimLIF(int n_neuron, float tau_rc, float tau_ref, float dt, Vector J, Vector output);
+    SimLIF(int n_neuron, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);
     void operator()();
 
 private:
@@ -90,8 +91,8 @@ private:
     const float tau_ref;
     const int n_neurons;
 
-    Vector J;
-    Vector output;
+    Vector* J;
+    Vector* output;
 
     Vector voltage;
     Vector refractory_time;
@@ -105,7 +106,7 @@ private:
 class SimLIFRate: public Operator{
 
 public:
-    SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vector J, Vector output);
+    SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);
     void operator()();
 
 private:
@@ -114,8 +115,8 @@ private:
     const float tau_ref;
     const int n_neurons;
 
-    Vector J;
-    Vector output;
+    Vector* J;
+    Vector* output;
 };
 
 class MPISend: public Operator{
