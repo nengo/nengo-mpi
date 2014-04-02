@@ -8,13 +8,18 @@
 
 using namespace boost::numeric::ublas;
 
-Reset::Reset(Vector* dst, float value):dst(dst), value(value), size(dst->size()){}
+Reset::Reset(Vector* dst, float value)
+    :dst(dst), value(value), size(dst->size()){
 
-void Reset::operator() (){
-    (*dst) = scalar_vector<double>(size, value);
+    dummy = scalar_vector<double>(size, value);
 }
 
-Copy::Copy(Vector* dst, Vector* src) :dst(dst), src(src){}
+void Reset::operator() (){
+    (*dst) = dummy;
+}
+
+Copy::Copy(Vector* dst, Vector* src)
+    :dst(dst), src(src){}
 
 void Copy::operator() (){
     *dst = *src;

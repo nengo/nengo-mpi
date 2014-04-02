@@ -33,6 +33,7 @@ public:
 
 private:
     Vector* dst;
+    Vector dummy;
     float value;
     int size;
 };
