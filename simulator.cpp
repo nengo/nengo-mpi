@@ -3,10 +3,12 @@
 #include "simulator.hpp"
 
 void MpiSimulatorChunk::run_n_steps(int steps){
-    std::list<Operator*>::const_iterator it; 
-    for(it = operator_list.begin(); it != operator_list.end(); ++it){
-        //Call the operator
-        (**it)();
+    for(unsigned step = 0; step < steps; ++step){
+        std::list<Operator*>::const_iterator it; 
+        for(it = operator_list.begin(); it != operator_list.end(); ++it){
+            //Call the operator
+            (**it)();
+        }
     }
 }
 
