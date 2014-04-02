@@ -23,9 +23,7 @@ Vector* ndarray_to_vector(bpyn::array a){
 #ifdef _DEBUG
     std::cout << "Size:" << size << std::endl;
     std::cout << "Value:" << std::endl;
-    for(unsigned i = 0; i < size; i++){
-        std::cout << i << ": " << (*ret)(i) << std::endl;
-    }
+    std::cout << *ret << std::endl << std::endl;
 #endif
 
     return ret;
@@ -65,16 +63,12 @@ Matrix* ndarray_to_matrix(bpyn::array a){
     }
     std::cout << ")" << std::endl;
     std::cout << "Value:" << std::endl;
-    for(unsigned i = 0; i < shape[0]; i++){
-        for(unsigned j = 0; j < shape[1]; j++){
-            std::cout << (*ret)(i, j) << ",";
-        }
-        std::cout << std::endl;
-    }
+    std::cout << *ret << std::endl << std::endl;
 #endif
 
     return ret;
 }
+
 void PythonMpiSimulatorChunk::run_n_steps(bpy::object pysteps){
     int steps = bpy::extract<int>(pysteps);
     mpi_sim_chunk.run_n_steps(steps);
@@ -111,11 +105,29 @@ void PythonMpiSimulatorChunk::create_Copy(bpy::object dst, bpy::object src){
     mpi_sim_chunk.add_operator(copy);
 }
 
-void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::object Y){}
+void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::object Y){
+    key_type A_key = bpy::extract<key_type>(A);
+    key_type X_key = bpy::extract<key_type>(X);
+    key_type Y_key = bpy::extract<key_type>(Y);
+
+    Matrix* A_mat = mpi_sim_chunk.get_matrix_signal(A_key);
+    Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
+    Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
+
+    Operator* dot_inc = new DotInc(A_mat, X_vec, Y_vec);
+    mpi_sim_chunk.add_operator(dot_inc);
+}
+
 void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y){}
-void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neuron, bpy::object tau_rc, bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){}
-void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc, bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){}
+
+void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neuron, bpy::object tau_rc, 
+    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){}
+
+void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc, 
+    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){}
+
 void PythonMpiSimulatorChunk::create_MPISend(){}
+
 void PythonMpiSimulatorChunk::create_MPIReceive(){}
 
 

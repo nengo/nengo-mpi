@@ -17,7 +17,7 @@ void Reset::operator() (){
 #ifdef _DEBUG
     std::cout << "After Reset:" << std::endl;
     std::cout << "dst:" << std::endl;
-    std::cout << *dst << std::endl;
+    std::cout << *dst << std::endl << std::endl;
 #endif
 }
 
@@ -33,14 +33,25 @@ void Copy::operator() (){
     std::cout << "dst:" << std::endl;
     std::cout << *dst << std::endl;
     std::cout << "src:" << std::endl;
-    std::cout << *src << std::endl;
+    std::cout << *src << std::endl << std::endl;
 #endif
 }
 
-DotInc::DotInc(Matrix* A, Vector* X, Vector* Y):A(A), X(X), Y(Y){}
+DotInc::DotInc(Matrix* A, Vector* X, Vector* Y)
+    :A(A), X(X), Y(Y){}
 
 void DotInc::operator() (){
     axpy_prod(*A, *X, *Y, false);
+
+#ifdef _DEBUG
+    std::cout << "After DotInc:" << std::endl;
+    std::cout << "A:" << std::endl;
+    std::cout << *A << std::endl;
+    std::cout << "X:" << std::endl;
+    std::cout << *X << std::endl;
+    std::cout << "Y:" << std::endl;
+    std::cout << *Y << std::endl << std::endl;
+#endif
 }
 
 ProdUpdate::ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y)
