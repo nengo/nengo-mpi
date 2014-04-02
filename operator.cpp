@@ -1,28 +1,40 @@
+#include <iostream>
+#include <boost/numeric/ublas/operation.hpp>
 
 #include "operator.hpp"
-
-#include <boost/numeric/ublas/vector.hpp>
-#include <boost/numeric/ublas/matrix.hpp>
-#include <boost/numeric/ublas/operation.hpp>
-#include <boost/numeric/ublas/io.hpp>
-
-using namespace boost::numeric::ublas;
 
 Reset::Reset(Vector* dst, float value)
     :dst(dst), value(value), size(dst->size()){
 
     dummy = scalar_vector<double>(size, value);
+
 }
 
 void Reset::operator() (){
+
     (*dst) = dummy;
+
+#ifdef _DEBUG
+    std::cout << "After Reset:" << std::endl;
+    std::cout << "dst:" << std::endl;
+    std::cout << *dst << std::endl;
+#endif
 }
 
 Copy::Copy(Vector* dst, Vector* src)
     :dst(dst), src(src){}
 
 void Copy::operator() (){
+
     *dst = *src;
+
+#ifdef _DEBUG
+    std::cout << "After Copy:" << std::endl;
+    std::cout << "dst:" << std::endl;
+    std::cout << *dst << std::endl;
+    std::cout << "src:" << std::endl;
+    std::cout << *src << std::endl;
+#endif
 }
 
 DotInc::DotInc(Matrix* A, Vector* X, Vector* Y):A(A), X(X), Y(Y){}
