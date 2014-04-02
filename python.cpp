@@ -76,8 +76,6 @@ Matrix* ndarray_to_matrix(bpyn::array a){
     return ret;
 }
 
-
-
 void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
     if( is_vector(sig) ){
         Vector* vec = ndarray_to_vector(sig);
@@ -88,8 +86,27 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
     }
 }
 
-void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){}
-void PythonMpiSimulatorChunk::create_Copy(bpy::object dst, bpy::object src){}
+void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object val){
+    key_type dst_key = bpy::extract<key_type>(dst);
+    float value = bpy::extract<float>(val);
+
+    Vector* dst_vec = mpi_sim_chunk.get_vector_signal(dst_key);
+
+    Operator* reset = new Reset(dst_vec, value);
+    mpi_sim_chunk.add_operator(reset);
+}
+
+void PythonMpiSimulatorChunk::create_Copy(bpy::object dst, bpy::object src){
+    key_type dst_key = bpy::extract<key_type>(dst);
+    key_type src_key = bpy::extract<key_type>(src);
+
+    Vector* dst_vec = mpi_sim_chunk.get_vector_signal(dst_key);
+    Vector* src_vec = mpi_sim_chunk.get_vector_signal(src_key);
+
+    Operator* copy = new Copy(dst_vec, src_vec);
+    mpi_sim_chunk.add_operator(copy);
+}
+
 void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::object Y){}
 void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y){}
 void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neuron, bpy::object tau_rc, bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){}
