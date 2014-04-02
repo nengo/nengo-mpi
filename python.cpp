@@ -1,13 +1,49 @@
 #include <iostream>
+#include <vector>
 
 #include "python.hpp"
 
-//void Vector* int_ndarray_to_vector(bpyn::array a){}
-//void Vector* float_ndarray_to_vector(bpyn:array a){}
+Vector* ndarray_to_vector(bpyn::array a){
+    int ndim = bpy::extract<int>(a.attr("ndim"));
+    int size = 1;
+    std::vector<int> shape(ndim);
+    bpy::object python_shape = a.attr("shape");
+    for(unsigned i = 0; i < ndim; i++){ 
+        shape[i] = bpy::extract<int>(python_shape[i]);
+        size *= shape[i];
+    }
+
+    Vector* ret = new Vector(size);
+    for(unsigned i = 0; i < size; i++){
+        (*ret)(i) = bpy::extract<float>(a[i]);
+    }
+
+#ifdef _DEBUG
+    std::cout << "Ndim:" << ndim << std::endl;
+    std::cout << "Shape:" << std::endl;
+    std::cout << "(";
+    for(unsigned i = 0; i < ndim; i++){
+        std::cout << (*ret)(i);
+    }
+    std::cout << ")" << std::endl;
+    std::cout << "Size:" << size << std::endl;
+    std::cout << "Value:" << std::endl;
+    for(unsigned i = 0; i < size; i++){
+        std::cout << i << ": " << (*ret)(i) << std::endl;
+    }
+#endif
+
+    return ret;
+}
+
+//Matrix* ndarray_to_matrix(bpyn::array a){}
 
 void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
     // This is how to get floats
     //std::cout << "First array item" << bpy::extract<float>(sig[0]) << std::endl;
+    //
+    Vector* vec = ndarray_to_vector(sig);
+    //mpi_sim_chunk.add_signal(bpy::extract<key_type>(key), vec);
 
     // And this is how to get ints
     std::cout << "First array item" << bpy::extract<int>(sig[0].attr("__int__")()) << std::endl;

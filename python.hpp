@@ -4,12 +4,12 @@
 #include <boost/python.hpp>
 
 #include "simulator.hpp"
+#include "operator.hpp"
 
 namespace bpy = boost::python;
 namespace bpyn = bpy::numeric;
 
-//void Vector* int_ndarray_to_vector(bpy::numeric::array a){}
-//void Vector* float_ndarray_to_vector(bpy::numeric::array a){}
+Vector* ndarray_to_vector(bpyn::array a);
 
 class PythonMpiSimulatorChunk{
 public:
