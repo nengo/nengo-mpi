@@ -127,23 +127,5 @@ BOOST_PYTHON_MODULE(nengo_mpi)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)
         .def("create_MPIReceive", &PythonMpiSimulatorChunk::create_MPIReceive);
-
-//    class_<Operator>("Operator");
-//
-//    class_<Reset>("Reset", init<Vector, float>());
-//
-//    class_<Copy>("Copy", init<Vector, Vector>());
-//
-//    class_<DotInc>("DotInc", init<Matrix, Vector, Vector>());
-//
-//    class_<ProdUpdate>("ProdUpdate", init<Matrix, Vector, Vector, Vector>());
-//
-//    class_<SimLIF>("SimLIF", init<int, float, float, float, Vector, Vector>());
-//
-//    class_<SimLIFRate>("SimLIFRate", init<int, float, float, float, Vector, Vector>());
-//
-//    class_<MPISend>("MPISend", init<>());
-//
-//    class_<MPIReceive>("MPIReceive", init<>());
 }
 
