@@ -9,7 +9,9 @@
 namespace bpy = boost::python;
 namespace bpyn = bpy::numeric;
 
+bool is_vector(bpyn::array a);
 Vector* ndarray_to_vector(bpyn::array a);
+Matrix* ndarray_to_matrix(bpyn::array a);
 
 class PythonMpiSimulatorChunk{
 public:

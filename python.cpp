@@ -3,29 +3,24 @@
 
 #include "python.hpp"
 
-Vector* ndarray_to_vector(bpyn::array a){
+bool is_vector(bpyn::array a){
     int ndim = bpy::extract<int>(a.attr("ndim"));
-    int size = 1;
-    std::vector<int> shape(ndim);
-    bpy::object python_shape = a.attr("shape");
-    for(unsigned i = 0; i < ndim; i++){ 
-        shape[i] = bpy::extract<int>(python_shape[i]);
-        size *= shape[i];
-    }
+    return ndim == 1;
+}
 
+Vector* ndarray_to_vector(bpyn::array a){
+
+#ifdef _DEBUG
+    std::cout << "Extracting vector:" << std::endl;
+#endif
+
+    int size = bpy::extract<int>(a.attr("size"));
     Vector* ret = new Vector(size);
     for(unsigned i = 0; i < size; i++){
         (*ret)(i) = bpy::extract<float>(a[i]);
     }
 
 #ifdef _DEBUG
-    std::cout << "Ndim:" << ndim << std::endl;
-    std::cout << "Shape:" << std::endl;
-    std::cout << "(";
-    for(unsigned i = 0; i < ndim; i++){
-        std::cout << (*ret)(i);
-    }
-    std::cout << ")" << std::endl;
     std::cout << "Size:" << size << std::endl;
     std::cout << "Value:" << std::endl;
     for(unsigned i = 0; i < size; i++){
@@ -36,17 +31,61 @@ Vector* ndarray_to_vector(bpyn::array a){
     return ret;
 }
 
-//Matrix* ndarray_to_matrix(bpyn::array a){}
+Matrix* ndarray_to_matrix(bpyn::array a){
+
+#ifdef _DEBUG
+    std::cout << "Extracting matrix:" << std::endl;
+#endif
+
+    int ndim = bpy::extract<int>(a.attr("ndim"));
+    int size = bpy::extract<int>(a.attr("size"));
+    std::vector<int> shape(ndim);
+    std::vector<int> strides(ndim);
+    bpy::object python_shape = a.attr("shape");
+    bpy::object python_strides = a.attr("strides");
+    for(unsigned i = 0; i < ndim; i++){ 
+        shape[i] = bpy::extract<int>(python_shape[i]);
+        strides[i] = bpy::extract<int>(python_strides[i]);
+    }
+
+    Matrix* ret = new Matrix(shape[0], shape[1]);
+    for(unsigned i = 0; i < shape[0]; i++){
+        for(unsigned j = 0; j < shape[1]; j++){
+            (*ret)(i, j) = bpy::extract<float>(a[i][j]);
+        }
+    }
+
+#ifdef _DEBUG
+    std::cout << "Ndim:" << ndim << std::endl;
+    std::cout << "Size:" << size << std::endl;
+    std::cout << "Shape:" << std::endl;
+    std::cout << "(";
+    for(unsigned i = 0; i < ndim; i++){
+        std::cout << shape[i] << ",";
+    }
+    std::cout << ")" << std::endl;
+    std::cout << "Value:" << std::endl;
+    for(unsigned i = 0; i < shape[0]; i++){
+        for(unsigned j = 0; j < shape[1]; j++){
+            std::cout << (*ret)(i, j) << ",";
+        }
+        std::cout << std::endl;
+    }
+#endif
+
+    return ret;
+}
+
+
 
 void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
-    // This is how to get floats
-    //std::cout << "First array item" << bpy::extract<float>(sig[0]) << std::endl;
-    //
-    Vector* vec = ndarray_to_vector(sig);
-    //mpi_sim_chunk.add_signal(bpy::extract<key_type>(key), vec);
-
-    // And this is how to get ints
-    std::cout << "First array item" << bpy::extract<int>(sig[0].attr("__int__")()) << std::endl;
+    if( is_vector(sig) ){
+        Vector* vec = ndarray_to_vector(sig);
+        mpi_sim_chunk.add_vector_signal(bpy::extract<key_type>(key), vec);
+    }else{
+        Matrix* mat = ndarray_to_matrix(sig);
+        mpi_sim_chunk.add_matrix_signal(bpy::extract<key_type>(key), mat);
+    }
 }
 
 void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){}
