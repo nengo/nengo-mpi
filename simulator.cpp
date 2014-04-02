@@ -18,12 +18,21 @@ void MpiSimulatorChunk::add_operator(Operator *op){
     operator_list.push_front(op);
 }
 
+
+void MpiSimulatorChunk::add_vector_signal(key_type key, Vector* sig){
+    vector_signal_map[key] = sig;
+}
+
 void MpiSimulatorChunk::add_matrix_signal(key_type key, Matrix* sig){
     matrix_signal_map[key] = sig;
 }
 
-void MpiSimulatorChunk::add_vector_signal(key_type key, Vector* sig){
-    vector_signal_map[key] = sig;
+Vector* MpiSimulatorChunk::get_vector_signal(key_type key){
+    return vector_signal_map[key];
+}
+
+Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
+    return matrix_signal_map[key];
 }
 
 void MpiSimulatorChunk::build(){

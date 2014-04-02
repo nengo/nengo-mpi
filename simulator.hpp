@@ -13,9 +13,14 @@ typedef int key_type;
 class MpiSimulatorChunk{
 public:
     void run_n_steps(int steps);
+
+    void add_operator(Operator* op);
+
     void add_vector_signal(key_type key, Vector* sig);
     void add_matrix_signal(key_type key, Matrix* sig);
-    void add_operator(Operator* op);
+
+    Vector* get_vector_signal(key_type key);
+    Matrix* get_matrix_signal(key_type key);
     
 public:
     void build();
