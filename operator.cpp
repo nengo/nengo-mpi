@@ -6,8 +6,7 @@
 Reset::Reset(Vector* dst, float value)
     :dst(dst), value(value), size(dst->size()){
 
-    dummy = scalar_vector<double>(size, value);
-
+    dummy = ScalarVector(size, value);
 }
 
 void Reset::operator() (){
@@ -15,10 +14,15 @@ void Reset::operator() (){
     (*dst) = dummy;
 
 #ifdef _DEBUG
-    std::cout << "After Reset:" << std::endl;
-    std::cout << "dst:" << std::endl;
-    std::cout << *dst << std::endl << std::endl;
+    cout << *this;
 #endif
+}
+
+ostream& operator << (ostream &out, const Reset &reset){
+    out << "After Reset:" << endl;
+    out << "dst:" << endl;
+    out << *(reset.dst) << endl << endl;
+    return out;
 }
 
 Copy::Copy(Vector* dst, Vector* src)
@@ -29,12 +33,17 @@ void Copy::operator() (){
     *dst = *src;
 
 #ifdef _DEBUG
-    std::cout << "After Copy:" << std::endl;
-    std::cout << "dst:" << std::endl;
-    std::cout << *dst << std::endl;
-    std::cout << "src:" << std::endl;
-    std::cout << *src << std::endl << std::endl;
+    cout << *this;
 #endif
+}
+
+ostream& operator << (ostream &out, const Copy &copy){
+    out << "Copy:" << endl;
+    out << "dst:" << endl;
+    out << *(copy.dst) << endl;
+    out << "src:" << endl;
+    out << *(copy.src) << endl << endl;
+    return out;
 }
 
 DotInc::DotInc(Matrix* A, Vector* X, Vector* Y)
@@ -44,14 +53,19 @@ void DotInc::operator() (){
     axpy_prod(*A, *X, *Y, false);
 
 #ifdef _DEBUG
-    std::cout << "After DotInc:" << std::endl;
-    std::cout << "A:" << std::endl;
-    std::cout << *A << std::endl;
-    std::cout << "X:" << std::endl;
-    std::cout << *X << std::endl;
-    std::cout << "Y:" << std::endl;
-    std::cout << *Y << std::endl << std::endl;
+    cout << *this;
 #endif
+}
+
+ostream& operator << (ostream &out, const DotInc &dot_inc){
+    out << "DotInc:" << endl;
+    out << "A:" << endl;
+    out << *(dot_inc.A) << endl;
+    out << "X:" << endl;
+    out << *(dot_inc.X) << endl;
+    out << "Y:" << endl;
+    out << *(dot_inc.Y) << endl << endl;
+    return out;
 }
 
 ProdUpdate::ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y)
@@ -62,6 +76,22 @@ void ProdUpdate::operator() (){
         (*Y)[i] *= (*B)[i];
     }
     axpy_prod(*A, *X, *Y, false);
+#ifdef _DEBUG
+    cout << *this;
+#endif
+}
+
+ostream& operator << (ostream &out, const ProdUpdate &prod_update){
+    out << "ProdUpdate:" << endl;
+    out << "A:" << endl;
+    out << *(prod_update.A) << endl;
+    out << "X:" << endl;
+    out << *(prod_update.X) << endl;
+    out << "B:" << endl;
+    out << *(prod_update.B) << endl << endl;
+    out << "Y:" << endl;
+    out << *(prod_update.Y) << endl << endl;
+    return out;
 }
 
 //// needs to set up temp and pyinput
@@ -75,23 +105,12 @@ void ProdUpdate::operator() (){
 
 SimLIF::SimLIF(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), dt_inv(1.0 / dt), J(J), output(output){
-    voltage = scalar_vector<double>(n_neurons, 0);
-    refractory_time = scalar_vector<double>(n_neurons, 0);
-    one = scalar_vector<double>(n_neurons, 1.0);
+    voltage = ScalarVector(n_neurons, 0);
+    refractory_time = ScalarVector(n_neurons, 0);
+    one = ScalarVector(n_neurons, 1.0);
     dt_vec = dt * one;
 }
 
-//Reference Python Math:
-//dV = (dt / self.tau_rc) * (J - voltage)
-//voltage += dV
-//voltage[voltage < 0] = 0  # clip values below zero
-//refractory_time -= dt
-//voltage *= (1 - refractory_time / dt).clip(0, 1)
-//output[:] = (voltage > 1)
-//overshoot = (voltage[output > 0] - 1) / dV[output > 0]
-//spiketime = dt * (1 - overshoot)
-//voltage[output > 0] = 0
-//refractory_time[output > 0] = self.tau_ref + spiketime
 void SimLIF::operator() (){
     dV = (dt / tau_rc) * (*J - voltage);
     voltage += dV;
@@ -122,17 +141,29 @@ void SimLIF::operator() (){
             (*output)[i] = 0;
         }
     }
+
+#ifdef _DEBUG
+    cout << *this;
+#endif
+}
+
+ostream& operator << (ostream &out, const SimLIF &sim_lif){
+    out << "SimLIF:" << endl;
+    out << "J:" << endl;
+    out << *(sim_lif.J) << endl;
+    out << "output:" << endl;
+    out << *(sim_lif.output) << endl;
+    out << "voltage:" << endl;
+    out << sim_lif.voltage << endl << endl;
+    out << "refractory_time:" << endl;
+    out << sim_lif.refractory_time << endl << endl;
+    return out;
 }
 
 SimLIFRate::SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
 }
 
-//Reference Python Math:
-//j = J - 1
-//output[:] = 0  # faster than output[j <= 0] = 0
-//output[j > 0] = dt / (
-//    self.tau_ref + self.tau_rc * np.log1p(1. / j[j > 0]))
 void SimLIFRate::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         if((*J)[i] > 0){
@@ -141,16 +172,45 @@ void SimLIFRate::operator() (){
             (*output)[i] = 0.0;
         }
     }
+
+#ifdef _DEBUG
+    cout << *this;
+#endif
+}
+
+ostream& operator << (ostream &out, const SimLIFRate &sim_lif_rate){
+    out << "SimLIFRate:" << endl;
+    out << "J:" << endl;
+    out << *(sim_lif_rate.J) << endl;
+    out << "output:" << endl;
+    out << *(sim_lif_rate.output) << endl;
+    return out;
 }
 
 MPISend::MPISend(){
 }
 
 void MPISend::operator() (){
+
+#ifdef _DEBUG
+    cout << *this;
+#endif
+}
+
+ostream& operator << (ostream &out, const MPISend &mpi_send){
+    return out;
 }
 
 MPIReceive::MPIReceive(){
 }
 
 void MPIReceive::operator() (){
+
+#ifdef _DEBUG
+    cout << *this;
+#endif
+}
+
+ostream& operator << (ostream &out, const MPIReceive &mpi_recv){
+    return out;
 }

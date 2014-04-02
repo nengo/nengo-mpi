@@ -8,9 +8,11 @@
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/io.hpp>
 
-using namespace boost::numeric::ublas;
+//using namespace boost::numeric::ublas;
+using namespace std;
 
 typedef boost::numeric::ublas::vector<double> Vector;
+typedef boost::numeric::ublas::scalar_vector<double> ScalarVector;
 typedef boost::numeric::ublas::matrix<double> Matrix;
 
 // Current implementation: Each Operator is essentially a closure.
@@ -30,6 +32,7 @@ class Reset: public Operator{
 public:
     Reset(Vector* dst, float value);
     void operator() ();
+    friend ostream& operator << (ostream &out, const Reset &reset);
 
 private:
     Vector* dst;
@@ -42,6 +45,7 @@ class Copy: public Operator{
 public:
     Copy(Vector* dst, Vector* src);
     void operator()();
+    friend ostream& operator << (ostream &out, const Copy &copy);
 
 private:
     Vector* dst;
@@ -53,6 +57,7 @@ class DotInc: public Operator{
 public:
     DotInc(Matrix* A, Vector* X, Vector* Y);
     void operator()();
+    friend ostream& operator << (ostream &out, const DotInc &dot_inc);
 
 private:
     Matrix* A;
@@ -65,6 +70,7 @@ class ProdUpdate: public Operator{
 public:
     ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y);
     void operator()();
+    friend ostream& operator << (ostream &out, const ProdUpdate &prod_update);
 
 private:
     Matrix* A;
@@ -84,6 +90,7 @@ class SimLIF: public Operator{
 public:
     SimLIF(int n_neuron, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);
     void operator()();
+    friend ostream& operator << (ostream &out, const SimLIF &sim_lif);
 
 private:
     const float dt;
@@ -109,6 +116,7 @@ class SimLIFRate: public Operator{
 public:
     SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);
     void operator()();
+    friend ostream& operator << (ostream &out, const SimLIFRate &sim_lif_rate);
 
 private:
     const float dt;
@@ -124,12 +132,14 @@ class MPISend: public Operator{
 public:
     MPISend();
     void operator()();
+    friend ostream& operator << (ostream &out, const MPISend &mpi_send);
 };
 
 class MPIReceive: public Operator{
 public:
     MPIReceive();
     void operator()();
+    friend ostream& operator << (ostream &out, const MPIReceive &mpi_recv);
 };
 
 #endif
