@@ -84,13 +84,13 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
     }
 }
 
-void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object val){
+void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){
     key_type dst_key = bpy::extract<key_type>(dst);
-    float value = bpy::extract<float>(val);
+    float c_value = bpy::extract<float>(value);
 
     Vector* dst_vec = mpi_sim_chunk.get_vector_signal(dst_key);
 
-    Operator* reset = new Reset(dst_vec, value);
+    Operator* reset = new Reset(dst_vec, c_value);
     mpi_sim_chunk.add_operator(reset);
 }
 
@@ -118,13 +118,57 @@ void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::o
     mpi_sim_chunk.add_operator(dot_inc);
 }
 
-void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y){}
+void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y){
+    key_type A_key = bpy::extract<key_type>(A);
+    key_type X_key = bpy::extract<key_type>(X);
+    key_type B_key = bpy::extract<key_type>(B);
+    key_type Y_key = bpy::extract<key_type>(Y);
 
-void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neuron, bpy::object tau_rc, 
-    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){}
+    Matrix* A_mat = mpi_sim_chunk.get_matrix_signal(A_key);
+    Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
+    Vector* B_vec = mpi_sim_chunk.get_vector_signal(B_key);
+    Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
+
+    Operator* prod_update = new ProdUpdate(A_mat, X_vec, B_vec, Y_vec);
+    mpi_sim_chunk.add_operator(prod_update);
+
+}
+
+void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object tau_rc, 
+    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){
+
+    int c_n_neurons = bpy::extract<int>(n_neurons);
+    float c_tau_rc = bpy::extract<float>(tau_rc);
+    float c_tau_ref = bpy::extract<float>(tau_ref);
+    float c_dt = bpy::extract<float>(dt);
+
+    key_type J_key = bpy::extract<key_type>(J);
+    key_type output_key = bpy::extract<key_type>(output);
+
+    Vector* J_vec = mpi_sim_chunk.get_vector_signal(J_key);
+    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+
+    Operator* sim_lif = new SimLIF(c_n_neurons, c_tau_rc, c_tau_ref, c_dt, J_vec, output_vec);
+    mpi_sim_chunk.add_operator(sim_lif);
+}
 
 void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc, 
-    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){}
+    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){
+
+    int c_n_neurons = bpy::extract<int>(n_neurons);
+    float c_tau_rc = bpy::extract<float>(tau_rc);
+    float c_tau_ref = bpy::extract<float>(tau_ref);
+    float c_dt = bpy::extract<float>(dt);
+
+    key_type J_key = bpy::extract<key_type>(J);
+    key_type output_key = bpy::extract<key_type>(output);
+
+    Vector* J_vec = mpi_sim_chunk.get_vector_signal(J_key);
+    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+
+    Operator* sim_lif_rate = new SimLIFRate(c_n_neurons, c_tau_rc, c_tau_ref, c_dt, J_vec, output_vec);
+    mpi_sim_chunk.add_operator(sim_lif_rate);
+}
 
 void PythonMpiSimulatorChunk::create_MPISend(){}
 
