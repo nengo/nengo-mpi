@@ -174,42 +174,75 @@ void PythonMpiSimulatorChunk::create_MPISend(){}
 
 void PythonMpiSimulatorChunk::create_MPIReceive(){}
 
-void PythonMpiSimulatorChunk::create_PyFunc(bpy::object output, bpy::object py_fn, 
-    bpy::object t_in, bpy::object input){
+void PythonMpiSimulatorChunk::create_PyFunc(bpy::object output, bpy::object py_fn, bpy::object t_in){
+    bool c_t_in = bpy::extract<bool>(t_in);
+
+    key_type output_key = bpy::extract<key_type>(output);
+
+    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+
+    Operator* sim_py_func = new PyFunc(output_vec, py_fn, c_t_in);
+    mpi_sim_chunk.add_operator(sim_py_func);
+}
+
+void PythonMpiSimulatorChunk::create_PyFuncWithInput(bpy::object output, bpy::object py_fn, 
+    bpy::object t_in, bpy::object input, bpyn::array py_input){
 
     bool c_t_in = bpy::extract<bool>(t_in);
 
     key_type output_key = bpy::extract<key_type>(output);
-    key_type input_key = bpy::extract<key_type>(output);
-
-    bool use_input = input_key != -1;
+    key_type input_key = bpy::extract<key_type>(input);
 
     Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+    Vector* input_vec = mpi_sim_chunk.get_vector_signal(input_key);
 
-    Vector* input_vec;
-    if (use_input){
-        input_vec = mpi_sim_chunk.get_vector_signal(input_key);
-    }
-
-    Operator* sim_py_func = new PyFunc(output_vec, py_fn, c_t_in, input_vec);
+    Operator* sim_py_func = new PyFunc(output_vec, py_fn, c_t_in, input_vec, py_input);
     mpi_sim_chunk.add_operator(sim_py_func);
 }
 
-//PyFunc::PyFunc(Vector* output, bpy::object py_fn, bpy::object t_in)
-//    :output(output), py_fn(py_fn), supply_time(t_in), supply_input(false), input(NULL){
-//}
 
-PyFunc::PyFunc(Vector* output, bpy::object py_fn, bool t_in, Vector* input)
-    :output(output), py_fn(py_fn), supply_time(t_in), supply_input(input!=NULL), input(input){
+
+
+
+
+PyFunc::PyFunc(Vector* output, bpy::object py_fn, bool t_in)
+    :output(output), py_fn(py_fn), supply_time(t_in), supply_input(false), 
+	input(NULL), py_input(0.0){
+}
+
+PyFunc::PyFunc(Vector* output, bpy::object py_fn, bool t_in, Vector* input, bpyn::array py_input)
+    :output(output), py_fn(py_fn), supply_time(t_in), supply_input(true), 
+    input(input), py_input(py_input){
 }
 
 void PyFunc::operator() (){
-    //If supplying time, convert time signal to python objectr
-    //If supplying input, convert input signal to python object
-    //Call py_fn
-    //Store result in output
+    
+    bpy::object py_output;
+    if(supply_input){
+        for(unsigned i = 0; i < input->size(); ++i){
+            py_input[i] = (*input)[i];
+        }
+
+        py_output = py_fn(py_input);
+    }else{
+        py_output = py_fn();
+    }
+
+    for(unsigned i = 0; i < output->size(); ++i){
+        (*output)[i] = bpy::extract<float>(py_output[i]);
+    }
+
+#ifdef _DEBUG
+    cout << *this;
+#endif
 }
 
+ostream& operator << (ostream &out, const PyFunc &py_func){
+    out << "PyFunc: " << endl;
+    out << "Output: " << endl;
+    out << *(py_func.output) << endl << endl;
+    return out;
+}
 
 BOOST_PYTHON_MODULE(nengo_mpi)
 {
@@ -225,6 +258,7 @@ BOOST_PYTHON_MODULE(nengo_mpi)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)
         .def("create_MPIReceive", &PythonMpiSimulatorChunk::create_MPIReceive)
-        .def("create_PyFunc", &PythonMpiSimulatorChunk::create_PyFunc);
+        .def("create_PyFunc", &PythonMpiSimulatorChunk::create_PyFunc)
+        .def("create_PyFuncWithInput", &PythonMpiSimulatorChunk::create_PyFuncWithInput);
 }
 
