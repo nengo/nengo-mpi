@@ -69,6 +69,14 @@ Matrix* ndarray_to_matrix(bpyn::array a){
     return ret;
 }
 
+
+PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(){
+}
+
+PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(double dt)
+    :mpi_sim_chunk(dt){
+}
+
 void PythonMpiSimulatorChunk::run_n_steps(bpy::object pysteps){
     int steps = bpy::extract<int>(pysteps);
     mpi_sim_chunk.run_n_steps(steps);
@@ -256,7 +264,8 @@ ostream& operator << (ostream &out, const PyFunc &py_func){
 BOOST_PYTHON_MODULE(nengo_mpi)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
-    bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk")
+    bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk", bpy::init<>())
+        .def(bpy::init<double>())
         .def("run_n_steps", &PythonMpiSimulatorChunk::run_n_steps)
         .def("add_signal", &PythonMpiSimulatorChunk::add_signal)
         .def("create_Reset", &PythonMpiSimulatorChunk::create_Reset)

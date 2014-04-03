@@ -1,7 +1,7 @@
 import nengo_mpi
 import numpy as np
 
-x = nengo_mpi.PythonMpiSimulatorChunk()
+x = nengo_mpi.PythonMpiSimulatorChunk(0.002)
 y = np.array(np.arange(10.0))
 w = np.array(np.arange(10.0) + 1)
 a = np.array(np.arange(5.0))
