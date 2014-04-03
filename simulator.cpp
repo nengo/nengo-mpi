@@ -36,11 +36,23 @@ void MpiSimulatorChunk::add_matrix_signal(key_type key, Matrix* sig){
 }
 
 Vector* MpiSimulatorChunk::get_vector_signal(key_type key){
-    return vector_signal_map[key];
+    try{
+        Vector* vec = vector_signal_map.at(key);
+        return vec;
+    }catch(const out_of_range& e){
+        cerr << "Error accessing MpiSimulatorChunk :: vector signal with key " << key << endl;
+        throw e;
+    }
 }
 
 Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
-    return matrix_signal_map[key];
+    try{
+        Matrix* mat = matrix_signal_map.at(key);
+        return mat;
+    }catch(const out_of_range& e){
+        cerr << "Error accessing MpiSimulatorChunk matrix signal with key " << key << endl;
+        throw e;
+    }
 }
 
 MpiSimulator::MpiSimulator(MpiSimulatorChunk* chunks){
