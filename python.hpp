@@ -50,14 +50,16 @@ private:
 
 class PyFunc: public Operator{
 public:
-    PyFunc(Vector* output, bpy::object py_fn, bool t_in);
-    PyFunc(Vector* output, bpy::object py_fn, bool t_in, Vector* input, bpyn::array py_input);
+    PyFunc(Vector* output, bpy::object py_fn, double* t_in);
+    PyFunc(Vector* output, bpy::object py_fn, double* t_in, Vector* input, bpyn::array py_input);
     void operator()();
     friend ostream& operator << (ostream &out, const PyFunc &py_func);
 
 private:
     Vector* output;
     Vector* input;
+
+    double* time;
 
     bpy::object py_fn;
     bpyn::array py_input;

@@ -181,7 +181,9 @@ void PythonMpiSimulatorChunk::create_PyFunc(bpy::object output, bpy::object py_f
 
     Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
 
-    Operator* sim_py_func = new PyFunc(output_vec, py_fn, c_t_in);
+    double* time_pointer = c_t_in ? mpi_sim_chunk.get_time_pointer() : NULL;
+
+    Operator* sim_py_func = new PyFunc(output_vec, py_fn, time_pointer);
     mpi_sim_chunk.add_operator(sim_py_func);
 }
 
@@ -196,22 +198,21 @@ void PythonMpiSimulatorChunk::create_PyFuncWithInput(bpy::object output, bpy::ob
     Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
     Vector* input_vec = mpi_sim_chunk.get_vector_signal(input_key);
 
-    Operator* sim_py_func = new PyFunc(output_vec, py_fn, c_t_in, input_vec, py_input);
+    double* time_pointer = c_t_in ? mpi_sim_chunk.get_time_pointer() : NULL;
+
+    Operator* sim_py_func = new PyFunc(output_vec, py_fn, time_pointer, input_vec, py_input);
     mpi_sim_chunk.add_operator(sim_py_func);
 }
 
 
 
-
-
-
-PyFunc::PyFunc(Vector* output, bpy::object py_fn, bool t_in)
-    :output(output), py_fn(py_fn), supply_time(t_in), supply_input(false), 
+PyFunc::PyFunc(Vector* output, bpy::object py_fn, double* time)
+    :output(output), py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false), 
 	input(NULL), py_input(0.0){
 }
 
-PyFunc::PyFunc(Vector* output, bpy::object py_fn, bool t_in, Vector* input, bpyn::array py_input)
-    :output(output), py_fn(py_fn), supply_time(t_in), supply_input(true), 
+PyFunc::PyFunc(Vector* output, bpy::object py_fn, double* time, Vector* input, bpyn::array py_input)
+    :output(output), py_fn(py_fn),  time(time), supply_time(time!=NULL), supply_input(true), 
     input(input), py_input(py_input){
 }
 
@@ -223,9 +224,17 @@ void PyFunc::operator() (){
             py_input[i] = (*input)[i];
         }
 
-        py_output = py_fn(py_input);
+        if(supply_time){
+            py_output = py_fn(*time, py_input);
+        }else{
+            py_output = py_fn(py_input);
+        }
     }else{
-        py_output = py_fn();
+        if(supply_time){
+            py_output = py_fn(*time);
+        }else{
+            py_output = py_fn();
+        }
     }
 
     for(unsigned i = 0; i < output->size(); ++i){

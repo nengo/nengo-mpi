@@ -2,6 +2,14 @@
 #include "operator.hpp"
 #include "simulator.hpp"
 
+MpiSimulatorChunk::MpiSimulatorChunk()
+    :time(0.0), dt(0.001) {
+}
+
+MpiSimulatorChunk::MpiSimulatorChunk(double dt)
+    :time(0.0), dt(dt) {
+}
+
 void MpiSimulatorChunk::run_n_steps(int steps){
     for(unsigned step = 0; step < steps; ++step){
         std::list<Operator*>::const_iterator it; 
@@ -9,6 +17,8 @@ void MpiSimulatorChunk::run_n_steps(int steps){
             //Call the operator
             (**it)();
         }
+
+        time += dt;
     }
 }
 
@@ -31,9 +41,6 @@ Vector* MpiSimulatorChunk::get_vector_signal(key_type key){
 
 Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
     return matrix_signal_map[key];
-}
-
-void MpiSimulatorChunk::build(){
 }
 
 MpiSimulator::MpiSimulator(MpiSimulatorChunk* chunks){
