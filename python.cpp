@@ -175,27 +175,39 @@ void PythonMpiSimulatorChunk::create_MPISend(){}
 void PythonMpiSimulatorChunk::create_MPIReceive(){}
 
 void PythonMpiSimulatorChunk::create_PyFunc(bpy::object output, bpy::object py_fn, 
-    bpy::object use_time, bpy::object input){
+    bpy::object t_in, bpy::object input){
+
+    bool c_t_in = bpy::extract<bool>(t_in);
 
     key_type output_key = bpy::extract<key_type>(output);
     key_type input_key = bpy::extract<key_type>(output);
 
+    bool use_input = input_key != -1;
+
     Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
 
-    Operator* sim_py_func = new PyFunc(output_vec, py_fn, use_time);
+    Vector* input_vec;
+    if (use_input){
+        input_vec = mpi_sim_chunk.get_vector_signal(input_key);
+    }
+
+    Operator* sim_py_func = new PyFunc(output_vec, py_fn, c_t_in, input_vec);
     mpi_sim_chunk.add_operator(sim_py_func);
 }
 
-PyFunc::PyFunc(Vector* output, bpy::object py_fn, bpy::object t_in){
+//PyFunc::PyFunc(Vector* output, bpy::object py_fn, bpy::object t_in)
+//    :output(output), py_fn(py_fn), supply_time(t_in), supply_input(false), input(NULL){
+//}
+
+PyFunc::PyFunc(Vector* output, bpy::object py_fn, bool t_in, Vector* input)
+    :output(output), py_fn(py_fn), supply_time(t_in), supply_input(input!=NULL), input(input){
 }
 
-PyFunc::PyFunc(bpy::object output, bpy::object py_fn, bpy::object t_in, bpy::array input){
-}
-
-void PyFunc::operator(){
-    py_input = boost::python::extract<float>(input);
-    temp = boost::python::extract<float>(py_fn(py_time, py_input));
-    vector_assignment(output, temp);
+void PyFunc::operator() (){
+    //If supplying time, convert time signal to python objectr
+    //If supplying input, convert input signal to python object
+    //Call py_fn
+    //Store result in output
 }
 
 
@@ -212,6 +224,7 @@ BOOST_PYTHON_MODULE(nengo_mpi)
         .def("create_SimLIF", &PythonMpiSimulatorChunk::create_SimLIF)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)
-        .def("create_MPIReceive", &PythonMpiSimulatorChunk::create_MPIReceive);
+        .def("create_MPIReceive", &PythonMpiSimulatorChunk::create_MPIReceive)
+        .def("create_PyFunc", &PythonMpiSimulatorChunk::create_PyFunc);
 }
 

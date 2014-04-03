@@ -1,16 +1,10 @@
 #ifndef NENGO_MPI_OPERATOR_HPP
 #define NENGO_MPI_OPERATOR_HPP
 
-//
-//#include <boost/python.hpp>
-
 #include <boost/numeric/ublas/vector.hpp>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/io.hpp>
 
-#include "python.hpp"
-
-//using namespace boost::numeric::ublas;
 using namespace std;
 
 typedef boost::numeric::ublas::vector<double> Vector;
