@@ -22,13 +22,15 @@ typedef boost::numeric::ublas::matrix<double> Matrix;
 class Operator{
 public:
     virtual void operator() () = 0;
+    virtual void print(ostream &out) const = 0;
+    friend ostream& operator << (ostream &out, const Operator &op);
 };
 
 class Reset: public Operator{
 public:
     Reset(Vector* dst, float value);
     void operator() ();
-    friend ostream& operator << (ostream &out, const Reset &reset);
+    virtual void print(ostream &out) const;
 
 private:
     Vector* dst;
@@ -41,7 +43,7 @@ class Copy: public Operator{
 public:
     Copy(Vector* dst, Vector* src);
     void operator()();
-    friend ostream& operator << (ostream &out, const Copy &copy);
+    virtual void print(ostream &out) const;
 
 private:
     Vector* dst;
@@ -53,7 +55,7 @@ class DotInc: public Operator{
 public:
     DotInc(Matrix* A, Vector* X, Vector* Y);
     void operator()();
-    friend ostream& operator << (ostream &out, const DotInc &dot_inc);
+    virtual void print(ostream &out) const;
 
 private:
     Matrix* A;
@@ -66,7 +68,7 @@ class ProdUpdate: public Operator{
 public:
     ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y);
     void operator()();
-    friend ostream& operator << (ostream &out, const ProdUpdate &prod_update);
+    virtual void print(ostream &out) const;
 
 private:
     Matrix* A;
@@ -80,7 +82,7 @@ class SimLIF: public Operator{
 public:
     SimLIF(int n_neuron, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);
     void operator()();
-    friend ostream& operator << (ostream &out, const SimLIF &sim_lif);
+    virtual void print(ostream &out) const;
 
 private:
     const float dt;
@@ -106,7 +108,7 @@ class SimLIFRate: public Operator{
 public:
     SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);
     void operator()();
-    friend ostream& operator << (ostream &out, const SimLIFRate &sim_lif_rate);
+    virtual void print(ostream &out) const;
 
 private:
     const float dt;
@@ -122,14 +124,14 @@ class MPISend: public Operator{
 public:
     MPISend();
     void operator()();
-    friend ostream& operator << (ostream &out, const MPISend &mpi_send);
+    virtual void print(ostream &out) const;
 };
 
 class MPIReceive: public Operator{
 public:
     MPIReceive();
     void operator()();
-    friend ostream& operator << (ostream &out, const MPIReceive &mpi_recv);
+    virtual void print(ostream &out) const;
 };
 
 #endif

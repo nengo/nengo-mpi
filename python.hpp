@@ -56,7 +56,7 @@ public:
     PyFunc(Vector* output, bpy::object py_fn, double* t_in);
     PyFunc(Vector* output, bpy::object py_fn, double* t_in, Vector* input, bpyn::array py_input);
     void operator()();
-    friend ostream& operator << (ostream &out, const PyFunc &py_func);
+    virtual void print(ostream &out) const;
 
 private:
     Vector* output;

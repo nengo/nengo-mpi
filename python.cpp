@@ -254,11 +254,10 @@ void PyFunc::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const PyFunc &py_func){
+void PyFunc::print(ostream &out) const{
     out << "PyFunc: " << endl;
     out << "Output: " << endl;
-    out << *(py_func.output) << endl << endl;
-    return out;
+    out << *output << endl << endl;
 }
 
 BOOST_PYTHON_MODULE(nengo_mpi)

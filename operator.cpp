@@ -3,6 +3,11 @@
 
 #include "operator.hpp"
 
+ostream& operator << (ostream &out, const Operator &op){
+    op.print(out);
+    return out;
+}
+
 Reset::Reset(Vector* dst, float value)
     :dst(dst), value(value), size(dst->size()){
 
@@ -18,11 +23,10 @@ void Reset::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const Reset &reset){
-    out << "After Reset:" << endl;
+void Reset::print(ostream &out) const {
+    out << "Reset:" << endl;
     out << "dst:" << endl;
-    out << *(reset.dst) << endl << endl;
-    return out;
+    out << *dst << endl << endl;
 }
 
 Copy::Copy(Vector* dst, Vector* src)
@@ -37,13 +41,12 @@ void Copy::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const Copy &copy){
+void Copy::print(ostream &out) const  {
     out << "Copy:" << endl;
     out << "dst:" << endl;
-    out << *(copy.dst) << endl;
+    out << *dst << endl;
     out << "src:" << endl;
-    out << *(copy.src) << endl << endl;
-    return out;
+    out << *src << endl << endl;
 }
 
 DotInc::DotInc(Matrix* A, Vector* X, Vector* Y)
@@ -57,15 +60,14 @@ void DotInc::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const DotInc &dot_inc){
+void DotInc::print(ostream &out) const{
     out << "DotInc:" << endl;
     out << "A:" << endl;
-    out << *(dot_inc.A) << endl;
+    out << *A << endl;
     out << "X:" << endl;
-    out << *(dot_inc.X) << endl;
+    out << *X << endl;
     out << "Y:" << endl;
-    out << *(dot_inc.Y) << endl << endl;
-    return out;
+    out << *Y << endl << endl;
 }
 
 ProdUpdate::ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y)
@@ -82,17 +84,16 @@ void ProdUpdate::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const ProdUpdate &prod_update){
+void ProdUpdate::print(ostream &out) const{
     out << "ProdUpdate:" << endl;
     out << "A:" << endl;
-    out << *(prod_update.A) << endl;
+    out << *A << endl;
     out << "X:" << endl;
-    out << *(prod_update.X) << endl;
+    out << *X << endl;
     out << "B:" << endl;
-    out << *(prod_update.B) << endl << endl;
+    out << *B << endl;
     out << "Y:" << endl;
-    out << *(prod_update.Y) << endl << endl;
-    return out;
+    out << *Y << endl << endl;
 }
 
 SimLIF::SimLIF(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output)
@@ -104,7 +105,7 @@ SimLIF::SimLIF(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, 
 }
 
 void SimLIF::operator() (){
-    dV = (dt / tau_rc) * (*J - voltage);
+    dV = (dt / tau_rc) * ((*J) - voltage);
     voltage += dV;
     for(unsigned i = 0; i < n_neurons; ++i){
         voltage[i] = voltage[i] < 0 ? 0 : voltage[i];
@@ -139,17 +140,16 @@ void SimLIF::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const SimLIF &sim_lif){
+void SimLIF::print(ostream &out) const{
     out << "SimLIF:" << endl;
     out << "J:" << endl;
-    out << *(sim_lif.J) << endl;
+    out << *J << endl;
     out << "output:" << endl;
-    out << *(sim_lif.output) << endl;
+    out << *output << endl;
     out << "voltage:" << endl;
-    out << sim_lif.voltage << endl << endl;
+    out << voltage << endl << endl;
     out << "refractory_time:" << endl;
-    out << sim_lif.refractory_time << endl << endl;
-    return out;
+    out << refractory_time << endl << endl;
 }
 
 SimLIFRate::SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output)
@@ -170,13 +170,12 @@ void SimLIFRate::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const SimLIFRate &sim_lif_rate){
+void SimLIFRate::print(ostream &out) const{
     out << "SimLIFRate:" << endl;
     out << "J:" << endl;
-    out << *(sim_lif_rate.J) << endl;
+    out << *J << endl;
     out << "output:" << endl;
-    out << *(sim_lif_rate.output) << endl;
-    return out;
+    out << *output << endl;
 }
 
 MPISend::MPISend(){
@@ -189,8 +188,7 @@ void MPISend::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const MPISend &mpi_send){
-    return out;
+void MPISend::print(ostream &out) const{
 }
 
 MPIReceive::MPIReceive(){
@@ -203,6 +201,5 @@ void MPIReceive::operator() (){
 #endif
 }
 
-ostream& operator << (ostream &out, const MPIReceive &mpi_recv){
-    return out;
+void MPIReceive::print(ostream &out) const{
 }
