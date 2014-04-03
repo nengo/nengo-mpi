@@ -37,8 +37,28 @@ public:
 
     void create_MPIReceive();
 
+    void create_PyFunc();
+
 private:
     MpiSimulatorChunk mpi_sim_chunk;
+};
+
+class PyFunc: public Operator{
+public:
+    // output here is a key to a signal. as is input, if its supplied
+    PyFunc(bpy::object output, bpy::object py_fn, bpy::object supply_time);
+    PyFunc(bpy::object output, bpy::object py_fn, bpy::object supply_time, bpy::object input);
+    void operator()();
+
+private:
+    Vector* output;
+    Vector* input;
+
+    bpy::object py_fn;
+    bpy::object
+    bool supply_time;
+    bool supply_input;
+    bpyn::array input;
 };
 
 #endif

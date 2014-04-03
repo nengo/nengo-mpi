@@ -8,6 +8,8 @@
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/io.hpp>
 
+#include "python.hpp"
+
 //using namespace boost::numeric::ublas;
 using namespace std;
 
@@ -79,12 +81,6 @@ private:
     Vector* Y;
     int size;
 };
-
-//class PyFunc: public Operator{
-//public:
-//    PyFunc(Vector* output, boost::python::object fn, Vector* time, Vector* input);
-//    void operator()();
-//};
 
 class SimLIF: public Operator{
 public:

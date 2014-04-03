@@ -76,6 +76,7 @@ void ProdUpdate::operator() (){
         (*Y)[i] *= (*B)[i];
     }
     axpy_prod(*A, *X, *Y, false);
+
 #ifdef _DEBUG
     cout << *this;
 #endif
@@ -93,15 +94,6 @@ ostream& operator << (ostream &out, const ProdUpdate &prod_update){
     out << *(prod_update.Y) << endl << endl;
     return out;
 }
-
-//// needs to set up temp and pyinput
-//// might be able to skip temp and directly extract to output
-//PyFunc(Vector* output, boost::python::object py_fn, boost::python::object py_time, Vector* input);
-//void PyFunc::operator(){
-//    py_input = boost::python::extract<float>(input);
-//    temp = boost::python::extract<float>(py_fn(py_time, py_input));
-//    vector_assignment(output, temp);
-//}
 
 SimLIF::SimLIF(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), dt_inv(1.0 / dt), J(J), output(output){
