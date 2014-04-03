@@ -1,6 +1,12 @@
 #simulator.py
 
 from nengo import builder
+from nengo.builder import Builder
+from nengo.simulator import SignalDict
+from nengo.utils.graphs import toposort
+from nengo.utils.simulator import operator_depencency_graph
+
+import numpy as np
 import nengo_mpi
 
 class Simulator(object):
@@ -28,10 +34,13 @@ class Simulator(object):
 
     def _init_mpi(self):
 
-        self.mpi_sim = nengo_mpi.PythonMpiSimulatorChunk()
-        #self.mpi_sim = nengo_mpi.PythonMpiSimulatorChunk(self.dt)
+        self.mpi_sim = nengo_mpi.PythonMpiSimulatorChunk(self.dt)
 
         for sig, numpy_array in self.signals.items():
+            print sig
+            print numpy_array
+            if not numpy_array.shape:
+                numpy_array = np.array([numpy_array])
             self.mpi_sim.add_signal(id(sig), numpy_array)
 
         for op in self._step_order:
@@ -63,8 +72,18 @@ class Simulator(object):
                 self.mpi_sim.create_SimLIFRate(n_neurons, 
                         tau_rc, tau_ref, self.dt, id(op.J), id(op.output))
 
+            elif op_type == builder.SimPyFunc:
+                t_in = op.t_in
+                fn = op.fn
+                x = op.x
+
+                if x is None:
+                    self.mpi_sim.create_PyFunc(id(op.output), fn, t_in)
+                else:
+                    self.mpi_sim.create_PyFuncWithInput(id(op.output), fn, t_in, id(x), x)
+
             else:
-                raise NotImplementedError('NengoMPI cannot handle this operator')
+                raise NotImplementedError('nengo_mpi cannot handle operator of type ' + str(op_type))
 
     def step(self):
         """Advance the simulator by `self.dt` seconds.
@@ -76,13 +95,11 @@ class Simulator(object):
     def run(self, time_in_seconds):
         """Simulate for the given length of time."""
         steps = int(np.round(float(time_in_seconds) / self.dt))
-        logger.debug("Running %s for %f seconds, or %d steps",
-                     self.model.label, time_in_seconds, steps)
         self.run_steps(steps)
 
     def run_steps(self, steps):
         """Simulate for the given number of `dt` steps."""
-        self.mpi_sim.run_n_steps(1)
+        self.mpi_sim.run_n_steps(steps)
 
         self.n_steps += steps
 
