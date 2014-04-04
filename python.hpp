@@ -32,6 +32,8 @@ public:
 
     void create_ProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y);
 
+    void create_ScalarProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y);
+
     void create_SimLIF(bpy::object n_neurons, bpy::object tau_rc, 
                     bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output);
 

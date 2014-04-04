@@ -78,6 +78,20 @@ private:
     int size;
 };
 
+class ScalarProdUpdate: public Operator{
+public:
+    ScalarProdUpdate(Vector* A, Vector* X, Vector* B, Vector* Y);
+    void operator()();
+    virtual void print(ostream &out) const;
+
+protected:
+    Vector* A;
+    Vector* X;
+    Vector* B;
+    Vector* Y;
+    int size;
+};
+
 class SimLIF: public Operator{
 public:
     SimLIF(int n_neuron, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);

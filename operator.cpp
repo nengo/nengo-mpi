@@ -96,6 +96,35 @@ void ProdUpdate::print(ostream &out) const{
     out << *Y << endl << endl;
 }
 
+ScalarProdUpdate::ScalarProdUpdate(Vector* A, Vector* X, Vector* B, Vector* Y)
+    :A(A), X(X), B(B), Y(Y), size(Y->size()){}
+
+void ScalarProdUpdate::operator() (){
+    for (unsigned i = 0; i < size; ++i){
+        (*Y)[i] *= (*B)[i];
+    }
+
+    for (unsigned i = 0; i < size; ++i){
+        (*Y)[i] += (*A)[0] * (*B)[i];
+    }
+
+#ifdef _DEBUG
+    cout << *this;
+#endif
+}
+
+void ScalarProdUpdate::print(ostream &out) const{
+    out << "ScalarProdUpdate:" << endl;
+    out << "A:" << endl;
+    out << *A << endl;
+    out << "X:" << endl;
+    out << *X << endl;
+    out << "B:" << endl;
+    out << *B << endl;
+    out << "Y:" << endl;
+    out << *Y << endl << endl;
+}
+
 SimLIF::SimLIF(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), dt_inv(1.0 / dt), J(J), output(output){
     voltage = ScalarVector(n_neurons, 0);

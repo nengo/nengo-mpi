@@ -56,7 +56,10 @@ class Simulator(object):
                 self.mpi_sim.create_DotInc(id(op.A), id(op.X), id(op.Y))
 
             elif op_type == builder.ProdUpdate:
-                self.mpi_sim.create_ProdUpdate(id(op.A), id(op.X), id(op.B), id(op.Y))
+                if op.A.shape == ():
+                    self.mpi_sim.create_ScalarProdUpdate(id(op.A), id(op.X), id(op.B), id(op.Y))
+                else:
+                    self.mpi_sim.create_ProdUpdate(id(op.A), id(op.X), id(op.B), id(op.Y))
 
             elif op_type == builder.SimLIF:
                 n_neurons = op.nl.n_neurons
