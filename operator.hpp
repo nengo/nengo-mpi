@@ -32,7 +32,7 @@ public:
     void operator() ();
     virtual void print(ostream &out) const;
 
-private:
+protected:
     Vector* dst;
     Vector dummy;
     float value;
@@ -45,7 +45,7 @@ public:
     void operator()();
     virtual void print(ostream &out) const;
 
-private:
+protected:
     Vector* dst;
     Vector* src;
 };
@@ -57,7 +57,7 @@ public:
     void operator()();
     virtual void print(ostream &out) const;
 
-private:
+protected:
     Matrix* A;
     Vector* X;
     Vector* Y;
@@ -70,7 +70,7 @@ public:
     void operator()();
     virtual void print(ostream &out) const;
 
-private:
+protected:
     Matrix* A;
     Vector* X;
     Vector* B;
@@ -98,7 +98,7 @@ public:
     void operator()();
     virtual void print(ostream &out) const;
 
-private:
+protected:
     const float dt;
     const float dt_inv;
     const float tau_rc;
@@ -124,7 +124,7 @@ public:
     void operator()();
     virtual void print(ostream &out) const;
 
-private:
+protected:
     const float dt;
     const float tau_rc;
     const float tau_ref;
