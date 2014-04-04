@@ -50,7 +50,7 @@ void Copy::print(ostream &out) const  {
 }
 
 DotInc::DotInc(Matrix* A, Vector* X, Vector* Y)
-    :A(A), X(X), Y(Y){}
+    :A(A), X(X), Y(Y), size(Y->size()){}
 
 void DotInc::operator() (){
     axpy_prod(*A, *X, *Y, false);
@@ -62,6 +62,29 @@ void DotInc::operator() (){
 
 void DotInc::print(ostream &out) const{
     out << "DotInc:" << endl;
+    out << "A:" << endl;
+    out << *A << endl;
+    out << "X:" << endl;
+    out << *X << endl;
+    out << "Y:" << endl;
+    out << *Y << endl << endl;
+}
+
+ScalarDotInc::ScalarDotInc(Vector* A, Vector* X, Vector* Y)
+    :A(A), X(X), Y(Y), size(Y->size()){}
+
+void ScalarDotInc::operator() (){
+    for (unsigned i = 0; i < size; ++i){
+        (*Y)[i] += (*A)[0] * (*X)[i];
+    }
+
+#ifdef _DEBUG
+    cout << *this;
+#endif
+}
+
+void ScalarDotInc::print(ostream &out) const{
+    out << "ScalarDotInc:" << endl;
     out << "A:" << endl;
     out << *A << endl;
     out << "X:" << endl;
@@ -105,7 +128,7 @@ void ScalarProdUpdate::operator() (){
     }
 
     for (unsigned i = 0; i < size; ++i){
-        (*Y)[i] += (*A)[0] * (*B)[i];
+        (*Y)[i] += (*A)[0] * (*X)[i];
     }
 
 #ifdef _DEBUG

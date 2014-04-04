@@ -61,6 +61,21 @@ protected:
     Matrix* A;
     Vector* X;
     Vector* Y;
+    int size;
+};
+
+// Increment signal Y by dot(A,X)
+class ScalarDotInc: public Operator{
+public:
+    ScalarDotInc(Vector* A, Vector* X, Vector* Y);
+    void operator()();
+    virtual void print(ostream &out) const;
+
+protected:
+    Vector* A;
+    Vector* X;
+    Vector* Y;
+    int size;
 };
 
 // Sets Y <- dot(A, X) + B * Y

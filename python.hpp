@@ -30,6 +30,8 @@ public:
 
     void create_DotInc(bpy::object A, bpy::object X, bpy::object Y);
 
+    void create_ScalarDotInc(bpy::object A, bpy::object X, bpy::object Y);
+
     void create_ProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y);
 
     void create_ScalarProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y);

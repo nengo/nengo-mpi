@@ -126,6 +126,19 @@ void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::o
     mpi_sim_chunk.add_operator(dot_inc);
 }
 
+void PythonMpiSimulatorChunk::create_ScalarDotInc(bpy::object A, bpy::object X, bpy::object Y){
+    key_type A_key = bpy::extract<key_type>(A);
+    key_type X_key = bpy::extract<key_type>(X);
+    key_type Y_key = bpy::extract<key_type>(Y);
+
+    Vector* A_scalar = mpi_sim_chunk.get_vector_signal(A_key);
+    Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
+    Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
+
+    Operator* dot_inc = new ScalarDotInc(A_scalar, X_vec, Y_vec);
+    mpi_sim_chunk.add_operator(dot_inc);
+}
+
 void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y){
     key_type A_key = bpy::extract<key_type>(A);
     key_type X_key = bpy::extract<key_type>(X);
@@ -147,12 +160,12 @@ void PythonMpiSimulatorChunk::create_ScalarProdUpdate(bpy::object A, bpy::object
     key_type B_key = bpy::extract<key_type>(B);
     key_type Y_key = bpy::extract<key_type>(Y);
 
-    Vector* A_vec = mpi_sim_chunk.get_vector_signal(A_key);
+    Vector* A_scalar = mpi_sim_chunk.get_vector_signal(A_key);
     Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
     Vector* B_vec = mpi_sim_chunk.get_vector_signal(B_key);
     Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
 
-    Operator* scalar_prod_update = new ScalarProdUpdate(A_vec, X_vec, B_vec, Y_vec);
+    Operator* scalar_prod_update = new ScalarProdUpdate(A_scalar, X_vec, B_vec, Y_vec);
     mpi_sim_chunk.add_operator(scalar_prod_update);
 }
 
@@ -288,6 +301,7 @@ BOOST_PYTHON_MODULE(nengo_mpi)
         .def("create_Reset", &PythonMpiSimulatorChunk::create_Reset)
         .def("create_Copy", &PythonMpiSimulatorChunk::create_Copy)
         .def("create_DotInc", &PythonMpiSimulatorChunk::create_DotInc)
+        .def("create_ScalarDotInc", &PythonMpiSimulatorChunk::create_ScalarDotInc)
         .def("create_ProdUpdate", &PythonMpiSimulatorChunk::create_ProdUpdate)
         .def("create_ScalarProdUpdate", &PythonMpiSimulatorChunk::create_ScalarProdUpdate)
         .def("create_SimLIF", &PythonMpiSimulatorChunk::create_SimLIF)

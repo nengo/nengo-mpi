@@ -2,12 +2,35 @@
 
 from nengo import builder
 from nengo.builder import Builder
-from nengo.simulator import SignalDict
+from nengo.simulator import SignalDict, ProbeDict
 from nengo.utils.graphs import toposort
 from nengo.utils.simulator import operator_depencency_graph
 
 import numpy as np
 import nengo_mpi
+
+#from __future__ import print_function
+#import logging
+#logger = logging.getLogger(__name__)
+
+
+class MPIProbeDict(ProbeDict):
+    """Map from Probe -> ndarray
+
+    This is more like a view on the dict that the simulator manipulates.
+    However, for speed reasons, the simulator uses Python lists,
+    and we want to return NumPy arrays. Additionally, this mapping
+    is readonly, which is more appropriate for its purpose.
+    """
+
+    def __init__(self, raw, mpi_sim):
+        self.raw = raw
+        self.mpi_sim = mpi_sim
+
+    def update(self):
+        """Populate self.raw based on self.mpi_sim"""
+        pass
+
 
 class Simulator(object):
     """MPI simulator for models."""
@@ -57,7 +80,10 @@ class Simulator(object):
                 self.mpi_sim.create_Copy(id(op.dst), id(op.src))
 
             elif op_type == builder.DotInc:
-                self.mpi_sim.create_DotInc(id(op.A), id(op.X), id(op.Y))
+                if op.A.shape == ():
+                    self.mpi_sim.create_ScalarDotInc(id(op.A), id(op.X), id(op.Y))
+                else:
+                    self.mpi_sim.create_DotInc(id(op.A), id(op.X), id(op.Y))
 
             elif op_type == builder.ProdUpdate:
                 if op.A.shape == ():
@@ -95,9 +121,7 @@ class Simulator(object):
     def step(self):
         """Advance the simulator by `self.dt` seconds.
         """
-        self.mpi_sim.run_n_steps(1)
-
-        self.n_steps += 1
+        self.run_steps(1)
 
     def run(self, time_in_seconds):
         """Simulate for the given length of time."""
