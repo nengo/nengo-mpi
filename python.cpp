@@ -259,8 +259,12 @@ void PyFunc::operator() (){
         }
     }
 
-    for(unsigned i = 0; i < output->size(); ++i){
-        (*output)[i] = bpy::extract<float>(py_output[i]);
+    try {
+        (*output)[0] = bpy::extract<float>(py_output);
+    } catch (const bpy::error_already_set& e) {
+        for(unsigned i = 0; i < output->size(); ++i){
+            (*output)[i] = bpy::extract<float>(py_output[i]);
+        }
     }
 
 #ifdef _DEBUG
