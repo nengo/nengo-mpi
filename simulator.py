@@ -30,6 +30,8 @@ class Simulator(object):
         self._step_order = [node for node in toposort(self.dg)
                             if hasattr(node, 'make_step')]
         
+        self.n_steps = 0
+
         self._init_mpi()
 
     def _init_mpi(self):
@@ -39,12 +41,14 @@ class Simulator(object):
         for sig, numpy_array in self.signals.items():
             print sig
             print numpy_array
-            if not numpy_array.shape:
+            if numpy_array.shape == ():
                 numpy_array = np.array([numpy_array])
             self.mpi_sim.add_signal(id(sig), numpy_array)
 
         for op in self._step_order:
             op_type = type(op)
+
+            print op
 
             if op_type == builder.Reset:
                 self.mpi_sim.create_Reset(id(op.dst), op.value)
