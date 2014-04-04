@@ -4,7 +4,7 @@
 #include <map>
 #include <list>
 
-
+#include "probe.hpp"
 #include "operator.hpp"
 
 typedef int key_type;
@@ -18,10 +18,13 @@ public:
     void run_n_steps(int steps);
 
     void add_operator(Operator* op);
+    
+    void add_probe(key_type key, Probe<Vector>* probe);
 
     void add_vector_signal(key_type key, Vector* sig);
     void add_matrix_signal(key_type key, Matrix* sig);
 
+    Probe<Vector>* get_probe(key_type key);
     Vector* get_vector_signal(key_type key);
     Matrix* get_matrix_signal(key_type key);
 
@@ -30,9 +33,10 @@ public:
 private:
     double time;
     double dt;
-    std::map<key_type, Matrix*> matrix_signal_map;
-    std::map<key_type, Vector*> vector_signal_map;
-    std::list<Operator*> operator_list;
+    map<key_type, Probe<Vector>*> probe_map;
+    map<key_type, Matrix*> matrix_signal_map;
+    map<key_type, Vector*> vector_signal_map;
+    list<Operator*> operator_list;
     Operator* operators;
     int num_operators;
 };

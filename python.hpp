@@ -5,6 +5,7 @@
 
 #include "simulator.hpp"
 #include "operator.hpp"
+#include "probe.hpp"
 
 using namespace std;
 
@@ -23,6 +24,8 @@ public:
     void run_n_steps(bpy::object steps);
 
     void add_signal(bpy::object key, bpyn::array sig);
+
+    void create_Probe(bpy::object key,  bpy::object signal);
 
     void create_Reset(bpy::object dst, bpy::object val);
 

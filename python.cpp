@@ -92,6 +92,13 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
     }
 }
 
+void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal){
+    key_type signal_key = bpy::extract<key_type>(signal);
+    Vector* signal_vec = mpi_sim_chunk.get_vector_signal(signal_key);
+    Probe<Vector>* probe = new Probe<Vector>(signal_vec);
+    mpi_sim_chunk.add_probe(bpy::extract<key_type>(key), probe);
+}
+
 void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){
     key_type dst_key = bpy::extract<key_type>(dst);
     float c_value = bpy::extract<float>(value);
@@ -298,6 +305,7 @@ BOOST_PYTHON_MODULE(nengo_mpi)
         .def(bpy::init<double>())
         .def("run_n_steps", &PythonMpiSimulatorChunk::run_n_steps)
         .def("add_signal", &PythonMpiSimulatorChunk::add_signal)
+        .def("create_Probe", &PythonMpiSimulatorChunk::create_Probe)
         .def("create_Reset", &PythonMpiSimulatorChunk::create_Reset)
         .def("create_Copy", &PythonMpiSimulatorChunk::create_Copy)
         .def("create_DotInc", &PythonMpiSimulatorChunk::create_DotInc)
