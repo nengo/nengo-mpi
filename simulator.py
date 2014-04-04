@@ -23,14 +23,18 @@ class MPIProbeDict(ProbeDict):
     is readonly, which is more appropriate for its purpose.
     """
 
-    def __init__(self, raw, mpi_sim):
+    def __init__(self, raw, mpi_sim, probes):
         self.raw = raw
         self.mpi_sim = mpi_sim
+        self.probes = probes
 
-    def update(self):
+    def update_probes(self):
         """Populate self.raw based on self.mpi_sim"""
-        pass
 
+        for probe in self.probes:
+            data = self.mpi_sim.get_probe_data(id(probe), np.empty)
+            #doing it this way, data should be a list of ndarrays (one ndarray for each time step)
+            self.raw[probe].extend(data)
 
 class Simulator(object):
     """MPI simulator for models."""
@@ -55,7 +59,11 @@ class Simulator(object):
         
         self.n_steps = 0
 
+
         self._init_mpi()
+
+        self._probe_outputs = self.model.params
+        self.data = MPIProbeDict(self._probe_outputs, self.mpi_sim, self.model.probes)
 
     def _init_mpi(self):
 
@@ -118,6 +126,10 @@ class Simulator(object):
             else:
                 raise NotImplementedError('nengo_mpi cannot handle operator of type ' + str(op_type))
 
+        for probe in self.model.probes:
+            period = (1 if probe.sample_every is None else int(probe.sample_every / self.dt))
+            self.mpi_sim.create_Probe(id(probe), id(self.model.sig_in[probe]), period)
+
     def step(self):
         """Advance the simulator by `self.dt` seconds.
         """
@@ -131,6 +143,8 @@ class Simulator(object):
     def run_steps(self, steps):
         """Simulate for the given number of `dt` steps."""
         self.mpi_sim.run_n_steps(steps)
+
+        self.data.update_probes()
 
         self.n_steps += steps
 

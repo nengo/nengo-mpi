@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <list>
 
 #include "python.hpp"
 
@@ -92,11 +93,37 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
     }
 }
 
-void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal){
+bpy::object PythonMpiSimulatorChunk::get_probe_data(bpy::object probe_key, bpy::object make_array){
+    key_type c_probe_key = bpy::extract<key_type>(probe_key);
+    Probe<Vector>* probe = mpi_sim_chunk.get_probe(c_probe_key);
+    list<Vector*> data = probe->get_data();
+
+    bpy::list py_list;
+    list<Vector*>::const_iterator it; 
+    for(it = data.begin(); it != data.end(); ++it){
+
+        //bpyn::array a(**it);
+        //bpy::object a((*it)->size());
+        bpy::object a = make_array((*it)->size());
+        for(unsigned i=0; i < (*it)->size(); ++i){
+            a[i] = (**it)[i];
+        }
+
+        py_list.append(a);
+    }
+
+    return py_list;
+}
+
+void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, bpy::object period){
     key_type signal_key = bpy::extract<key_type>(signal);
     Vector* signal_vec = mpi_sim_chunk.get_vector_signal(signal_key);
-    Probe<Vector>* probe = new Probe<Vector>(signal_vec);
-    mpi_sim_chunk.add_probe(bpy::extract<key_type>(key), probe);
+    int c_period = bpy::extract<int>(period);
+
+    Probe<Vector>* probe = new Probe<Vector>(signal_vec, c_period);
+
+    key_type c_key = bpy::extract<key_type>(key);
+    mpi_sim_chunk.add_probe(c_key, probe);
 }
 
 void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){
@@ -305,6 +332,7 @@ BOOST_PYTHON_MODULE(nengo_mpi)
         .def(bpy::init<double>())
         .def("run_n_steps", &PythonMpiSimulatorChunk::run_n_steps)
         .def("add_signal", &PythonMpiSimulatorChunk::add_signal)
+        .def("get_probe_data", &PythonMpiSimulatorChunk::get_probe_data)
         .def("create_Probe", &PythonMpiSimulatorChunk::create_Probe)
         .def("create_Reset", &PythonMpiSimulatorChunk::create_Reset)
         .def("create_Copy", &PythonMpiSimulatorChunk::create_Copy)

@@ -1,13 +1,12 @@
 
-#include "operator.hpp"
 #include "simulator.hpp"
 
 MpiSimulatorChunk::MpiSimulatorChunk()
-    :time(0.0), dt(0.001) {
+    :time(0.0), dt(0.001), n_steps(0) {
 }
 
 MpiSimulatorChunk::MpiSimulatorChunk(double dt)
-    :time(0.0), dt(dt) {
+    :time(0.0), dt(dt), n_steps(0){
 }
 
 void MpiSimulatorChunk::run_n_steps(int steps){
@@ -21,7 +20,7 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         map<key_type, Probe<Vector>*>::iterator probe_it; 
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
-            probe_it->second->gather(); 
+            probe_it->second->gather(n_steps); 
         }
 
         time += dt;

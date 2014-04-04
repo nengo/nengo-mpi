@@ -25,7 +25,9 @@ public:
 
     void add_signal(bpy::object key, bpyn::array sig);
 
-    void create_Probe(bpy::object key,  bpy::object signal);
+    bpy::object get_probe_data(bpy::object probe, bpy::object make_array);
+
+    void create_Probe(bpy::object key,  bpy::object signal, bpy::object period);
 
     void create_Reset(bpy::object dst, bpy::object val);
 

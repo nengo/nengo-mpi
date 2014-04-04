@@ -7,6 +7,8 @@
 #include "probe.hpp"
 #include "operator.hpp"
 
+using namespace std;
+
 typedef int key_type;
 
 //TODO: add a probing system
@@ -33,6 +35,7 @@ public:
 private:
     double time;
     double dt;
+    int n_steps;
     map<key_type, Probe<Vector>*> probe_map;
     map<key_type, Matrix*> matrix_signal_map;
     map<key_type, Vector*> vector_signal_map;
