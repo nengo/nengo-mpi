@@ -91,6 +91,7 @@ protected:
     Vector* B;
     Vector* Y;
     int size;
+    bool B_scalar;
 };
 
 class ScalarProdUpdate: public Operator{
@@ -105,6 +106,7 @@ protected:
     Vector* B;
     Vector* Y;
     int size;
+    bool B_scalar;
 };
 
 class SimLIF: public Operator{

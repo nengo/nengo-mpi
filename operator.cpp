@@ -94,12 +94,19 @@ void ScalarDotInc::print(ostream &out) const{
 }
 
 ProdUpdate::ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y)
-    :A(A), X(X), B(B), Y(Y), size(Y->size()){}
+    :A(A), X(X), B(B), Y(Y), size(Y->size()), B_scalar(B->size()==1){}
 
 void ProdUpdate::operator() (){
-    for (unsigned i = 0; i < size; ++i){
-        (*Y)[i] *= (*B)[i];
+    if(B_scalar){
+        for (unsigned i = 0; i < size; ++i){
+            (*Y)[i] *= (*B)[0];
+        }
+    }else{
+        for (unsigned i = 0; i < size; ++i){
+            (*Y)[i] *= (*B)[i];
+        }
     }
+
     axpy_prod(*A, *X, *Y, false);
 
 #ifdef _DEBUG
@@ -120,11 +127,17 @@ void ProdUpdate::print(ostream &out) const{
 }
 
 ScalarProdUpdate::ScalarProdUpdate(Vector* A, Vector* X, Vector* B, Vector* Y)
-    :A(A), X(X), B(B), Y(Y), size(Y->size()){}
+    :A(A), X(X), B(B), Y(Y), size(Y->size()), B_scalar(B->size()==1){}
 
 void ScalarProdUpdate::operator() (){
-    for (unsigned i = 0; i < size; ++i){
-        (*Y)[i] *= (*B)[i];
+    if(B_scalar){
+        for (unsigned i = 0; i < size; ++i){
+            (*Y)[i] *= (*B)[0];
+        }
+    }else{
+        for (unsigned i = 0; i < size; ++i){
+            (*Y)[i] *= (*B)[i];
+        }
     }
 
     for (unsigned i = 0; i < size; ++i){
