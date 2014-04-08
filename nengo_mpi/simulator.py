@@ -70,8 +70,8 @@ class Simulator(object):
         self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
 
         for sig, numpy_array in self.signals.items():
-            print sig
-            print numpy_array
+            #print sig
+            #print numpy_array
             if numpy_array.shape == ():
                 numpy_array = np.array([numpy_array])
             self.mpi_sim.add_signal(id(sig), numpy_array)
@@ -79,7 +79,7 @@ class Simulator(object):
         for op in self._step_order:
             op_type = type(op)
 
-            print op
+            #print op
 
             if op_type == builder.Reset:
                 self.mpi_sim.create_Reset(id(op.dst), op.value)

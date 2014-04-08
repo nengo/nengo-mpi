@@ -94,7 +94,8 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
 }
 
 bpy::object PythonMpiSimulatorChunk::get_probe_data(bpy::object probe_key, bpy::object make_array){
-    key_type c_probe_key = bpy::extract<key_type>(probe_key);
+    key_type c_probe_key ;
+    c_probe_key = bpy::extract<key_type>(probe_key);
     Probe<Vector>* probe = mpi_sim_chunk.get_probe(c_probe_key);
     list<Vector*> data = probe->get_data();
 
@@ -102,8 +103,6 @@ bpy::object PythonMpiSimulatorChunk::get_probe_data(bpy::object probe_key, bpy::
     list<Vector*>::const_iterator it; 
     for(it = data.begin(); it != data.end(); ++it){
 
-        //bpyn::array a(**it);
-        //bpy::object a((*it)->size());
         bpy::object a = make_array((*it)->size());
         for(unsigned i=0; i < (*it)->size(); ++i){
             a[i] = (**it)[i];

@@ -9,7 +9,7 @@
 
 using namespace std;
 
-typedef int key_type;
+typedef unsigned long long int key_type;
 
 //TODO: add a probing system
 class MpiSimulatorChunk{

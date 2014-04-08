@@ -24,6 +24,7 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         }
 
         time += dt;
+        n_steps++;
     }
 }
 
