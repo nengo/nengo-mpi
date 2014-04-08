@@ -43,7 +43,12 @@ nengotestdir = os.path.dirname(nengo.tests.__file__)
 for testfile in os.listdir(nengotestdir):
     if not testfile.startswith('test_') or not testfile.endswith('.py'):
         continue
-    m = __import__("nengo.tests." + testfile[:-3], globals(), locals(), ['*'])
+
+    if testfile.startswith('test_examples'):
+        continue
+
+    module_string = "nengo.tests." + testfile[:-3]
+    m = __import__(module_string, globals(), locals(), ['*'])
     for k in dir(m):
         if k.startswith('test_'):
             tst = getattr(m, k)
