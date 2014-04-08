@@ -1,0 +1,1 @@
+C++ shared library implementing MPI nengo simulator. Provides python bindings.
