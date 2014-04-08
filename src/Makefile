@@ -9,7 +9,7 @@ debug: DEFS+=-D_DEBUG
 debug: nengo_mpi.so
 
 nengo_mpi.so: operator.o simulator.o python.o probe.o
-	${CPP} -o nengo_mpi.so probe.o operator.o simulator.o python.o -shared -lboost_python -lm 
+	${CPP} -o ../nengo_mpi.so probe.o operator.o simulator.o python.o -shared -lboost_python -lm 
 
 operator.o: operator.hpp operator.cpp
 	${CPP} -c -o operator.o operator.cpp -fPIC ${DEFS}
@@ -24,4 +24,4 @@ python.o: python.cpp python.hpp
 	${CPP} -c -o python.o python.cpp -fPIC -I${SCINET_PYTHON_INC}/python2.7 ${DEFS}
 
 clean:
-	rm -rf nengo_mpi.so *.o
+	rm -rf ../nengo_mpi.so *.o
