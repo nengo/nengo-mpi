@@ -325,7 +325,7 @@ void PyFunc::print(ostream &out) const{
     out << *output << endl << endl;
 }
 
-BOOST_PYTHON_MODULE(nengo_mpi)
+BOOST_PYTHON_MODULE(mpi_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk", bpy::init<>())

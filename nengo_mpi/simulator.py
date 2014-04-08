@@ -7,7 +7,7 @@ from nengo.utils.graphs import toposort
 from nengo.utils.simulator import operator_depencency_graph
 
 import numpy as np
-import nengo_mpi
+import mpi_sim
 
 #from __future__ import print_function
 #import logging
@@ -67,7 +67,7 @@ class Simulator(object):
 
     def _init_mpi(self):
 
-        self.mpi_sim = nengo_mpi.PythonMpiSimulatorChunk(self.dt)
+        self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
 
         for sig, numpy_array in self.signals.items():
             print sig
