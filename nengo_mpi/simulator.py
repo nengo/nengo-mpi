@@ -106,7 +106,7 @@ class Simulator(object):
                 self.mpi_sim.create_Copy(id(op.dst), id(op.src))
 
             elif op_type == builder.DotInc:
-                if op.A.shape == ():
+                if op.A.shape == () or op.A.shape == (1,):
                     self.mpi_sim.create_ScalarDotInc(id(op.A), id(op.X), id(op.Y))
                 else:
                     self.mpi_sim.create_DotInc(id(op.A), id(op.X), id(op.Y))
@@ -139,7 +139,7 @@ class Simulator(object):
                 if x is None:
                     self.mpi_sim.create_PyFunc(id(op.output), make_func(fn, t_in, False), t_in)
                 else:
-                    self.mpi_sim.create_PyFuncWithInput(id(op.output), make_func(fn, t_in, True), t_in, id(x), x)
+                    self.mpi_sim.create_PyFuncWithInput(id(op.output), make_func(fn, t_in, True), t_in, id(x), x.value)
 
             else:
                 raise NotImplementedError('nengo_mpi cannot handle operator of type ' + str(op_type))
