@@ -125,8 +125,8 @@ void ProdUpdate::print(ostream &out) const{
 
 SimLIF::SimLIF(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), dt_inv(1.0 / dt), J(J), output(output){
-    voltage = ScalarVector(n_neurons, 0);
-    refractory_time = ScalarVector(n_neurons, 0);
+    voltage = ScalarVector(n_neurons, 0.0);
+    refractory_time = ScalarVector(n_neurons, 0.0);
     one = ScalarVector(n_neurons, 1.0);
     dt_vec = dt * one;
 }
@@ -135,7 +135,7 @@ void SimLIF::operator() (){
     dV = (dt / tau_rc) * ((*J) - voltage);
     voltage += dV;
     for(unsigned i = 0; i < n_neurons; ++i){
-        voltage[i] = voltage[i] < 0 ? 0 : voltage[i];
+        voltage[i] = voltage[i] < 0 ? 0.0 : voltage[i];
     }
 
     refractory_time -= dt_vec;
@@ -143,22 +143,22 @@ void SimLIF::operator() (){
     mult = (one - refractory_time * dt_inv);
 
     for(unsigned i = 0; i < n_neurons; ++i){
-        mult[i] = mult[i] > 1 ? 1 : mult[i];
-        mult[i] = mult[i] < 0 ? 0 : mult[i];
+        mult[i] = mult[i] > 1 ? 1.0 : mult[i];
+        mult[i] = mult[i] < 0 ? 0.0 : mult[i];
     }
 
     floattype overshoot;
     for(unsigned i = 0; i < n_neurons; ++i){
         voltage[i] *= mult[i];
-        if (voltage[i] > 1){
-            (*output)[i] = 1;
-            overshoot = (voltage[i] - 1) / dV[i];
-            refractory_time[i] = tau_ref + dt * (1 - overshoot);
-            voltage[i] = 0;
+        if (voltage[i] > 1.0){
+            (*output)[i] = 1.0;
+            overshoot = (voltage[i] - 1.0) / dV[i];
+            refractory_time[i] = tau_ref + dt * (1.0 - overshoot);
+            voltage[i] = 0.0;
         }
         else
         {
-            (*output)[i] = 0;
+            (*output)[i] = 0.0;
         }
     }
 
