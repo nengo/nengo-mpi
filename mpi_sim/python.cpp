@@ -70,7 +70,6 @@ Matrix* ndarray_to_matrix(bpyn::array a){
     return ret;
 }
 
-
 PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(){
 }
 
@@ -83,14 +82,14 @@ void PythonMpiSimulatorChunk::run_n_steps(bpy::object pysteps){
     mpi_sim_chunk.run_n_steps(steps);
 }
 
-void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig){
-    if( is_vector(sig) ){
-        Vector* vec = ndarray_to_vector(sig);
-        mpi_sim_chunk.add_vector_signal(bpy::extract<key_type>(key), vec);
-    }else{
-        Matrix* mat = ndarray_to_matrix(sig);
-        mpi_sim_chunk.add_matrix_signal(bpy::extract<key_type>(key), mat);
-    }
+void PythonMpiSimulatorChunk::add_vector_signal(bpy::object key, bpyn::array sig){
+    Vector* vec = ndarray_to_vector(sig);
+    mpi_sim_chunk.add_vector_signal(bpy::extract<key_type>(key), vec);
+}
+
+void PythonMpiSimulatorChunk::add_matrix_signal(bpy::object key, bpyn::array sig){
+    Matrix* mat = ndarray_to_matrix(sig);
+    mpi_sim_chunk.add_matrix_signal(bpy::extract<key_type>(key), mat);
 }
 
 bpy::object PythonMpiSimulatorChunk::get_probe_data(bpy::object probe_key, bpy::object make_array){
@@ -146,7 +145,7 @@ void PythonMpiSimulatorChunk::create_Copy(bpy::object dst, bpy::object src){
     mpi_sim_chunk.add_operator(copy);
 }
 
-void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::object Y){
+void PythonMpiSimulatorChunk::create_DotIncMV(bpy::object A, bpy::object X, bpy::object Y){
     key_type A_key = bpy::extract<key_type>(A);
     key_type X_key = bpy::extract<key_type>(X);
     key_type Y_key = bpy::extract<key_type>(Y);
@@ -155,51 +154,32 @@ void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::o
     Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
     Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
 
-    Operator* dot_inc = new DotInc(A_mat, X_vec, Y_vec);
+    Operator* dot_inc = new DotIncMV(A_mat, X_vec, Y_vec);
     mpi_sim_chunk.add_operator(dot_inc);
 }
 
-void PythonMpiSimulatorChunk::create_ScalarDotInc(bpy::object A, bpy::object X, bpy::object Y){
+void PythonMpiSimulatorChunk::create_DotIncVV(bpy::object A, bpy::object X, bpy::object Y){
     key_type A_key = bpy::extract<key_type>(A);
     key_type X_key = bpy::extract<key_type>(X);
     key_type Y_key = bpy::extract<key_type>(Y);
 
-    Vector* A_scalar = mpi_sim_chunk.get_vector_signal(A_key);
+    Vector* A_vec = mpi_sim_chunk.get_vector_signal(A_key);
     Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
     Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
 
-    Operator* dot_inc = new ScalarDotInc(A_scalar, X_vec, Y_vec);
+    Operator* dot_inc = new DotIncVV(A_vec, X_vec, Y_vec);
     mpi_sim_chunk.add_operator(dot_inc);
 }
 
-void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y){
-    key_type A_key = bpy::extract<key_type>(A);
-    key_type X_key = bpy::extract<key_type>(X);
+void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object B, bpy::object Y){
     key_type B_key = bpy::extract<key_type>(B);
     key_type Y_key = bpy::extract<key_type>(Y);
 
-    Matrix* A_mat = mpi_sim_chunk.get_matrix_signal(A_key);
-    Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
     Vector* B_vec = mpi_sim_chunk.get_vector_signal(B_key);
     Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
 
-    Operator* prod_update = new ProdUpdate(A_mat, X_vec, B_vec, Y_vec);
+    Operator* prod_update = new ProdUpdate(B_vec, Y_vec);
     mpi_sim_chunk.add_operator(prod_update);
-}
-
-void PythonMpiSimulatorChunk::create_ScalarProdUpdate(bpy::object A, bpy::object X, bpy::object B, bpy::object Y){
-    key_type A_key = bpy::extract<key_type>(A);
-    key_type X_key = bpy::extract<key_type>(X);
-    key_type B_key = bpy::extract<key_type>(B);
-    key_type Y_key = bpy::extract<key_type>(Y);
-
-    Vector* A_scalar = mpi_sim_chunk.get_vector_signal(A_key);
-    Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
-    Vector* B_vec = mpi_sim_chunk.get_vector_signal(B_key);
-    Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
-
-    Operator* scalar_prod_update = new ScalarProdUpdate(A_scalar, X_vec, B_vec, Y_vec);
-    mpi_sim_chunk.add_operator(scalar_prod_update);
 }
 
 void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object tau_rc, 
@@ -330,15 +310,15 @@ BOOST_PYTHON_MODULE(mpi_sim)
     bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk", bpy::init<>())
         .def(bpy::init<double>())
         .def("run_n_steps", &PythonMpiSimulatorChunk::run_n_steps)
-        .def("add_signal", &PythonMpiSimulatorChunk::add_signal)
+        .def("add_vector_signal", &PythonMpiSimulatorChunk::add_vector_signal)
+        .def("add_matrix_signal", &PythonMpiSimulatorChunk::add_matrix_signal)
         .def("get_probe_data", &PythonMpiSimulatorChunk::get_probe_data)
         .def("create_Probe", &PythonMpiSimulatorChunk::create_Probe)
         .def("create_Reset", &PythonMpiSimulatorChunk::create_Reset)
         .def("create_Copy", &PythonMpiSimulatorChunk::create_Copy)
-        .def("create_DotInc", &PythonMpiSimulatorChunk::create_DotInc)
-        .def("create_ScalarDotInc", &PythonMpiSimulatorChunk::create_ScalarDotInc)
+        .def("create_DotIncMV", &PythonMpiSimulatorChunk::create_DotIncMV)
+        .def("create_DotIncVV", &PythonMpiSimulatorChunk::create_DotIncVV)
         .def("create_ProdUpdate", &PythonMpiSimulatorChunk::create_ProdUpdate)
-        .def("create_ScalarProdUpdate", &PythonMpiSimulatorChunk::create_ScalarProdUpdate)
         .def("create_SimLIF", &PythonMpiSimulatorChunk::create_SimLIF)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)

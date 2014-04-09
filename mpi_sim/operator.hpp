@@ -51,9 +51,9 @@ protected:
 };
 
 // Increment signal Y by dot(A,X)
-class DotInc: public Operator{
+class DotIncMV: public Operator{
 public:
-    DotInc(Matrix* A, Vector* X, Vector* Y);
+    DotIncMV(Matrix* A, Vector* X, Vector* Y);
     void operator()();
     virtual void print(ostream &out) const;
 
@@ -61,13 +61,12 @@ protected:
     Matrix* A;
     Vector* X;
     Vector* Y;
-    int size;
 };
 
 // Increment signal Y by dot(A,X)
-class ScalarDotInc: public Operator{
+class DotIncVV: public Operator{
 public:
-    ScalarDotInc(Vector* A, Vector* X, Vector* Y);
+    DotIncVV(Vector* A, Vector* X, Vector* Y);
     void operator()();
     virtual void print(ostream &out) const;
 
@@ -76,37 +75,21 @@ protected:
     Vector* X;
     Vector* Y;
     int size;
+    bool scalar;
 };
 
 // Sets Y <- dot(A, X) + B * Y
 class ProdUpdate: public Operator{
 public:
-    ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y);
+    ProdUpdate(Vector* B, Vector* Y);
     void operator()();
     virtual void print(ostream &out) const;
 
 protected:
-    Matrix* A;
-    Vector* X;
     Vector* B;
     Vector* Y;
     int size;
-    bool B_scalar;
-};
-
-class ScalarProdUpdate: public Operator{
-public:
-    ScalarProdUpdate(Vector* A, Vector* X, Vector* B, Vector* Y);
-    void operator()();
-    virtual void print(ostream &out) const;
-
-protected:
-    Vector* A;
-    Vector* X;
-    Vector* B;
-    Vector* Y;
-    int size;
-    bool B_scalar;
+    bool scalar;
 };
 
 class SimLIF: public Operator{

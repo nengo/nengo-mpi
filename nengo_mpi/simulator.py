@@ -13,18 +13,22 @@ import mpi_sim
 #import logging
 #logger = logging.getLogger(__name__)
 
-def zerod_to_float(val):
-	if isinstance(val, np.ndarray):
-		val = val + 0.0
-	return val
+def checks(val):
+    if isinstance(val, list):
+        val = np.array(val)
+
+    if isinstance(val, np.ndarray):
+        val = val + 0.0
+
+    return val
 
 def make_func(func, t_in, takes_input):
     def f():
-        return zerod_to_float(func())
+        return checks(func())
     def ft(t):
-        return zerod_to_float(func(t))
+        return checks(func(t))
     def fit(t,i):
-        return zerod_to_float(func(t,i))
+        return checks(func(t,i))
     
     if t_in and takes_input:
         return fit
@@ -83,16 +87,40 @@ class Simulator(object):
         self._probe_outputs = self.model.params
         self.data = MPIProbeDict(self._probe_outputs, self.mpi_sim, self.model.probes)
 
+    def add_dot_inc(self, A, X, Y):
+        A_shape = A.shape
+        X_shape = X.shape
+
+        if A.ndim > 1 and A_shape[0] > 1 and A_shape[1] > 1:
+            #check whether A HAS to be treated as a matrix
+            self.mpi_sim.create_DotIncMV(id(A), id(X), id(Y))
+        else:
+            #if it doesn't, treat it as a vector
+            A_scalar = A_shape == () or A_shape == (1,)
+            X_scalar = X_shape == () or X_shape == (1,)
+
+            # if one of them is a scalar and the other isn't, make A the scalar
+            if X_scalar and not A_scalar:
+                X, A = A, X
+
+            self.mpi_sim.create_DotIncVV(id(A), id(X), id(Y))
+
+    def add_signal(self, sig, A):
+        A_shape = A.shape
+        if A.ndim > 1 and A_shape[0] > 1 and A_shape[1] > 1:
+            self.mpi_sim.add_matrix_signal(id(sig), A)
+        else:
+            A = np.squeeze(A)
+            if A.shape == ():
+                A = np.array([A])
+            self.mpi_sim.add_vector_signal(id(sig), A)
+
     def _init_mpi(self):
 
         self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
 
         for sig, numpy_array in self.signals.items():
-            #print sig
-            #print numpy_array
-            if numpy_array.shape == ():
-                numpy_array = np.array([numpy_array])
-            self.mpi_sim.add_signal(id(sig), numpy_array)
+            self.add_signal(sig, numpy_array)
 
         for op in self._step_order:
             op_type = type(op)
@@ -106,16 +134,11 @@ class Simulator(object):
                 self.mpi_sim.create_Copy(id(op.dst), id(op.src))
 
             elif op_type == builder.DotInc:
-                if op.A.shape == () or op.A.shape == (1,):
-                    self.mpi_sim.create_ScalarDotInc(id(op.A), id(op.X), id(op.Y))
-                else:
-                    self.mpi_sim.create_DotInc(id(op.A), id(op.X), id(op.Y))
+                self.add_dot_inc(op.A, op.X, op.Y)
 
             elif op_type == builder.ProdUpdate:
-                if op.A.shape == ():
-                    self.mpi_sim.create_ScalarProdUpdate(id(op.A), id(op.X), id(op.B), id(op.Y))
-                else:
-                    self.mpi_sim.create_ProdUpdate(id(op.A), id(op.X), id(op.B), id(op.Y))
+                self.mpi_sim.create_ProdUpdate(id(op.B), id(op.Y))
+                self.add_dot_inc(op.A, op.X, op.Y)
 
             elif op_type == builder.SimLIF:
                 n_neurons = op.nl.n_neurons

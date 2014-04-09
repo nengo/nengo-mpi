@@ -49,10 +49,10 @@ void Copy::print(ostream &out) const  {
     out << *src << endl << endl;
 }
 
-DotInc::DotInc(Matrix* A, Vector* X, Vector* Y)
-    :A(A), X(X), Y(Y), size(Y->size()){}
+DotIncMV::DotIncMV(Matrix* A, Vector* X, Vector* Y)
+    :A(A), X(X), Y(Y){}
 
-void DotInc::operator() (){
+void DotIncMV::operator() (){
     axpy_prod(*A, *X, *Y, false);
 
 #ifdef _DEBUG
@@ -60,22 +60,25 @@ void DotInc::operator() (){
 #endif
 }
 
-void DotInc::print(ostream &out) const{
-    out << "DotInc:" << endl;
+void DotIncMV::print(ostream &out) const{
+    out << "DotIncMV:" << endl;
     out << "A:" << endl;
     out << *A << endl;
     out << "X:" << endl;
     out << *X << endl;
     out << "Y:" << endl;
-    out << *Y << endl << endl;
+    out << *Y << endl;
+    out << endl;
 }
 
-ScalarDotInc::ScalarDotInc(Vector* A, Vector* X, Vector* Y)
-    :A(A), X(X), Y(Y), size(Y->size()){}
+DotIncVV::DotIncVV(Vector* A, Vector* X, Vector* Y)
+    :A(A), X(X), Y(Y), scalar(A->size() == 1){}
 
-void ScalarDotInc::operator() (){
-    for (unsigned i = 0; i < size; ++i){
-        (*Y)[i] += (*A)[0] * (*X)[i];
+void DotIncVV::operator() (){
+    if(scalar){
+        *Y += (*A)[0] * (*X);
+    }else{
+        (*Y)[0] = inner_prod(*A, *X);
     }
 
 #ifdef _DEBUG
@@ -83,31 +86,29 @@ void ScalarDotInc::operator() (){
 #endif
 }
 
-void ScalarDotInc::print(ostream &out) const{
-    out << "ScalarDotInc:" << endl;
+void DotIncVV::print(ostream &out) const{
+    out << "DotIncVV:" << endl;
     out << "A:" << endl;
     out << *A << endl;
     out << "X:" << endl;
     out << *X << endl;
     out << "Y:" << endl;
-    out << *Y << endl << endl;
+    out << *Y << endl;
+    out << "Scalar: " << scalar << endl;
+    out << endl;
 }
 
-ProdUpdate::ProdUpdate(Matrix* A, Vector* X, Vector* B, Vector* Y)
-    :A(A), X(X), B(B), Y(Y), size(Y->size()), B_scalar(B->size()==1){}
+ProdUpdate::ProdUpdate(Vector* B, Vector* Y)
+    :B(B), Y(Y), size(Y->size()), scalar(B->size()==1){}
 
 void ProdUpdate::operator() (){
-    if(B_scalar){
-        for (unsigned i = 0; i < size; ++i){
-            (*Y)[i] *= (*B)[0];
-        }
+    if(scalar){
+        (*Y) *= (*B)[0];
     }else{
         for (unsigned i = 0; i < size; ++i){
             (*Y)[i] *= (*B)[i];
         }
     }
-
-    axpy_prod(*A, *X, *Y, false);
 
 #ifdef _DEBUG
     cout << *this;
@@ -116,45 +117,6 @@ void ProdUpdate::operator() (){
 
 void ProdUpdate::print(ostream &out) const{
     out << "ProdUpdate:" << endl;
-    out << "A:" << endl;
-    out << *A << endl;
-    out << "X:" << endl;
-    out << *X << endl;
-    out << "B:" << endl;
-    out << *B << endl;
-    out << "Y:" << endl;
-    out << *Y << endl << endl;
-}
-
-ScalarProdUpdate::ScalarProdUpdate(Vector* A, Vector* X, Vector* B, Vector* Y)
-    :A(A), X(X), B(B), Y(Y), size(Y->size()), B_scalar(B->size()==1){}
-
-void ScalarProdUpdate::operator() (){
-    if(B_scalar){
-        for (unsigned i = 0; i < size; ++i){
-            (*Y)[i] *= (*B)[0];
-        }
-    }else{
-        for (unsigned i = 0; i < size; ++i){
-            (*Y)[i] *= (*B)[i];
-        }
-    }
-
-    for (unsigned i = 0; i < size; ++i){
-        (*Y)[i] += (*A)[0] * (*X)[i];
-    }
-
-#ifdef _DEBUG
-    cout << *this;
-#endif
-}
-
-void ScalarProdUpdate::print(ostream &out) const{
-    out << "ScalarProdUpdate:" << endl;
-    out << "A:" << endl;
-    out << *A << endl;
-    out << "X:" << endl;
-    out << *X << endl;
     out << "B:" << endl;
     out << *B << endl;
     out << "Y:" << endl;
@@ -223,7 +185,7 @@ SimLIFRate::SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vec
 
 void SimLIFRate::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
-        if((*J)[i] > 0){
+        if((*J)[i] > 0.0){
             (*output)[i] = dt / (tau_ref + tau_rc * log(1.0 / (*J)[i]));
         }else{
             (*output)[i] = 0.0;
