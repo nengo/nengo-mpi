@@ -13,6 +13,25 @@ import mpi_sim
 #import logging
 #logger = logging.getLogger(__name__)
 
+def zerod_to_float(val):
+	if isinstance(val, np.ndarray):
+		val = val + 0.0
+	return val
+
+def make_func(func, t_in, takes_input):
+    def f():
+        return zerod_to_float(func())
+    def ft(t):
+        return zerod_to_float(func(t))
+    def fit(t,i):
+        return zerod_to_float(func(t,i))
+    
+    if t_in and takes_input:
+        return fit
+    elif t_in or takes_input:
+        return ft
+    else:
+        return f
 
 class MPIProbeDict(ProbeDict):
     """Map from Probe -> ndarray
@@ -58,7 +77,6 @@ class Simulator(object):
                             if hasattr(node, 'make_step')]
         
         self.n_steps = 0
-
 
         self._init_mpi()
 
@@ -119,9 +137,9 @@ class Simulator(object):
                 x = op.x
 
                 if x is None:
-                    self.mpi_sim.create_PyFunc(id(op.output), fn, t_in)
+                    self.mpi_sim.create_PyFunc(id(op.output), make_func(fn, t_in, False), t_in)
                 else:
-                    self.mpi_sim.create_PyFuncWithInput(id(op.output), fn, t_in, id(x), x)
+                    self.mpi_sim.create_PyFuncWithInput(id(op.output), make_func(fn, t_in, True), t_in, id(x), x)
 
             else:
                 raise NotImplementedError('nengo_mpi cannot handle operator of type ' + str(op_type))
