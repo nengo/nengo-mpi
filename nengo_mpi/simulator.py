@@ -1,6 +1,6 @@
 #simulator.py
 
-from nengo import builder
+from nengo import builder, LIF, LIFRate
 from nengo.builder import Builder
 from nengo.simulator import SignalDict, ProbeDict
 from nengo.utils.graphs import toposort
@@ -29,7 +29,7 @@ def make_func(func, t_in, takes_input):
         return checks(func(t))
     def fit(t,i):
         return checks(func(t,i))
-    
+
     if t_in and takes_input:
         return fit
     elif t_in or takes_input:
@@ -47,7 +47,7 @@ class Simulator(object):
         self.n_steps = 0
 
         self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
-        
+
         #C++ key -> ndarray
         self.sig_dict = {}
 
@@ -140,19 +140,21 @@ class Simulator(object):
                 self.mpi_sim.create_ProdUpdate(id(op.B), id(op.Y))
                 self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
 
-            elif op_type == builder.SimLIF:
-                n_neurons = op.nl.n_neurons
-                tau_ref = op.nl.tau_ref
-                tau_rc = op.nl.tau_rc
-                self.mpi_sim.create_SimLIF(n_neurons, 
-                        tau_rc, tau_ref, self.dt, id(op.J), id(op.output))
+            elif op_type == builder.SimNeurons:
+                n_neurons = op.neurons.n_neurons
 
-            elif op_type == builder.SimLIFRate:
-                n_neurons = op.nl.n_neurons
-                tau_ref = op.nl.tau_ref
-                tau_rc = op.nl.tau_rc
-                self.mpi_sim.create_SimLIFRate(n_neurons, 
-                        tau_rc, tau_ref, self.dt, id(op.J), id(op.output))
+                if type(op.neurons) is LIF:
+                    tau_ref = op.neurons.tau_ref
+                    tau_rc = op.neurons.tau_rc
+                    self.mpi_sim.create_SimLIF(n_neurons,
+                            tau_rc, tau_ref, self.dt, id(op.J), id(op.output))
+                elif type(op.neurons) is LIFRate:
+                    tau_ref = op.neurons.tau_ref
+                    tau_rc = op.neurons.tau_rc
+                    self.mpi_sim.create_SimLIFRate(n_neurons,
+                            tau_rc, tau_ref, self.dt, id(op.J), id(op.output))
+                else:
+                    raise NotImplementedError('nengo_mpi cannot handle neurons of type ' + str(type(op.neurons)))
 
             elif op_type == builder.SimPyFunc:
                 t_in = op.t_in
