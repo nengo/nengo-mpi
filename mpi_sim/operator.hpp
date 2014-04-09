@@ -7,6 +7,8 @@
 
 using namespace std;
 
+typedef double floattype;
+
 typedef boost::numeric::ublas::vector<double> Vector;
 typedef boost::numeric::ublas::scalar_vector<double> ScalarVector;
 typedef boost::numeric::ublas::matrix<double> Matrix;
@@ -28,14 +30,14 @@ public:
 
 class Reset: public Operator{
 public:
-    Reset(Vector* dst, float value);
+    Reset(Vector* dst, floattype value);
     void operator() ();
     virtual void print(ostream &out) const;
 
 protected:
     Vector* dst;
     Vector dummy;
-    float value;
+    floattype value;
     int size;
 };
 
@@ -94,15 +96,15 @@ protected:
 
 class SimLIF: public Operator{
 public:
-    SimLIF(int n_neuron, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);
+    SimLIF(int n_neuron, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output);
     void operator()();
     virtual void print(ostream &out) const;
 
 protected:
-    const float dt;
-    const float dt_inv;
-    const float tau_rc;
-    const float tau_ref;
+    const floattype dt;
+    const floattype dt_inv;
+    const floattype tau_rc;
+    const floattype tau_ref;
     const int n_neurons;
 
     Vector* J;
@@ -120,14 +122,14 @@ protected:
 class SimLIFRate: public Operator{
 
 public:
-    SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output);
+    SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output);
     void operator()();
     virtual void print(ostream &out) const;
 
 protected:
-    const float dt;
-    const float tau_rc;
-    const float tau_ref;
+    const floattype dt;
+    const floattype tau_rc;
+    const floattype tau_ref;
     const int n_neurons;
 
     Vector* J;

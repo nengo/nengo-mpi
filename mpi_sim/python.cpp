@@ -18,7 +18,7 @@ Vector* ndarray_to_vector(bpyn::array a){
     int size = bpy::extract<int>(a.attr("size"));
     Vector* ret = new Vector(size);
     for(unsigned i = 0; i < size; i++){
-        (*ret)(i) = bpy::extract<float>(a[i]);
+        (*ret)(i) = bpy::extract<floattype>(a[i]);
     }
 
 #ifdef _DEBUG
@@ -50,7 +50,7 @@ Matrix* ndarray_to_matrix(bpyn::array a){
     Matrix* ret = new Matrix(shape[0], shape[1]);
     for(unsigned i = 0; i < shape[0]; i++){
         for(unsigned j = 0; j < shape[1]; j++){
-            (*ret)(i, j) = bpy::extract<float>(a[i][j]);
+            (*ret)(i, j) = bpy::extract<floattype>(a[i][j]);
         }
     }
 
@@ -126,7 +126,7 @@ void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, 
 
 void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){
     key_type dst_key = bpy::extract<key_type>(dst);
-    float c_value = bpy::extract<float>(value);
+    floattype c_value = bpy::extract<floattype>(value);
 
     Vector* dst_vec = mpi_sim_chunk.get_vector_signal(dst_key);
 
@@ -186,9 +186,9 @@ void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object t
     bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){
 
     int c_n_neurons = bpy::extract<int>(n_neurons);
-    float c_tau_rc = bpy::extract<float>(tau_rc);
-    float c_tau_ref = bpy::extract<float>(tau_ref);
-    float c_dt = bpy::extract<float>(dt);
+    floattype c_tau_rc = bpy::extract<floattype>(tau_rc);
+    floattype c_tau_ref = bpy::extract<floattype>(tau_ref);
+    floattype c_dt = bpy::extract<floattype>(dt);
 
     key_type J_key = bpy::extract<key_type>(J);
     key_type output_key = bpy::extract<key_type>(output);
@@ -204,9 +204,9 @@ void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::obje
     bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){
 
     int c_n_neurons = bpy::extract<int>(n_neurons);
-    float c_tau_rc = bpy::extract<float>(tau_rc);
-    float c_tau_ref = bpy::extract<float>(tau_ref);
-    float c_dt = bpy::extract<float>(dt);
+    floattype c_tau_rc = bpy::extract<floattype>(tau_rc);
+    floattype c_tau_ref = bpy::extract<floattype>(tau_ref);
+    floattype c_dt = bpy::extract<floattype>(dt);
 
     key_type J_key = bpy::extract<key_type>(J);
     key_type output_key = bpy::extract<key_type>(output);
@@ -286,10 +286,10 @@ void PyFunc::operator() (){
     }
 
     try {
-        (*output)[0] = bpy::extract<float>(py_output);
+        (*output)[0] = bpy::extract<floattype>(py_output);
     } catch (const bpy::error_already_set& e) {
         for(unsigned i = 0; i < output->size(); ++i){
-            (*output)[i] = bpy::extract<float>(py_output[i]);
+            (*output)[i] = bpy::extract<floattype>(py_output[i]);
         }
     }
 

@@ -8,7 +8,7 @@ ostream& operator << (ostream &out, const Operator &op){
     return out;
 }
 
-Reset::Reset(Vector* dst, float value)
+Reset::Reset(Vector* dst, floattype value)
     :dst(dst), value(value), size(dst->size()){
 
     dummy = ScalarVector(size, value);
@@ -123,7 +123,7 @@ void ProdUpdate::print(ostream &out) const{
     out << *Y << endl << endl;
 }
 
-SimLIF::SimLIF(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output)
+SimLIF::SimLIF(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), dt_inv(1.0 / dt), J(J), output(output){
     voltage = ScalarVector(n_neurons, 0);
     refractory_time = ScalarVector(n_neurons, 0);
@@ -147,7 +147,7 @@ void SimLIF::operator() (){
         mult[i] = mult[i] < 0 ? 0 : mult[i];
     }
 
-    float overshoot;
+    floattype overshoot;
     for(unsigned i = 0; i < n_neurons; ++i){
         voltage[i] *= mult[i];
         if (voltage[i] > 1){
@@ -179,7 +179,7 @@ void SimLIF::print(ostream &out) const{
     out << refractory_time << endl << endl;
 }
 
-SimLIFRate::SimLIFRate(int n_neurons, float tau_rc, float tau_ref, float dt, Vector* J, Vector* output)
+SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
 }
 
