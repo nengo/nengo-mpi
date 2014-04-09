@@ -37,63 +37,45 @@ def make_func(func, t_in, takes_input):
     else:
         return f
 
-class MPIProbeDict(ProbeDict):
-    """Map from Probe -> ndarray
-
-    This is more like a view on the dict that the simulator manipulates.
-    However, for speed reasons, the simulator uses Python lists,
-    and we want to return NumPy arrays. Additionally, this mapping
-    is readonly, which is more appropriate for its purpose.
-    """
-
-    def __init__(self, raw, mpi_sim, probes):
-        self.raw = raw
-        self.mpi_sim = mpi_sim
-        self.probes = probes
-
-    def update_probes(self):
-        """Populate self.raw based on self.mpi_sim"""
-
-        for probe in self.probes:
-            data = self.mpi_sim.get_probe_data(id(probe), np.empty)
-            #doing it this way, data should be a list of ndarrays (one ndarray for each time step)
-            self.raw[probe].extend(data)
-
 class Simulator(object):
     """MPI simulator for models."""
 
-    def __init__(self, model, dt=0.001, seed=None, builder=Builder()):
-        # Call the builder to build the model
-        self.model = builder(model, dt)
+    #can supply an init_mpi function, which will initialize the simulator in some
+    #way other than assuming the model passed in is a nengo model. good for testing.
+    def __init__(self, model, dt=0.001, seed=1, builder=Builder(), init_mpi=None):
         self.dt = dt
-
-        # Use model seed as simulator seed if the seed is not provided
-        # Note: seed is not used right now, but one day...
-        self.seed = self.model.seed if seed is None else seed
-
-        # -- map from Signal.base -> ndarray
-        self.signals = SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
-        for op in self.model.operators:
-            op.init_signals(self.signals, self.dt)
-
-        self.dg = operator_depencency_graph(self.model.operators)
-        self._step_order = [node for node in toposort(self.dg)
-                            if hasattr(node, 'make_step')]
-        
         self.n_steps = 0
 
-        self._init_mpi()
+        self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
+        
+        #C++ key -> ndarray
+        self.sig_dict = {}
 
-        self._probe_outputs = self.model.params
-        self.data = MPIProbeDict(self._probe_outputs, self.mpi_sim, self.model.probes)
+        #probe -> C++ key
+        self.probe_keys = {}
 
-    def add_dot_inc(self, A, X, Y):
+        #probe -> python list
+        self._probe_outputs = {}
+
+        if init_mpi is None:
+            self.model = builder(model, self.dt)
+            self._init_from_model()
+        else:
+            init_mpi(self)
+
+        self.data = ProbeDict(self._probe_outputs)
+
+    def add_dot_inc(self, A_key, X_key, Y_key):
+
+        A = self.sig_dict[A_key]
+        X = self.sig_dict[X_key]
+
         A_shape = A.shape
         X_shape = X.shape
 
         if A.ndim > 1 and A_shape[0] > 1 and A_shape[1] > 1:
             #check whether A HAS to be treated as a matrix
-            self.mpi_sim.create_DotIncMV(id(A), id(X), id(Y))
+            self.mpi_sim.create_DotIncMV(A_key, X_key, Y_key)
         else:
             #if it doesn't, treat it as a vector
             A_scalar = A_shape == () or A_shape == (1,)
@@ -101,26 +83,44 @@ class Simulator(object):
 
             # if one of them is a scalar and the other isn't, make A the scalar
             if X_scalar and not A_scalar:
-                X, A = A, X
+                self.mpi_sim.create_DotIncVV(X_key, A_key, Y_key)
+            else:
+                self.mpi_sim.create_DotIncVV(A_key, X_key, Y_key)
 
-            self.mpi_sim.create_DotIncVV(id(A), id(X), id(Y))
-
-    def add_signal(self, sig, A):
+    def add_signal(self, key, A):
         A_shape = A.shape
         if A.ndim > 1 and A_shape[0] > 1 and A_shape[1] > 1:
-            self.mpi_sim.add_matrix_signal(id(sig), A)
+            self.mpi_sim.add_matrix_signal(key, A)
         else:
             A = np.squeeze(A)
             if A.shape == ():
                 A = np.array([A])
-            self.mpi_sim.add_vector_signal(id(sig), A)
+            self.mpi_sim.add_vector_signal(key, A)
 
-    def _init_mpi(self):
+        self.sig_dict[key] = A
 
-        self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
+    def add_probe(self, probe, signal_key, probe_key=None, sample_every=None, period=1):
+
+        if sample_every is not None:
+            period = 1 if sample_every is None else int(sample_every / self.dt)
+            
+        self._probe_outputs[probe] = []
+        self.probe_keys[probe] = id(probe) if probe_key is None else probe_key
+        self.mpi_sim.create_Probe(self.probe_keys[probe], signal_key, period)
+
+    def _init_from_model(self):
+        self.seed = self.model.seed 
+        self.signals = SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
+
+        for op in self.model.operators:
+            op.init_signals(self.signals, self.dt)
+
+        self.dg = operator_depencency_graph(self.model.operators)
+        self._step_order = [node for node in toposort(self.dg)
+                            if hasattr(node, 'make_step')]
 
         for sig, numpy_array in self.signals.items():
-            self.add_signal(sig, numpy_array)
+            self.add_signal(id(sig), numpy_array)
 
         for op in self._step_order:
             op_type = type(op)
@@ -134,11 +134,11 @@ class Simulator(object):
                 self.mpi_sim.create_Copy(id(op.dst), id(op.src))
 
             elif op_type == builder.DotInc:
-                self.add_dot_inc(op.A, op.X, op.Y)
+                self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
 
             elif op_type == builder.ProdUpdate:
                 self.mpi_sim.create_ProdUpdate(id(op.B), id(op.Y))
-                self.add_dot_inc(op.A, op.X, op.Y)
+                self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
 
             elif op_type == builder.SimLIF:
                 n_neurons = op.nl.n_neurons
@@ -167,9 +167,10 @@ class Simulator(object):
             else:
                 raise NotImplementedError('nengo_mpi cannot handle operator of type ' + str(op_type))
 
+        self._probe_outputs = self.model.params
+
         for probe in self.model.probes:
-            period = (1 if probe.sample_every is None else int(probe.sample_every / self.dt))
-            self.mpi_sim.create_Probe(id(probe), id(self.model.sig_in[probe]), period)
+            self.add_probe(probe, id(self.model.sig_in[probe]), sample_every=probe.sample_every)
 
     def step(self):
         """Advance the simulator by `self.dt` seconds.
@@ -185,7 +186,9 @@ class Simulator(object):
         """Simulate for the given number of `dt` steps."""
         self.mpi_sim.run_n_steps(steps)
 
-        self.data.update_probes()
+        for probe, probe_key in self.probe_keys.items():
+            data = self.mpi_sim.get_probe_data(probe_key, np.empty)
+            self._probe_outputs[probe].extend(data)
 
         self.n_steps += steps
 
