@@ -42,7 +42,7 @@ Matrix* ndarray_to_matrix(bpyn::array a){
     std::vector<int> strides(ndim);
     bpy::object python_shape = a.attr("shape");
     bpy::object python_strides = a.attr("strides");
-    for(unsigned i = 0; i < ndim; i++){ 
+    for(unsigned i = 0; i < ndim; i++){
         shape[i] = bpy::extract<int>(python_shape[i]);
         strides[i] = bpy::extract<int>(python_strides[i]);
     }
@@ -69,6 +69,10 @@ Matrix* ndarray_to_matrix(bpyn::array a){
 
     return ret;
 }
+
+bool hasattr(bpy::object obj, string const &attrName) {
+      return PyObject_HasAttrString(obj.ptr(), attrName.c_str());
+ }
 
 PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(){
 }
@@ -265,7 +269,7 @@ PyFunc::PyFunc(Vector* output, bpy::object py_fn, double* time, Vector* input, b
 }
 
 void PyFunc::operator() (){
-    
+
     bpy::object py_output;
     if(supply_input){
         for(unsigned i = 0; i < input->size(); ++i){
@@ -285,12 +289,12 @@ void PyFunc::operator() (){
         }
     }
 
-    try {
-        (*output)[0] = bpy::extract<floattype>(py_output);
-    } catch (const bpy::error_already_set& e) {
+    if(hasattr(py_output, "ndim")){
         for(unsigned i = 0; i < output->size(); ++i){
             (*output)[i] = bpy::extract<floattype>(py_output[i]);
         }
+    }else{
+        (*output)[0] = bpy::extract<floattype>(py_output);
     }
 
 #ifdef _DEBUG

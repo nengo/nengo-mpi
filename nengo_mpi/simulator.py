@@ -16,10 +16,8 @@ import mpi_sim
 def checks(val):
     if isinstance(val, list):
         val = np.array(val)
-
-    if isinstance(val, np.ndarray):
-        val = val + 0.0
-
+    if hasattr(val, 'shape') and val.shape == ():
+        val = float(val)
     return val
 
 def make_func(func, t_in, takes_input):

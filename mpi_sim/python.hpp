@@ -2,6 +2,7 @@
 #define NENGO_MPI_PYTHON_HPP
 
 #include <boost/python.hpp>
+#include <string>
 
 #include "simulator.hpp"
 #include "operator.hpp"
@@ -15,6 +16,7 @@ namespace bpyn = bpy::numeric;
 bool is_vector(bpyn::array a);
 Vector* ndarray_to_vector(bpyn::array a);
 Matrix* ndarray_to_matrix(bpyn::array a);
+bool hasattr(bpy::object obj, string const &attrName);
 
 class PythonMpiSimulatorChunk{
 public:
