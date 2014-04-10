@@ -78,7 +78,7 @@ void DotIncVV::operator() (){
     if(scalar){
         *Y += (*A)[0] * (*X);
     }else{
-        (*Y)[0] = inner_prod(*A, *X);
+        (*Y)[0] += inner_prod(*A, *X);
     }
 
 #ifdef _DEBUG
