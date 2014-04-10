@@ -1,6 +1,8 @@
 #ifndef NENGO_MPI_SIMULATOR_HPP
 #define NENGO_MPI_SIMULATOR_HPP
 
+#include <boost/serialization/list.hpp>
+
 #include <map>
 #include <list>
 
@@ -13,6 +15,34 @@ typedef unsigned long long int key_type;
 
 //TODO: add a probing system
 class MpiSimulatorChunk{
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+
+        // Make the serialization aware of derived classes.
+        // Have to do this since we're serializing the operators through
+        // a pointer whose type is Operator* (i.e. the base class).
+        ar.template register_type<Reset>();
+        ar.template register_type<Copy>();
+        ar.template register_type<DotIncMV>();
+        ar.template register_type<DotIncVV>();
+        ar.template register_type<ProdUpdate>();
+        ar.template register_type<SimLIF>();
+        ar.template register_type<SimLIFRate>();
+        ar.template register_type<MPISend>();
+        ar.template register_type<MPIReceive>();
+
+        ar & probe_map;
+        ar & matrix_signal_map;
+        ar & vector_signal_map;
+        ar & operator_list;
+        ar & time;
+        ar & dt;
+        ar & n_steps;
+    }
+
 public:
     MpiSimulatorChunk();
     MpiSimulatorChunk(double dt);
@@ -46,7 +76,7 @@ private:
 
 class MpiSimulator{
 public:
-    MpiSimulator(MpiSimulatorChunk* chunks);
+    MpiSimulator(int, MpiSimulatorChunk*);
     void run_n_steps(int steps);
 
 private:

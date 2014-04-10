@@ -9,9 +9,9 @@ ostream& operator << (ostream &out, const Operator &op){
 }
 
 Reset::Reset(Vector* dst, floattype value)
-    :dst(dst), value(value), size(dst->size()){
+    :dst(dst), value(value){
 
-    dummy = ScalarVector(size, value);
+    dummy = ScalarVector(dst->size(), value);
 }
 
 void Reset::operator() (){

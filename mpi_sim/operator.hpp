@@ -9,9 +9,9 @@ using namespace std;
 
 typedef double floattype;
 
-typedef boost::numeric::ublas::vector<double> Vector;
-typedef boost::numeric::ublas::scalar_vector<double> ScalarVector;
-typedef boost::numeric::ublas::matrix<double> Matrix;
+typedef boost::numeric::ublas::vector<floattype> Vector;
+typedef boost::numeric::ublas::scalar_vector<floattype> ScalarVector;
+typedef boost::numeric::ublas::matrix<floattype> Matrix;
 
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures will be in an array, and we simply call
@@ -22,13 +22,22 @@ typedef boost::numeric::ublas::matrix<double> Matrix;
 // non-pointers and non-virtual.
 
 class Operator{
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){}
+
 public:
     virtual void operator() () = 0;
     virtual void print(ostream &out) const = 0;
     friend ostream& operator << (ostream &out, const Operator &op);
+
 };
 
 class Reset: public Operator{
+
 public:
     Reset(Vector* dst, floattype value);
     void operator() ();
@@ -38,7 +47,17 @@ protected:
     Vector* dst;
     Vector dummy;
     floattype value;
-    int size;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & dst;
+        ar & dummy;
+        ar & value;
+    }
 };
 
 class Copy: public Operator{
@@ -50,6 +69,16 @@ public:
 protected:
     Vector* dst;
     Vector* src;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & dst;
+        ar & src;
+    }
 };
 
 // Increment signal Y by dot(A,X)
@@ -63,6 +92,17 @@ protected:
     Matrix* A;
     Vector* X;
     Vector* Y;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & A;
+        ar & X;
+        ar & Y;
+    }
 };
 
 // Increment signal Y by dot(A,X)
@@ -78,6 +118,19 @@ protected:
     Vector* Y;
     int size;
     bool scalar;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & A;
+        ar & X;
+        ar & Y;
+        ar & size;
+        ar & scalar;
+    }
 };
 
 // Sets Y <- dot(A, X) + B * Y
@@ -92,6 +145,18 @@ protected:
     Vector* Y;
     int size;
     bool scalar;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & B;
+        ar & Y;
+        ar & size;
+        ar & scalar;
+    }
 };
 
 class SimLIF: public Operator{
@@ -117,6 +182,30 @@ protected:
     Vector mult;
     Vector dV;
     Vector one;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & dt;
+        ar & dt_inv;
+        ar & tau_rc;
+        ar & tau_ref;
+        ar & n_neurons;
+
+        ar & J;
+        ar & output;
+
+        ar & voltage;
+        ar & refractory_time;
+
+        ar & dt_vec;
+        ar & mult;
+        ar & dV;
+        ar & one;
+    }
 };
 
 class SimLIFRate: public Operator{
@@ -137,6 +226,24 @@ protected:
 
     Vector* J;
     Vector* output;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & dt;
+        ar & tau_rc;
+        ar & tau_ref;
+        ar & n_neurons;
+
+        ar & j;
+        ar & one;
+
+        ar & J;
+        ar & output;
+    }
 };
 
 class MPISend: public Operator{
@@ -144,6 +251,12 @@ public:
     MPISend();
     void operator()();
     virtual void print(ostream &out) const;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){}
 };
 
 class MPIReceive: public Operator{
@@ -151,6 +264,12 @@ public:
     MPIReceive();
     void operator()();
     virtual void print(ostream &out) const;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){}
 };
 
 #endif

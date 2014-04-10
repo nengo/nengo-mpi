@@ -74,7 +74,9 @@ Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
     }
 }
 
-MpiSimulator::MpiSimulator(MpiSimulatorChunk* chunks){
+MpiSimulator::MpiSimulator(int num_compute_nodes, MpiSimulatorChunk* chunks){
+    // Use MPI DPM to setup processes on other nodes
+    // Then pass the chunks to those nodes.
 }
 
 void MpiSimulator::run_n_steps(int steps){
