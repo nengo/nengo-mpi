@@ -4,12 +4,12 @@ import pytest
 
 import nengo
 from nengo.utils.numpy import rmse
+from nengo.utils.testing import Plotter
 import nengo_mpi
-import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
-def test_reset():
+def test_reset(Simulator):
 
     D = 40
     reset_val = 4.0
@@ -29,16 +29,18 @@ def test_reset():
         sim.mpi_sim.create_Reset(2, reset_val)
         sim.add_probe(2, 2, 2)
 
-    sim = nengo_mpi.Simulator(model=None, init_mpi=init_mpi)
+    sim = Simulator(model=None, init_mpi=init_mpi)
     sim.run(1.0)
-    t = sim.trange(dt=.001)
-    plt.plot(t, sim.data[2])
-    plt.savefig('test_reset.pdf')
-    plt.close()
+
+    with Plotter(Simulator) as plt:
+        t = sim.trange(dt=.001)
+        plt.plot(t, sim.data[2])
+        plt.savefig('mpi.test_operators.test_reset.pdf')
+        plt.close()
 
     assert rmse(sim.data[2], reset_val) < 0.001
 
-def test_copy():
+def test_copy(Simulator):
 
     D = 40
 
@@ -66,20 +68,22 @@ def test_copy():
         sim.add_probe(2, 2, 2)
         sim.add_probe(3, 3, 3)
 
-    sim = nengo_mpi.Simulator(model=None, init_mpi=init_mpi)
+    sim = Simulator(model=None, init_mpi=init_mpi)
     sim.run(1.0)
-    t = sim.trange(dt=.001)
-    plt.plot(t, sim.data[2][:, 0])
-    plt.plot(t, sim.data[3][:, 0])
-    plt.legend(loc='best')
-    plt.savefig('test_copy.pdf')
-    plt.close()
+
+    with Plotter(Simulator) as plt:
+        t = sim.trange(dt=.001)
+        plt.plot(t, sim.data[2][:, 0])
+        plt.plot(t, sim.data[3][:, 0])
+        plt.legend(loc='best')
+        plt.savefig('mpi.test_operators.test_copy.pdf')
+        plt.close()
 
     all_data = np.array(all_data)
     assert rmse(sim.data[2], sim.data[3]) < 0.001
     assert rmse(sim.data[2], all_data) < 0.001
 
-def test_lif():
+def test_lif(Simulator):
     """Test that the dynamic model approximately matches the rates."""
     D = 40
     tau_rc = 0.02
@@ -89,8 +93,6 @@ def test_lif():
     J = np.arange(-2, 2, .1)
 
     def make_random():
-        #data = np.random.random(D)
-        #all_data.append(data)
         return J
 
     def init_mpi(sim):
@@ -105,26 +107,24 @@ def test_lif():
         sim.mpi_sim.create_SimLIF(D, tau_rc, tau_ref, dt, 0, 1)
         sim.add_probe(1, 1, 1)
 
-    sim = nengo_mpi.Simulator(model=None, init_mpi=init_mpi)
+    sim = Simulator(model=None, init_mpi=init_mpi)
     sim.run(1.0)
-
-
-    #rng = np.random.RandomState(85243)
 
     spikes = sim.data[1]
     sim_rates = spikes.sum(0)
 
-    J = J.reshape(-1, 1)
     math_rates = nengo.LIF(D, tau_rc=tau_rc, tau_ref=tau_ref).rates(J, gain=np.ones(D), bias=np.zeros(D))
 
-    plt.plot(J, sim_rates, label='sim')
-    plt.plot(J, math_rates, label='math')
-    plt.legend(loc='best')
-    plt.savefig('test_lif.pdf')
-    plt.close()
+    with Plotter(Simulator) as plt:
+        plt.plot(J, sim_rates, label='sim')
+        plt.plot(J, math_rates, label='math')
+        plt.legend(loc='best')
+        plt.savefig('mpi.test_operators.test_lif.pdf')
+        plt.close()
+
     assert np.allclose(sim_rates, math_rates, atol=1, rtol=0.02)
 
-def test_lif_rate():
+def test_lif_rate(Simulator):
     """Test that the dynamic model approximately matches the rates."""
     D = 40
     tau_rc = 0.02
@@ -148,7 +148,8 @@ def test_lif_rate():
         sim.mpi_sim.create_SimLIFRate(D, tau_rc, tau_ref, dt, 0, 1)
         sim.add_probe(1, 1, 1)
 
-    sim = nengo_mpi.Simulator(model=None, init_mpi=init_mpi)
+    sim = Simulator(model=None, init_mpi=init_mpi)
+    #sim = nengo_mpi.Simulator(model=None, init_mpi=init_mpi)
     sim.run(1.0)
 
     output = sim.data[1]
@@ -156,11 +157,12 @@ def test_lif_rate():
 
     math_rates = nengo.LIF(D, tau_rc=tau_rc, tau_ref=tau_ref).rates(J, gain=np.ones(D), bias=np.zeros(D))
 
-    plt.plot(J, sim_rates, label='sim')
-    plt.plot(J, math_rates, label='math')
-    plt.legend(loc='best')
-    plt.savefig('test_lif_rate.pdf')
-    plt.close()
+    with Plotter(Simulator) as plt:
+        plt.plot(J, sim_rates, label='sim')
+        plt.plot(J, math_rates, label='math')
+        plt.legend(loc='best')
+        plt.savefig('mpi.test_operators.test_lif_rate.pdf')
+        plt.close()
 
     assert np.allclose(sim_rates, math_rates, atol=1, rtol=0.02)
 
