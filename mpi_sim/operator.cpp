@@ -181,12 +181,17 @@ void SimLIF::print(ostream &out) const{
 
 SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
+    j = Vector(n_neurons);
+    one = ScalarVector(n_neurons, 1.0);
 }
 
 void SimLIFRate::operator() (){
+
+    j = *J - one;
+
     for(unsigned i = 0; i < n_neurons; ++i){
-        if((*J)[i] > 0.0){
-            (*output)[i] = dt / (tau_ref + tau_rc * log(1.0 / (*J)[i]));
+        if(j[i] > 0.0){
+            (*output)[i] = dt / (tau_ref + tau_rc * log1p(1.0 / j[i]));
         }else{
             (*output)[i] = 0.0;
         }

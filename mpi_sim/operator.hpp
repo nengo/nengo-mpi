@@ -132,6 +132,9 @@ protected:
     const floattype tau_ref;
     const int n_neurons;
 
+    Vector j;
+    Vector one;
+
     Vector* J;
     Vector* output;
 };
