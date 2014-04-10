@@ -18,8 +18,11 @@ logger = logging.getLogger(__name__)
 def checks(val):
     if isinstance(val, list):
         val = np.array(val)
-    if hasattr(val, 'shape') and val.shape == ():
+    elif hasattr(val, 'shape') and val.shape == ():
         val = float(val)
+    elif not hasattr(val, 'shape'):
+        val = float(val)
+
     return val
 
 def make_func(func, t_in, takes_input):
