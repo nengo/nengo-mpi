@@ -23,17 +23,16 @@ typedef boost::numeric::ublas::matrix<floattype> Matrix;
 
 class Operator{
 
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){}
-
 public:
     virtual void operator() () = 0;
     virtual void print(ostream &out) const = 0;
     friend ostream& operator << (ostream &out, const Operator &op);
 
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){}
 };
 
 class Reset: public Operator{
@@ -244,32 +243,6 @@ private:
         ar & J;
         ar & output;
     }
-};
-
-class MPISend: public Operator{
-public:
-    MPISend();
-    void operator()();
-    virtual void print(ostream &out) const;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){}
-};
-
-class MPIReceive: public Operator{
-public:
-    MPIReceive();
-    void operator()();
-    virtual void print(ostream &out) const;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){}
 };
 
 #endif

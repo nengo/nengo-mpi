@@ -210,28 +210,3 @@ void SimLIFRate::print(ostream &out) const{
     out << *output << endl;
 }
 
-MPISend::MPISend(){
-}
-
-void MPISend::operator() (){
-
-#ifdef _DEBUG
-    cout << *this;
-#endif
-}
-
-void MPISend::print(ostream &out) const{
-}
-
-MPIReceive::MPIReceive(){
-}
-
-void MPIReceive::operator() (){
-
-#ifdef _DEBUG
-    cout << *this;
-#endif
-}
-
-void MPIReceive::print(ostream &out) const{
-}

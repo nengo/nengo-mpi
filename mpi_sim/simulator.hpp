@@ -8,6 +8,7 @@
 
 #include "probe.hpp"
 #include "operator.hpp"
+#include "mpi.hpp"
 
 using namespace std;
 
@@ -32,7 +33,8 @@ class MpiSimulatorChunk{
         ar.template register_type<SimLIF>();
         ar.template register_type<SimLIFRate>();
         ar.template register_type<MPISend>();
-        ar.template register_type<MPIReceive>();
+        ar.template register_type<MPIRecv>();
+        ar.template register_type<MPIWait>();
 
         ar & probe_map;
         ar & matrix_signal_map;

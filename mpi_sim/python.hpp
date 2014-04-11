@@ -51,7 +51,7 @@ public:
 
     void create_MPISend();
 
-    void create_MPIReceive();
+    void create_MPIRecv();
 
     void create_PyFunc(bpy::object output, bpy::object py_fn, bpy::object t_in);
 

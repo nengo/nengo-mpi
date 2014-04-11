@@ -224,7 +224,7 @@ void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::obje
 
 void PythonMpiSimulatorChunk::create_MPISend(){}
 
-void PythonMpiSimulatorChunk::create_MPIReceive(){}
+void PythonMpiSimulatorChunk::create_MPIRecv(){}
 
 void PythonMpiSimulatorChunk::create_PyFunc(bpy::object output, bpy::object py_fn, bpy::object t_in){
     bool c_t_in = bpy::extract<bool>(t_in);
@@ -326,7 +326,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("create_SimLIF", &PythonMpiSimulatorChunk::create_SimLIF)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)
-        .def("create_MPIReceive", &PythonMpiSimulatorChunk::create_MPIReceive)
+        .def("create_MPIRecv", &PythonMpiSimulatorChunk::create_MPIRecv)
         .def("create_PyFunc", &PythonMpiSimulatorChunk::create_PyFunc)
         .def("create_PyFuncWithInput", &PythonMpiSimulatorChunk::create_PyFuncWithInput);
 }
