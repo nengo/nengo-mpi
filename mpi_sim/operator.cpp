@@ -3,16 +3,41 @@
 
 #include "operator.hpp"
 
-ostream& operator << (ostream &out, const Operator &op){
-    op.print(out);
-    return out;
-}
+// Constructors
 
 Reset::Reset(Vector* dst, floattype value)
     :dst(dst), value(value){
 
     dummy = ScalarVector(dst->size(), value);
 }
+
+Copy::Copy(Vector* dst, Vector* src)
+    :dst(dst), src(src){}
+
+DotIncMV::DotIncMV(Matrix* A, Vector* X, Vector* Y)
+    :A(A), X(X), Y(Y){}
+
+DotIncVV::DotIncVV(Vector* A, Vector* X, Vector* Y)
+    :A(A), X(X), Y(Y), scalar(A->size() == 1){}
+
+ProdUpdate::ProdUpdate(Vector* B, Vector* Y)
+    :B(B), Y(Y), size(Y->size()), scalar(B->size()==1){}
+
+SimLIF::SimLIF(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
+:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), dt_inv(1.0 / dt), J(J), output(output){
+    voltage = ScalarVector(n_neurons, 0.0);
+    refractory_time = ScalarVector(n_neurons, 0.0);
+    one = ScalarVector(n_neurons, 1.0);
+    dt_vec = dt * one;
+}
+
+SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
+:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
+    j = Vector(n_neurons);
+    one = ScalarVector(n_neurons, 1.0);
+}
+
+// Function operator overloads
 
 void Reset::operator() (){
 
@@ -23,15 +48,6 @@ void Reset::operator() (){
 #endif
 }
 
-void Reset::print(ostream &out) const {
-    out << "Reset:" << endl;
-    out << "dst:" << endl;
-    out << *dst << endl << endl;
-}
-
-Copy::Copy(Vector* dst, Vector* src)
-    :dst(dst), src(src){}
-
 void Copy::operator() (){
 
     *dst = *src;
@@ -41,17 +57,6 @@ void Copy::operator() (){
 #endif
 }
 
-void Copy::print(ostream &out) const  {
-    out << "Copy:" << endl;
-    out << "dst:" << endl;
-    out << *dst << endl;
-    out << "src:" << endl;
-    out << *src << endl << endl;
-}
-
-DotIncMV::DotIncMV(Matrix* A, Vector* X, Vector* Y)
-    :A(A), X(X), Y(Y){}
-
 void DotIncMV::operator() (){
     axpy_prod(*A, *X, *Y, false);
 
@@ -59,20 +64,6 @@ void DotIncMV::operator() (){
     cout << *this;
 #endif
 }
-
-void DotIncMV::print(ostream &out) const{
-    out << "DotIncMV:" << endl;
-    out << "A:" << endl;
-    out << *A << endl;
-    out << "X:" << endl;
-    out << *X << endl;
-    out << "Y:" << endl;
-    out << *Y << endl;
-    out << endl;
-}
-
-DotIncVV::DotIncVV(Vector* A, Vector* X, Vector* Y)
-    :A(A), X(X), Y(Y), scalar(A->size() == 1){}
 
 void DotIncVV::operator() (){
     if(scalar){
@@ -86,21 +77,6 @@ void DotIncVV::operator() (){
 #endif
 }
 
-void DotIncVV::print(ostream &out) const{
-    out << "DotIncVV:" << endl;
-    out << "A:" << endl;
-    out << *A << endl;
-    out << "X:" << endl;
-    out << *X << endl;
-    out << "Y:" << endl;
-    out << *Y << endl;
-    out << "Scalar: " << scalar << endl;
-    out << endl;
-}
-
-ProdUpdate::ProdUpdate(Vector* B, Vector* Y)
-    :B(B), Y(Y), size(Y->size()), scalar(B->size()==1){}
-
 void ProdUpdate::operator() (){
     if(scalar){
         (*Y) *= (*B)[0];
@@ -113,22 +89,6 @@ void ProdUpdate::operator() (){
 #ifdef _DEBUG
     cout << *this;
 #endif
-}
-
-void ProdUpdate::print(ostream &out) const{
-    out << "ProdUpdate:" << endl;
-    out << "B:" << endl;
-    out << *B << endl;
-    out << "Y:" << endl;
-    out << *Y << endl << endl;
-}
-
-SimLIF::SimLIF(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
-:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), dt_inv(1.0 / dt), J(J), output(output){
-    voltage = ScalarVector(n_neurons, 0.0);
-    refractory_time = ScalarVector(n_neurons, 0.0);
-    one = ScalarVector(n_neurons, 1.0);
-    dt_vec = dt * one;
 }
 
 void SimLIF::operator() (){
@@ -167,24 +127,6 @@ void SimLIF::operator() (){
 #endif
 }
 
-void SimLIF::print(ostream &out) const{
-    out << "SimLIF:" << endl;
-    out << "J:" << endl;
-    out << *J << endl;
-    out << "output:" << endl;
-    out << *output << endl;
-    out << "voltage:" << endl;
-    out << voltage << endl << endl;
-    out << "refractory_time:" << endl;
-    out << refractory_time << endl << endl;
-}
-
-SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
-:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
-    j = Vector(n_neurons);
-    one = ScalarVector(n_neurons, 1.0);
-}
-
 void SimLIFRate::operator() (){
 
     j = *J - one;
@@ -200,6 +142,64 @@ void SimLIFRate::operator() (){
 #ifdef _DEBUG
     cout << *this;
 #endif
+}
+
+//Printing
+void Reset::print(ostream &out) const {
+    out << "Reset:" << endl;
+    out << "dst:" << endl;
+    out << *dst << endl << endl;
+}
+
+void Copy::print(ostream &out) const  {
+    out << "Copy:" << endl;
+    out << "dst:" << endl;
+    out << *dst << endl;
+    out << "src:" << endl;
+    out << *src << endl << endl;
+}
+
+void DotIncMV::print(ostream &out) const{
+    out << "DotIncMV:" << endl;
+    out << "A:" << endl;
+    out << *A << endl;
+    out << "X:" << endl;
+    out << *X << endl;
+    out << "Y:" << endl;
+    out << *Y << endl;
+    out << endl;
+}
+
+void DotIncVV::print(ostream &out) const{
+    out << "DotIncVV:" << endl;
+    out << "A:" << endl;
+    out << *A << endl;
+    out << "X:" << endl;
+    out << *X << endl;
+    out << "Y:" << endl;
+    out << *Y << endl;
+    out << "Scalar: " << scalar << endl;
+    out << endl;
+}
+
+void ProdUpdate::print(ostream &out) const{
+    out << "ProdUpdate:" << endl;
+    out << "B:" << endl;
+    out << *B << endl;
+    out << "Y:" << endl;
+    out << *Y << endl << endl;
+}
+
+void SimLIF::print(ostream &out) const{
+    out << "SimLIF:" << endl;
+    out << "J:" << endl;
+    out << *J << endl;
+    out << "output:" << endl;
+    out << *output << endl;
+    out << "voltage:" << endl;
+    out << voltage << endl << endl;
+    out << "refractory_time:" << endl;
+    out << refractory_time << endl << endl;
 }
 
 void SimLIFRate::print(ostream &out) const{

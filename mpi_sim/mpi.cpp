@@ -5,6 +5,14 @@ MPISend::MPISend(){
     waiter->request = &request;
 }
 
+MPIRecv::MPIRecv(){
+    waiter->request = &request;
+}
+
+MPIWait::MPIWait()
+    :first_call(false){
+}
+
 void MPISend::operator() (){
 
     request = comm.isend(dst, tag, *content);
@@ -14,13 +22,6 @@ void MPISend::operator() (){
 #endif
 }
 
-void MPISend::print(ostream &out) const{
-}
-
-MPIRecv::MPIRecv(){
-    waiter->request = &request;
-}
-
 void MPIRecv::operator() (){
 
     request = comm.irecv(src, tag, *content);
@@ -28,13 +29,6 @@ void MPIRecv::operator() (){
 #ifdef _DEBUG
     cout << *this;
 #endif
-}
-
-void MPIRecv::print(ostream &out) const{
-}
-
-MPIWait::MPIWait()
-    :first_call(false){
 }
 
 void MPIWait::operator() (){
@@ -48,6 +42,12 @@ void MPIWait::operator() (){
 #ifdef _DEBUG
     cout << *this;
 #endif
+}
+
+void MPISend::print(ostream &out) const{
+}
+
+void MPIRecv::print(ostream &out) const{
 }
 
 void MPIWait::print(ostream &out) const{
