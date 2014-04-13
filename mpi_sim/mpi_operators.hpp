@@ -1,12 +1,12 @@
-#ifndef NENGO_MPI_MPI_HPP
-#define NENGO_MPI_MPI_HPP
+
+#ifndef NENGO_MPI_MPI_OPS_HPP
+#define NENGO_MPI_MPI_OPS_HPP
 
 #include <mpi.h>
 #include <boost/mpi.hpp>
 #include <boost/mpi/environment.hpp>
 #include <boost/mpi/communicator.hpp>
 #include <boost/mpi/intercommunicator.hpp>
-#include <boost/serialization/string.hpp>
 
 #include "operator.hpp"
 
@@ -103,6 +103,5 @@ private:
         ar & boost::serialization::base_object<Operator>(*this);
     }
 };
-
 
 #endif

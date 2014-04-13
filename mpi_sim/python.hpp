@@ -6,6 +6,7 @@
 
 #include "simulator.hpp"
 #include "operator.hpp"
+#include "mpi_operators.hpp"
 #include "probe.hpp"
 
 using namespace std;

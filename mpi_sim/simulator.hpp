@@ -1,14 +1,15 @@
 #ifndef NENGO_MPI_SIMULATOR_HPP
 #define NENGO_MPI_SIMULATOR_HPP
 
+#include <boost/serialization/map.hpp>
 #include <boost/serialization/list.hpp>
 
 #include <map>
 #include <list>
 
-#include "probe.hpp"
 #include "operator.hpp"
-#include "mpi.hpp"
+#include "mpi_operators.hpp"
+#include "probe.hpp"
 
 using namespace std;
 
@@ -85,5 +86,7 @@ private:
     MpiSimulatorChunk* chunks;
     int num_chunks;
 };
+
+void send_chunks(int, MpiSimulatorChunk*);
 
 #endif

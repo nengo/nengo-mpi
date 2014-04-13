@@ -1,5 +1,4 @@
-
-#include "mpi.hpp"
+#include "mpi_operators.hpp"
 
 MPISend::MPISend(){
     waiter->request = &request;
@@ -52,3 +51,4 @@ void MPIRecv::print(ostream &out) const{
 
 void MPIWait::print(ostream &out) const{
 }
+

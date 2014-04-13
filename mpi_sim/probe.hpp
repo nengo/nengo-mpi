@@ -17,6 +17,16 @@ protected:
     list<T*> data;
     T* signal;
     int period;
+
+private:    
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & data;
+        ar & signal;
+        ar & period;
+    }
 };
 
 template<class T> 

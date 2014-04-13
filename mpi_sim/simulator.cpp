@@ -1,5 +1,8 @@
+#include <iostream>
 
 #include "simulator.hpp"
+
+using namespace std;
 
 MpiSimulatorChunk::MpiSimulatorChunk()
     :time(0.0), dt(0.001), n_steps(0) {
@@ -74,9 +77,11 @@ Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
     }
 }
 
-MpiSimulator::MpiSimulator(int num_compute_nodes, MpiSimulatorChunk* chunks){
+MpiSimulator::MpiSimulator(int num_chunks, MpiSimulatorChunk* chunks){
     // Use MPI DPM to setup processes on other nodes
     // Then pass the chunks to those nodes.
+    
+    send_chunks(num_chunks, chunks);
 }
 
 void MpiSimulator::run_n_steps(int steps){
