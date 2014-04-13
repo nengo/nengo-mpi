@@ -25,8 +25,18 @@ void send_chunks(int num_chunks, MpiSimulatorChunk* chunks){
 #endif
 
     int i;
+    string original_string, remote_string;
     for(i = 0; i < num_chunks; ++i){
+
+        // Send the chunk
         comm.send(i+1, 1, chunks[i]);
+
+        // Make sure the chunk was sent correctly
+        comm.recv(i+1, 2, remote_string);
+        original_string = chunks[i].to_string();
+        assert(original_string == remote_string);
+
+        //TODO: Free the chunks on this node!
     }
 
     //MPI_Finalize(); 

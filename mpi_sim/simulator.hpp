@@ -6,6 +6,7 @@
 
 #include <map>
 #include <list>
+#include <string>
 
 #include "operator.hpp"
 #include "mpi_operators.hpp"
@@ -64,6 +65,13 @@ public:
     Matrix* get_matrix_signal(key_type key);
 
     double* get_time_pointer(){return &time;}
+    
+    string to_string() const;
+
+	friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
+		out << chunk.to_string() << endl;
+		return out;
+	}
 
 private:
     double time;

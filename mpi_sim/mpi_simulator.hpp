@@ -6,6 +6,7 @@
 #include <boost/mpi/environment.hpp>
 #include <boost/mpi/communicator.hpp>
 #include <boost/mpi/intercommunicator.hpp>
+#include <boost/serialization/string.hpp>
 
 #include "simulator.hpp"
 

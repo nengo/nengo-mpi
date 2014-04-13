@@ -1,8 +1,7 @@
 #include <iostream>
+#include <sstream>
 
 #include "simulator.hpp"
-
-using namespace std;
 
 MpiSimulatorChunk::MpiSimulatorChunk()
     :time(0.0), dt(0.001), n_steps(0) {
@@ -75,6 +74,37 @@ Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
         cerr << "Error accessing MpiSimulatorChunk matrix signal with key " << key << endl;
         throw e;
     }
+}
+
+string MpiSimulatorChunk::to_string() const{
+    //Print maps
+    stringstream out;
+
+    map<key_type, Vector*>::const_iterator vector_it = vector_signal_map.begin();  
+
+    for(; vector_it != vector_signal_map.end(); vector_it++){
+        out << "Key: " << vector_it->first << endl;
+        out << "Vector: " << *(vector_it->second) << endl;
+    }
+
+    map<key_type, Matrix*>::const_iterator matrix_it = matrix_signal_map.begin();  
+
+    for(; matrix_it != matrix_signal_map.end(); matrix_it++){
+        out << "Key: " << matrix_it->first << endl;
+        out << "Matrix: " << *(matrix_it->second) << endl;
+    }
+
+    map<key_type, Probe<Vector>*>::const_iterator probe_it = probe_map.begin(); 
+
+    for(; probe_it != probe_map.end(); probe_it++){
+        out << "Key: " << probe_it->first << endl;
+        out << "Probe: " << *(probe_it->second) << endl;
+    }
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
 MpiSimulator::MpiSimulator(int num_chunks, MpiSimulatorChunk* chunks){

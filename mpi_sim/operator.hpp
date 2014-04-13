@@ -26,6 +26,7 @@ class Operator{
 public:
     virtual void operator() () = 0;
     virtual void print(ostream &out) const = 0;
+
     friend ostream& operator << (ostream &out, const Operator &op){
         op.print(out);
         return out;

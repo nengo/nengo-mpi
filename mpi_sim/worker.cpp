@@ -1,5 +1,7 @@
-#include <mpi.h>
+
 #include <iostream>
+#include <string>
+#include <mpi.h>
 #include <boost/mpi.hpp>
 #include <boost/mpi/environment.hpp>
 #include <boost/mpi/communicator.hpp>
@@ -50,7 +52,12 @@ int main(int argc, char *argv[]) {
 
     MpiSimulatorChunk chunk;
 
+    // Recv the chunk from master
     comm.recv(0, 1, chunk);
+    
+    // Send a validation string to master
+    string validation_string = chunk.to_string();
+    comm.send(0, 2, validation_string);
 
     MPI_Finalize(); 
     return 0; 
