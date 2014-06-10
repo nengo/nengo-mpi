@@ -1,4 +1,3 @@
-
 #ifndef NENGO_MPI_MPI_OPS_HPP
 #define NENGO_MPI_MPI_OPS_HPP
 
@@ -20,8 +19,8 @@ class MPIWait;
 // should occur before the MPISend/Receive in the operator ordering
 // in MpiSimulatorChunk.
 
-//In INTERLEAVED mode the MPISend operator should be called directly 
-//after its content vector is updated by an operation. The corresponding 
+//In INTERLEAVED mode the MPISend operator should be called directly
+//after its content vector is updated by an operation. The corresponding
 //MPIWait operator should be called directly before the content vector is
 //updated.
 class MPISend: public Operator{
@@ -42,7 +41,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & dst;
         ar & tag;
         ar & content;
@@ -50,8 +49,8 @@ private:
     }
 };
 
-//In INTERLEAVED mode the MPIRecv operator should be called directly 
-//after all operators that make use of its content vector have been called. 
+//In INTERLEAVED mode the MPIRecv operator should be called directly
+//after all operators that make use of its content vector have been called.
 //The corresponding MPIWait operator should be called directly before any of
 //the operators that make use of the content vector.
 class MPIRecv: public Operator{
@@ -72,7 +71,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & src;
         ar & tag;
         ar & content;

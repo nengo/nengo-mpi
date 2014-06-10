@@ -13,16 +13,16 @@ MpiSimulatorChunk::MpiSimulatorChunk(double dt)
 
 void MpiSimulatorChunk::run_n_steps(int steps){
     for(unsigned step = 0; step < steps; ++step){
-        list<Operator*>::const_iterator it; 
+        list<Operator*>::const_iterator it;
         for(it = operator_list.begin(); it != operator_list.end(); ++it){
             //Call the operator
             (**it)();
         }
 
-        map<key_type, Probe<Vector>*>::iterator probe_it; 
+        map<key_type, Probe<Vector>*>::iterator probe_it;
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
-            probe_it->second->gather(n_steps); 
+            probe_it->second->gather(n_steps);
         }
 
         time += dt;
@@ -80,21 +80,21 @@ string MpiSimulatorChunk::to_string() const{
     //Print maps
     stringstream out;
 
-    map<key_type, Vector*>::const_iterator vector_it = vector_signal_map.begin();  
+    map<key_type, Vector*>::const_iterator vector_it = vector_signal_map.begin();
 
     for(; vector_it != vector_signal_map.end(); vector_it++){
         out << "Key: " << vector_it->first << endl;
         out << "Vector: " << *(vector_it->second) << endl;
     }
 
-    map<key_type, Matrix*>::const_iterator matrix_it = matrix_signal_map.begin();  
+    map<key_type, Matrix*>::const_iterator matrix_it = matrix_signal_map.begin();
 
     for(; matrix_it != matrix_signal_map.end(); matrix_it++){
         out << "Key: " << matrix_it->first << endl;
         out << "Matrix: " << *(matrix_it->second) << endl;
     }
 
-    map<key_type, Probe<Vector>*>::const_iterator probe_it = probe_map.begin(); 
+    map<key_type, Probe<Vector>*>::const_iterator probe_it = probe_map.begin();
 
     for(; probe_it != probe_map.end(); probe_it++){
         out << "Key: " << probe_it->first << endl;
@@ -110,7 +110,7 @@ string MpiSimulatorChunk::to_string() const{
 MpiSimulator::MpiSimulator(int num_chunks, MpiSimulatorChunk* chunks){
     // Use MPI DPM to setup processes on other nodes
     // Then pass the chunks to those nodes.
-    
+
     send_chunks(num_chunks, chunks);
 }
 

@@ -14,6 +14,7 @@ ostream& operator << (ostream &out, const Probe<T> &probe);
 template<class T>
 class Probe {
 public:
+    Probe(){};
     Probe(T* signal, int period);
     void gather(int n_steps);
     list<T*> get_data();
@@ -24,7 +25,7 @@ protected:
     T* signal;
     int period;
 
-private:    
+private:
     friend class boost::serialization::access;
 
     template<class Archive>
@@ -35,12 +36,12 @@ private:
     }
 };
 
-template<class T> 
+template<class T>
 Probe<T>::Probe(T* signal, int period)
     :signal(signal), period(period){
 }
 
-template<class T> 
+template<class T>
 void Probe<T>::gather(int n_steps){
     if(n_steps % period == 0){
         T* new_signal = new T();
@@ -49,7 +50,7 @@ void Probe<T>::gather(int n_steps){
     }
 }
 
-template<class T> 
+template<class T>
 list<T*> Probe<T>::get_data(){
     return data;
 }
@@ -61,7 +62,7 @@ ostream& operator << (ostream &out, const Probe<T> &probe){
     out << *(probe.signal) << endl;
     out << "Points collected: " << endl;
     out << probe.data.size() << endl;
-	return out;
+    return out;
 }
 
 #endif

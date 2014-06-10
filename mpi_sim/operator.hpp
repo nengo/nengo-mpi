@@ -16,9 +16,9 @@ typedef boost::numeric::ublas::matrix<floattype> Matrix;
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures will be in an array, and we simply call
 // them sequentially. The order they are called in will be determined by python.
-// The () operator is a virtual function, which comes with some overhead. 
-// Future optimizations should look at another scheme, either function pointers 
-// or, ideally, finding some way to make these functions 
+// The () operator is a virtual function, which comes with some overhead.
+// Future optimizations should look at another scheme, either function pointers
+// or, ideally, finding some way to make these functions
 // non-pointers and non-virtual.
 
 class Operator{
@@ -42,6 +42,7 @@ private:
 class Reset: public Operator{
 
 public:
+    Reset(){};
     Reset(Vector* dst, floattype value);
     void operator() ();
     virtual void print(ostream &out) const;
@@ -56,7 +57,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & dst;
         ar & dummy;
         ar & value;
@@ -65,6 +66,7 @@ private:
 
 class Copy: public Operator{
 public:
+    Copy(){};
     Copy(Vector* dst, Vector* src);
     void operator()();
     virtual void print(ostream &out) const;
@@ -78,7 +80,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & dst;
         ar & src;
     }
@@ -87,6 +89,7 @@ private:
 // Increment signal Y by dot(A,X)
 class DotIncMV: public Operator{
 public:
+    DotIncMV(){};
     DotIncMV(Matrix* A, Vector* X, Vector* Y);
     void operator()();
     virtual void print(ostream &out) const;
@@ -101,7 +104,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & A;
         ar & X;
         ar & Y;
@@ -111,6 +114,7 @@ private:
 // Increment signal Y by dot(A,X)
 class DotIncVV: public Operator{
 public:
+    DotIncVV(){};
     DotIncVV(Vector* A, Vector* X, Vector* Y);
     void operator()();
     virtual void print(ostream &out) const;
@@ -127,7 +131,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & A;
         ar & X;
         ar & Y;
@@ -139,6 +143,7 @@ private:
 // Sets Y <- dot(A, X) + B * Y
 class ProdUpdate: public Operator{
 public:
+    ProdUpdate(){};
     ProdUpdate(Vector* B, Vector* Y);
     void operator()();
     virtual void print(ostream &out) const;
@@ -154,7 +159,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & B;
         ar & Y;
         ar & size;
@@ -164,16 +169,17 @@ private:
 
 class SimLIF: public Operator{
 public:
+    SimLIF(){};
     SimLIF(int n_neuron, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output);
     void operator()();
     virtual void print(ostream &out) const;
 
 protected:
-    const floattype dt;
-    const floattype dt_inv;
-    const floattype tau_rc;
-    const floattype tau_ref;
-    const int n_neurons;
+    floattype dt;
+    floattype dt_inv;
+    floattype tau_rc;
+    floattype tau_ref;
+    int n_neurons;
 
     Vector* J;
     Vector* output;
@@ -191,7 +197,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & dt;
         ar & dt_inv;
         ar & tau_rc;
@@ -214,15 +220,16 @@ private:
 class SimLIFRate: public Operator{
 
 public:
+    SimLIFRate(){};
     SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output);
     void operator()();
     virtual void print(ostream &out) const;
 
 protected:
-    const floattype dt;
-    const floattype tau_rc;
-    const floattype tau_ref;
-    const int n_neurons;
+    floattype dt;
+    floattype tau_rc;
+    floattype tau_ref;
+    int n_neurons;
 
     Vector j;
     Vector one;
@@ -235,7 +242,7 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-        ar & boost::serialization::base_object<Operator>(*this);    
+        ar & boost::serialization::base_object<Operator>(*this);
         ar & dt;
         ar & tau_rc;
         ar & tau_ref;

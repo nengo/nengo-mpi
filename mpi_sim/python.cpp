@@ -103,7 +103,7 @@ bpy::object PythonMpiSimulatorChunk::get_probe_data(bpy::object probe_key, bpy::
     list<Vector*> data = probe->get_data();
 
     bpy::list py_list;
-    list<Vector*>::const_iterator it; 
+    list<Vector*>::const_iterator it;
     for(it = data.begin(); it != data.end(); ++it){
 
         bpy::object a = make_array((*it)->size());
@@ -186,7 +186,7 @@ void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object B, bpy::object Y){
     mpi_sim_chunk.add_operator(prod_update);
 }
 
-void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object tau_rc, 
+void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object tau_rc,
     bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){
 
     int c_n_neurons = bpy::extract<int>(n_neurons);
@@ -204,7 +204,7 @@ void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object t
     mpi_sim_chunk.add_operator(sim_lif);
 }
 
-void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc, 
+void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc,
     bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){
 
     int c_n_neurons = bpy::extract<int>(n_neurons);
@@ -239,7 +239,7 @@ void PythonMpiSimulatorChunk::create_PyFunc(bpy::object output, bpy::object py_f
     mpi_sim_chunk.add_operator(sim_py_func);
 }
 
-void PythonMpiSimulatorChunk::create_PyFuncWithInput(bpy::object output, bpy::object py_fn, 
+void PythonMpiSimulatorChunk::create_PyFuncWithInput(bpy::object output, bpy::object py_fn,
     bpy::object t_in, bpy::object input, bpyn::array py_input){
 
     bool c_t_in = bpy::extract<bool>(t_in);
@@ -259,12 +259,12 @@ void PythonMpiSimulatorChunk::create_PyFuncWithInput(bpy::object output, bpy::ob
 
 
 PyFunc::PyFunc(Vector* output, bpy::object py_fn, double* time)
-    :output(output), py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false), 
+    :output(output), py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
 	input(NULL), py_input(0.0){
 }
 
 PyFunc::PyFunc(Vector* output, bpy::object py_fn, double* time, Vector* input, bpyn::array py_input)
-    :output(output), py_fn(py_fn),  time(time), supply_time(time!=NULL), supply_input(true), 
+    :output(output), py_fn(py_fn),  time(time), supply_time(time!=NULL), supply_input(true),
     input(input), py_input(py_input){
 }
 

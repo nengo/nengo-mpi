@@ -54,7 +54,7 @@ public:
     void run_n_steps(int steps);
 
     void add_operator(Operator* op);
-    
+
     void add_probe(key_type key, Probe<Vector>* probe);
 
     void add_vector_signal(key_type key, Vector* sig);
@@ -65,13 +65,13 @@ public:
     Matrix* get_matrix_signal(key_type key);
 
     double* get_time_pointer(){return &time;}
-    
+
     string to_string() const;
 
-	friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
-		out << chunk.to_string() << endl;
-		return out;
-	}
+    friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
+        out << chunk.to_string() << endl;
+        return out;
+    }
 
 private:
     double time;

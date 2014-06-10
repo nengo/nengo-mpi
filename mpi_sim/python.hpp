@@ -44,10 +44,10 @@ public:
 
     void create_ProdUpdate(bpy::object B, bpy::object Y);
 
-    void create_SimLIF(bpy::object n_neurons, bpy::object tau_rc, 
+    void create_SimLIF(bpy::object n_neurons, bpy::object tau_rc,
                     bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output);
 
-    void create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc, 
+    void create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc,
                     bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output);
 
     void create_MPISend();
@@ -56,7 +56,7 @@ public:
 
     void create_PyFunc(bpy::object output, bpy::object py_fn, bpy::object t_in);
 
-    void create_PyFuncWithInput(bpy::object output, bpy::object py_fn, 
+    void create_PyFuncWithInput(bpy::object output, bpy::object py_fn,
                     bpy::object t_in, bpy::object input, bpyn::array py_input);
 
 private:
