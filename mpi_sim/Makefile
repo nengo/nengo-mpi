@@ -8,6 +8,8 @@ ifneq (, $(findstring gpc,$(HOST)))
 	BOOST_INC=${SCINET_BOOST_INC}
 	MPI_INC=${SCINET_MPI_INC}
 	BOOST_LIB=${SCINET_BOOST_LIB}
+	PYTHON_LIB=${SCINET_PYTHON_LIB}
+	MPI_LIB=${SCINET_MPI_LIB}
 else
 	#on other machine
 	#CPP=g++
@@ -32,7 +34,7 @@ all: mpi_sim mpi_sim_worker
 debug: DEFS+=-D_DEBUG
 debug: mpi_sim
 
-CXXFLAGS= -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=c++0x
+CXXFLAGS= -I${BOOST_INC} -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=c++0x
 
 
 
@@ -49,7 +51,7 @@ worker.o: worker.cpp
 
 #Main library code
 mpi_sim: ${OBJS} python.o
-	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared -L${BOOST_LIB} -lboost_python -lboost_serialization -lm
+	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared -L${PYTHON_LIB} -L${MPI_LIB} -L${BOOST_LIB} -lmpi -lboost_python -lboost_serialization -lm
 
 mpi_operators.o: mpi_operators.cpp mpi_operators.hpp
 	mpicxx -std=c++0x -c -o mpi_operators.o -fPIC mpi_operators.cpp
