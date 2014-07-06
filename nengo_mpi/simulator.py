@@ -1,6 +1,3 @@
-#simulator.py
-
-import nengo
 from nengo import builder, LIF, LIFRate
 from nengo.builder import Builder
 from nengo.simulator import SignalDict, ProbeDict
@@ -13,7 +10,8 @@ import mpi_sim
 import logging
 logger = logging.getLogger(__name__)
 
-#nengo.log(debug=True, path=None)
+# nengo.log(debug=True, path=None)
+
 
 def checks(val):
     if isinstance(val, list):
@@ -25,13 +23,16 @@ def checks(val):
 
     return val
 
+
 def make_func(func, t_in, takes_input):
     def f():
         return checks(func())
+
     def ft(t):
         return checks(func(t))
-    def fit(t,i):
-        return checks(func(t,i))
+
+    def fit(t, i):
+        return checks(func(t, i))
 
     if t_in and takes_input:
         return fit
@@ -40,24 +41,27 @@ def make_func(func, t_in, takes_input):
     else:
         return f
 
+
 class Simulator(object):
     """MPI simulator for models."""
 
-    #can supply an init_mpi function, which will initialize the simulator in some
-    #way other than assuming the model passed in is a nengo model. useful for testing.
-    def __init__(self, model, dt=0.001, seed=1, builder=Builder(), init_mpi=None):
+    # Can supply an init_mpi function, which will initialize the simulator in
+    # some way other than assuming the model passed in is a nengo model. This
+    # can be useful for testing.
+    def __init__(self, model, dt=0.001, seed=1,
+                 builder=Builder(), init_mpi=None):
         self.dt = dt
         self.n_steps = 0
 
         self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
 
-        #C++ key -> ndarray
+        # C++ key -> ndarray
         self.sig_dict = {}
 
-        #probe -> C++ key
+        # probe -> C++ key
         self.probe_keys = {}
 
-        #probe -> python list
+        # probe -> python list
         self._probe_outputs = {}
 
         if init_mpi is None:
@@ -68,7 +72,6 @@ class Simulator(object):
 
         self.data = ProbeDict(self._probe_outputs)
 
-
     def add_dot_inc(self, A_key, X_key, Y_key):
 
         A = self.sig_dict[A_key]
@@ -78,40 +81,50 @@ class Simulator(object):
         X_shape = X.shape
 
         if A.ndim > 1 and A_shape[0] > 1 and A_shape[1] > 1:
-            #check whether A HAS to be treated as a matrix
+            # check whether A has to be treated as a matrix
             self.mpi_sim.create_DotIncMV(A_key, X_key, Y_key)
-            logger.debug("Creating DotIncMV, A:%d, X:%d, Y:%d", A_key, X_key, Y_key)
-
+            logger.debug(
+                "Creating DotIncMV, A:%d, X:%d, Y:%d", A_key, X_key, Y_key)
         else:
-            #if it doesn't, treat it as a vector
+            # if it doesn't, treat it as a vector
             A_scalar = A_shape == () or A_shape == (1,)
             X_scalar = X_shape == () or X_shape == (1,)
 
             # if one of them is a scalar and the other isn't, make A the scalar
             if X_scalar and not A_scalar:
                 self.mpi_sim.create_DotIncVV(X_key, A_key, Y_key)
-                logger.debug("Creating DotIncVV(inv), A:%d, X:%d, Y:%d", A_key, X_key, Y_key)
+                logger.debug(
+                    "Creating DotIncVV(inv), A:%d, X:%d, Y:%d",
+                    A_key, X_key, Y_key)
             else:
-                logger.debug("Creating DotIncVV, A:%d, X:%d, Y:%d", A_key, X_key, Y_key)
+                logger.debug(
+                    "Creating DotIncVV, A:%d, X:%d, Y:%d", A_key, X_key, Y_key)
                 self.mpi_sim.create_DotIncVV(A_key, X_key, Y_key)
 
-
     def add_signal(self, key, A, label=''):
+
         A_shape = A.shape
+
         if A.ndim > 1 and A_shape[0] > 1 and A_shape[1] > 1:
-            logger.debug("Creating matrix signal, name: %s, key: %d", label, key)
+            logger.debug(
+                "Creating matrix signal, name: %s, key: %d", label, key)
+
             self.mpi_sim.add_matrix_signal(key, A)
         else:
             A = np.squeeze(A)
+
             if A.shape == ():
                 A = np.array([A])
-            logger.debug("Creating vector signal, name: %s, key: %d", label, key)
+
+            logger.debug(
+                "Creating vector signal, name: %s, key: %d", label, key)
+
             self.mpi_sim.add_vector_signal(key, A)
 
         self.sig_dict[key] = A
 
-
-    def add_probe(self, probe, signal_key, probe_key=None, sample_every=None, period=1):
+    def add_probe(self, probe, signal_key, probe_key=None,
+                  sample_every=None, period=1):
 
         if sample_every is not None:
             period = 1 if sample_every is None else int(sample_every / self.dt)
@@ -120,10 +133,8 @@ class Simulator(object):
         self.probe_keys[probe] = id(probe) if probe_key is None else probe_key
         self.mpi_sim.create_Probe(self.probe_keys[probe], signal_key, period)
 
-
-
     def _init_from_model(self):
-        self.seed = self.model.seed 
+        self.seed = self.model.seed
         self.signals = SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
 
         for op in self.model.operators:
@@ -139,21 +150,22 @@ class Simulator(object):
         for op in self._step_order:
             op_type = type(op)
 
-            #print op
-
             if op_type == builder.Reset:
-                logger.debug("Creating Reset, dst:%d, Val:%f", id(op.dst), op.value)
+                logger.debug(
+                    "Creating Reset, dst:%d, Val:%f", id(op.dst), op.value)
                 self.mpi_sim.create_Reset(id(op.dst), op.value)
 
             elif op_type == builder.Copy:
-                logger.debug("Creating Copy, dst:%d, src:%d", id(op.dst), id(op.src))
+                logger.debug(
+                    "Creating Copy, dst:%d, src:%d", id(op.dst), id(op.src))
                 self.mpi_sim.create_Copy(id(op.dst), id(op.src))
 
             elif op_type == builder.DotInc:
                 self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
 
             elif op_type == builder.ProdUpdate:
-                logger.debug("Creating ProdUpdate, B:%d, Y:%d", id(op.B), id(op.Y))
+                logger.debug(
+                    "Creating ProdUpdate, B:%d, Y:%d", id(op.B), id(op.Y))
                 self.mpi_sim.create_ProdUpdate(id(op.B), id(op.Y))
                 self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
 
@@ -164,22 +176,28 @@ class Simulator(object):
                     tau_ref = op.neurons.tau_ref
                     tau_rc = op.neurons.tau_rc
 
-                    logger.debug("Creating LIF, N: %d, J:%d, output:%d",
-                            n_neurons, id(op.J), id(op.output))
+                    logger.debug(
+                        "Creating LIF, N: %d, J:%d, output:%d",
+                        n_neurons, id(op.J), id(op.output))
 
-                    self.mpi_sim.create_SimLIF(n_neurons,
-                            tau_rc, tau_ref, self.dt, id(op.J), id(op.output))
+                    self.mpi_sim.create_SimLIF(
+                        n_neurons, tau_rc, tau_ref, self.dt,
+                        id(op.J), id(op.output))
                 elif type(op.neurons) is LIFRate:
                     tau_ref = op.neurons.tau_ref
                     tau_rc = op.neurons.tau_rc
 
-                    logger.debug("Creating LIFRate, N: %d, J:%d, output:%d",
-                            n_neurons, id(op.J), id(op.output))
+                    logger.debug(
+                        "Creating LIFRate, N: %d, J:%d, output:%d",
+                        n_neurons, id(op.J), id(op.output))
 
-                    self.mpi_sim.create_SimLIFRate(n_neurons,
-                            tau_rc, tau_ref, self.dt, id(op.J), id(op.output))
+                    self.mpi_sim.create_SimLIFRate(
+                        n_neurons, tau_rc, tau_ref, self.dt,
+                        id(op.J), id(op.output))
                 else:
-                    raise NotImplementedError('nengo_mpi cannot handle neurons of type ' + str(type(op.neurons)))
+                    raise NotImplementedError(
+                        'nengo_mpi cannot handle neurons of type ' +
+                        str(type(op.neurons)))
 
             elif op_type == builder.SimPyFunc:
                 t_in = op.t_in
@@ -188,13 +206,18 @@ class Simulator(object):
 
                 if x is None:
                     logger.debug("Creating PyFunc, output:%d", id(op.output))
-                    self.mpi_sim.create_PyFunc(id(op.output), make_func(fn, t_in, False), t_in)
+                    self.mpi_sim.create_PyFunc(
+                        id(op.output), make_func(fn, t_in, False), t_in)
                 else:
-                    logger.debug("Creating PyFuncWithInput, output:%d", id(op.output))
-                    self.mpi_sim.create_PyFuncWithInput(id(op.output), make_func(fn, t_in, True), t_in, id(x), x.value)
+                    logger.debug(
+                        "Creating PyFuncWithInput, output:%d", id(op.output))
+                    self.mpi_sim.create_PyFuncWithInput(
+                        id(op.output), make_func(fn, t_in, True),
+                        t_in, id(x), x.value)
 
             else:
-                raise NotImplementedError('nengo_mpi cannot handle operator of type ' + str(op_type))
+                raise NotImplementedError(
+                    'nengo_mpi cannot handle operator of type ' + str(op_type))
 
             if hasattr(op, 'tag'):
                 logger.debug("tag: %s", op.tag)
@@ -202,7 +225,9 @@ class Simulator(object):
         self._probe_outputs = self.model.params
 
         for probe in self.model.probes:
-            self.add_probe(probe, id(self.model.sig_in[probe]), sample_every=probe.sample_every)
+            self.add_probe(
+                probe, id(self.model.sig_in[probe]),
+                sample_every=probe.sample_every)
 
     def step(self):
         """Advance the simulator by `self.dt` seconds.
@@ -230,4 +255,3 @@ class Simulator(object):
         n_steps = self.n_steps if dt is None else int(
             self.n_steps / (dt / self.dt))
         return np.linspace(0, last_t, n_steps)
-
