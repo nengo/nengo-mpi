@@ -1,8 +1,9 @@
-from nengo import builder, LIF, LIFRate
-from nengo.builder import Builder
-from nengo.simulator import SignalDict, ProbeDict
+from nengo import LIF, LIFRate
+import nengo.builder as builder
+from nengo.simulator import ProbeDict
 from nengo.utils.graphs import toposort
 from nengo.utils.simulator import operator_depencency_graph
+import nengo.utils.numpy as npext
 
 import numpy as np
 import mpi_sim
@@ -43,17 +44,57 @@ def make_func(func, t_in, takes_input):
 
 
 class Simulator(object):
-    """MPI simulator for models."""
+    """MPI simulator for nengo 2.0."""
 
-    # Can supply an init_mpi function, which will initialize the simulator in
-    # some way other than assuming the model passed in is a nengo model. This
-    # can be useful for testing.
-    def __init__(self, model, dt=0.001, seed=1,
-                 builder=Builder(), init_mpi=None):
-        self.dt = dt
+    def __init__(self, network, dt=0.001, seed=None, model=None):
+        """
+        (Mostly copied from docstring for nengo.Simulator)
+
+        Initialize the simulator with a network and (optionally) a model.
+
+        Most of the time, you will pass in a network and sometimes a dt::
+
+            sim1 = nengo.Simulator(my_network)  # Uses default 0.001s dt
+            sim2 = nengo.Simulator(my_network, dt=0.01)  # Uses 0.01s dt
+
+        For more advanced use cases, you can initialize the model yourself,
+        and also pass in a network that will be built into the same model
+        that you pass in::
+
+            sim = nengo.Simulator(my_network, model=my_model)
+
+        If you want full control over the build process, then you can build
+        your network into the model manually. If you do this, then you must
+        explicitly pass in ``None`` for the network::
+
+            sim = nengo.Simulator(None, model=my_model)
+
+        Parameters
+        ----------
+        network : nengo.Network instance or None
+            A network object to the built and then simulated.
+            If a fully built ``model`` is passed in, then you can skip
+            building the network by passing in network=None.
+        dt : float
+            The length of a simulator timestep, in seconds.
+        seed : int
+            A seed for all stochastic operators used in this simulator.
+            Note that there are not stochastic operators implemented
+            currently, so this parameters does nothing.
+        model : nengo.builder.Model instance or None
+            A model object that contains build artifacts to be simulated.
+            Usually the simulator will build this model for you; however,
+            if you want to build the network manually, or to inject some
+            build artifacts in the Model before building the network,
+            then you can pass in a ``nengo.builder.Model`` instance.
+        """
+
+        # Note: seed is not used right now, but one day...
+        assert seed is None, "Simulator seed not yet implemented"
+        self.seed = np.random.randint(npext.maxint) if seed is None else seed
+
         self.n_steps = 0
-
-        self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
+        self.dt = dt
 
         # C++ key -> ndarray
         self.sig_dict = {}
@@ -64,11 +105,20 @@ class Simulator(object):
         # probe -> python list
         self._probe_outputs = {}
 
-        if init_mpi is None:
-            self.model = builder(model, self.dt)
+        self.model = model
+
+        if network is not None:
+
+            if self.model is None:
+                self.model = builder.Model(
+                    dt=dt, label="%s, dt=%f" % (network.label, dt))
+
+            builder.Builder.build(network, model=self.model)
+
+        self.mpi_sim = mpi_sim.PythonMpiSimulatorChunk(self.dt)
+
+        if self.model is not None:
             self._init_from_model()
-        else:
-            init_mpi(self)
 
         self.data = ProbeDict(self._probe_outputs)
 
@@ -134,8 +184,15 @@ class Simulator(object):
         self.mpi_sim.create_Probe(self.probe_keys[probe], signal_key, period)
 
     def _init_from_model(self):
-        self.seed = self.model.seed
-        self.signals = SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
+        """
+        Only to be called if self.model is defined.
+
+        self.mpi_sim must have been created by the time this function is called.
+        """
+
+        assert hasattr(self, 'model') and self.model is not None
+
+        self.signals = builder.SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
 
         for op in self.model.operators:
             op.init_signals(self.signals, self.dt)
@@ -170,7 +227,7 @@ class Simulator(object):
                 self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
 
             elif op_type == builder.SimNeurons:
-                n_neurons = op.neurons.n_neurons
+                n_neurons = op.J.size
 
                 if type(op.neurons) is LIF:
                     tau_ref = op.neurons.tau_ref
@@ -229,16 +286,6 @@ class Simulator(object):
                 probe, id(self.model.sig_in[probe]),
                 sample_every=probe.sample_every)
 
-    def step(self):
-        """Advance the simulator by `self.dt` seconds.
-        """
-        self.run_steps(1)
-
-    def run(self, time_in_seconds):
-        """Simulate for the given length of time."""
-        steps = int(np.round(float(time_in_seconds) / self.dt))
-        self.run_steps(steps)
-
     def run_steps(self, steps):
         """Simulate for the given number of `dt` steps."""
         self.mpi_sim.run_n_steps(steps)
@@ -248,6 +295,15 @@ class Simulator(object):
             self._probe_outputs[probe].extend(data)
 
         self.n_steps += steps
+
+    def step(self):
+        """Advance the simulator by `self.dt` seconds."""
+        self.run_steps(1)
+
+    def run(self, time_in_seconds):
+        """Simulate for the given length of time."""
+        steps = int(np.round(float(time_in_seconds) / self.dt))
+        self.run_steps(steps)
 
     def trange(self, dt=None):
         dt = self.dt if dt is None else dt
