@@ -14,18 +14,44 @@ logger = logging.getLogger(__name__)
 # nengo.log(debug=True, path=None)
 
 
+def make_key(obj):
+    if isinstance(obj, builder.SignalView):
+        return id(obj.base)
+    else:
+        return id(obj)
+
+
 def checks(val):
+    """
+    If the output can possibly be treated as a scalar, convert it
+    to a python float. Otherwise, convert it to a numpy ndarray.
+    """
+
     if isinstance(val, list):
-        val = np.array(val)
-    elif hasattr(val, 'shape') and val.shape == ():
+        val = np.array(val, dtype=np.float64)
+
+    elif isinstance(val, np.ndarray):
+
+        if getattr(val, 'shape', None) == ():
+            val = float(val)
+
+        elif getattr(val, 'dtype', None) != np.float64:
+            val = array(val, dtype=np.float64)
+
+    elif isinstance(val, int):
         val = float(val)
-    elif not hasattr(val, 'shape'):
-        val = float(val)
+
+    elif isinstance(val, float):
+        if isinstance(val, np.float64):
+            val = float(val)
+
+    else:
+        raise ValueError("python function returning unexpected value, %s" % str(val))
 
     return val
 
 
-def make_func(func, t_in, takes_input):
+def make_checked_func(func, t_in, takes_input):
     def f():
         return checks(func())
 
@@ -180,7 +206,7 @@ class Simulator(object):
             period = 1 if sample_every is None else int(sample_every / self.dt)
 
         self._probe_outputs[probe] = []
-        self.probe_keys[probe] = id(probe) if probe_key is None else probe_key
+        self.probe_keys[probe] = make_key(probe) if probe_key is None else probe_key
         self.mpi_sim.create_Probe(self.probe_keys[probe], signal_key, period)
 
     def _init_from_model(self):
@@ -202,37 +228,39 @@ class Simulator(object):
                             if hasattr(node, 'make_step')]
 
         for sig, numpy_array in self.signals.items():
-            self.add_signal(id(sig), numpy_array, str(sig))
+            self.add_signal(make_key(sig), numpy_array, str(sig))
 
         for op in self._step_order:
             op_type = type(op)
 
             if op_type == builder.Reset:
                 logger.debug(
-                    "Creating Reset, dst:%d, Val:%f", id(op.dst), op.value)
-                self.mpi_sim.create_Reset(id(op.dst), op.value)
+                    "Creating Reset, dst:%d, Val:%f", make_key(op.dst), op.value)
+                self.mpi_sim.create_Reset(make_key(op.dst), op.value)
 
             elif op_type == builder.Copy:
                 logger.debug(
-                    "Creating Copy, dst:%d, src:%d", id(op.dst), id(op.src))
-                self.mpi_sim.create_Copy(id(op.dst), id(op.src))
+                    "Creating Copy, dst:%d, src:%d", make_key(op.dst), make_key(op.src))
+                self.mpi_sim.create_Copy(make_key(op.dst), make_key(op.src))
 
             elif op_type == builder.DotInc:
-                self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
+                self.add_dot_inc(make_key(op.A), make_key(op.X), make_key(op.Y))
 
             elif op_type == builder.ProdUpdate:
                 logger.debug(
-                    "Creating ProdUpdate, B:%d, Y:%d", id(op.B), id(op.Y))
-                self.mpi_sim.create_ProdUpdate(id(op.B), id(op.Y))
-                self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
+                    "Creating ProdUpdate, A: %d, X: %d, B:%d, Y:%d",
+                    make_key(op.A), make_key(op.X), make_key(op.B), make_key(op.Y))
+
+                self.mpi_sim.create_ProdUpdate(make_key(op.B), make_key(op.Y))
+                self.add_dot_inc(make_key(op.A), make_key(op.X), make_key(op.Y))
 
             elif op_type == builder.SimFilterSynapse:
                 logger.debug(
                     "Creating Filter, input:%d, output:%d, numer:%s, denom:%s",
-                    id(op.input), id(op.output), str(op.num), str(op.den))
+                    make_key(op.input), make_key(op.output), str(op.num), str(op.den))
 
                 self.mpi_sim.create_Filter(
-                    id(op.input), id(op.output), op.num, op.den)
+                    make_key(op.input), make_key(op.output), op.num, op.den)
 
             elif op_type == builder.SimNeurons:
                 n_neurons = op.J.size
@@ -243,11 +271,11 @@ class Simulator(object):
 
                     logger.debug(
                         "Creating LIF, N: %d, J:%d, output:%d",
-                        n_neurons, id(op.J), id(op.output))
+                        n_neurons, make_key(op.J), make_key(op.output))
 
                     self.mpi_sim.create_SimLIF(
                         n_neurons, tau_rc, tau_ref, self.dt,
-                        id(op.J), id(op.output))
+                        make_key(op.J), make_key(op.output))
 
                 elif type(op.neurons) is LIFRate:
                     tau_ref = op.neurons.tau_ref
@@ -255,11 +283,11 @@ class Simulator(object):
 
                     logger.debug(
                         "Creating LIFRate, N: %d, J:%d, output:%d",
-                        n_neurons, id(op.J), id(op.output))
+                        n_neurons, make_key(op.J), make_key(op.output))
 
                     self.mpi_sim.create_SimLIFRate(
                         n_neurons, tau_rc, tau_ref, self.dt,
-                        id(op.J), id(op.output))
+                        make_key(op.J), make_key(op.output))
                 else:
                     raise NotImplementedError(
                         'nengo_mpi cannot handle neurons of type ' +
@@ -270,16 +298,27 @@ class Simulator(object):
                 fn = op.fn
                 x = op.x
 
+                output_id = make_key(op.output) if op.output is not None else -1
+
                 if x is None:
-                    logger.debug("Creating PyFunc, output:%d", id(op.output))
-                    self.mpi_sim.create_PyFunc(
-                        id(op.output), make_func(fn, t_in, False), t_in)
+                    logger.debug("Creating PyFunc, output:%d", make_key(op.output))
+
+                    if op.output is None:
+                        self.mpi_sim.create_PyFunc(fn, t_in)
+                    else:
+                        self.mpi_sim.create_PyFuncO(
+                            output_id, make_checked_func(fn, t_in, False), t_in)
+
                 else:
                     logger.debug(
-                        "Creating PyFuncWithInput, output:%d", id(op.output))
-                    self.mpi_sim.create_PyFuncWithInput(
-                        id(op.output), make_func(fn, t_in, True),
-                        t_in, id(x), x.value)
+                        "Creating PyFuncWithInput, output:%d", make_key(op.output))
+
+                    if op.output is None:
+                        self.mpi_sim.create_PyFuncI(fn, t_in, make_key(x), x.value)
+                    else:
+                        self.mpi_sim.create_PyFuncIO(
+                            output_id, make_checked_func(fn, t_in, True),
+                            t_in, make_key(x), x.value)
 
             else:
                 raise NotImplementedError(
@@ -292,7 +331,7 @@ class Simulator(object):
 
         for probe in self.model.probes:
             self.add_probe(
-                probe, id(self.model.sig_in[probe]),
+                probe, make_key(self.model.sig[probe]['in']),
                 sample_every=probe.sample_every)
 
     def run_steps(self, steps):

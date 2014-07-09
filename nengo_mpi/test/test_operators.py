@@ -62,7 +62,7 @@ def test_copy(Simulator):
         sim.add_signal(2, Y)
         sim.add_signal(3, Z)
 
-        sim.mpi_sim.create_PyFunc(3, make_random, False)
+        sim.mpi_sim.create_PyFuncO(3, make_random, False)
         sim.add_dot_inc(0, 1, 2)
         sim.mpi_sim.create_Copy(2, 3)
         sim.add_probe(2, 2, 2)
@@ -85,7 +85,7 @@ def test_copy(Simulator):
 
 def test_lif(Simulator):
     """Test that the dynamic model approximately matches the rates."""
-    D = 40
+    n_neurons = 40
     tau_rc = 0.02
     tau_ref = 0.002
     dt = 0.001
@@ -97,14 +97,14 @@ def test_lif(Simulator):
 
     def init_mpi(sim):
 
-        A = np.zeros(D)
-        B = np.zeros(D)
+        A = np.zeros(n_neurons)
+        B = np.zeros(n_neurons)
 
         sim.add_signal(0, A)
         sim.add_signal(1, B)
 
-        sim.mpi_sim.create_PyFunc(0, make_random, False)
-        sim.mpi_sim.create_SimLIF(D, tau_rc, tau_ref, dt, 0, 1)
+        sim.mpi_sim.create_PyFuncO(0, make_random, False)
+        sim.mpi_sim.create_SimLIF(n_neurons, tau_rc, tau_ref, dt, 0, 1)
         sim.add_probe(1, 1, 1)
 
     sim = Simulator(model=None, init_mpi=init_mpi)
@@ -113,7 +113,8 @@ def test_lif(Simulator):
     spikes = sim.data[1]
     sim_rates = spikes.sum(0)
 
-    math_rates = nengo.LIF(D, tau_rc=tau_rc, tau_ref=tau_ref).rates(J, gain=np.ones(D), bias=np.zeros(D))
+    lif = nengo.LIF(tau_rc=tau_rc, tau_ref=tau_ref)
+    math_rates = lif.rates(J, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
 
     with Plotter(Simulator) as plt:
         plt.plot(J, sim_rates, label='sim')
@@ -126,7 +127,7 @@ def test_lif(Simulator):
 
 def test_lif_rate(Simulator):
     """Test that the dynamic model approximately matches the rates."""
-    D = 40
+    n_neurons = 40
     tau_rc = 0.02
     tau_ref = 0.002
     dt = 0.001
@@ -138,14 +139,14 @@ def test_lif_rate(Simulator):
 
     def init_mpi(sim):
 
-        A = np.zeros(D)
-        B = np.zeros(D)
+        A = np.zeros(n_neurons)
+        B = np.zeros(n_neurons)
 
         sim.add_signal(0, A)
         sim.add_signal(1, B)
 
-        sim.mpi_sim.create_PyFunc(0, make_random, False)
-        sim.mpi_sim.create_SimLIFRate(D, tau_rc, tau_ref, dt, 0, 1)
+        sim.mpi_sim.create_PyFuncO(0, make_random, False)
+        sim.mpi_sim.create_SimLIFRate(n_neurons, tau_rc, tau_ref, dt, 0, 1)
         sim.add_probe(1, 1, 1)
 
     sim = Simulator(model=None, init_mpi=init_mpi)
@@ -155,7 +156,8 @@ def test_lif_rate(Simulator):
     output = sim.data[1]
     sim_rates = output[-1, :] / dt
 
-    math_rates = nengo.LIF(D, tau_rc=tau_rc, tau_ref=tau_ref).rates(J, gain=np.ones(D), bias=np.zeros(D))
+    lif = nengo.LIF(tau_rc=tau_rc, tau_ref=tau_ref)
+    math_rates = lif.rates(J, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
 
     with Plotter(Simulator) as plt:
         plt.plot(J, sim_rates, label='sim')

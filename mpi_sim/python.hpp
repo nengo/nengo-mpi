@@ -60,10 +60,12 @@ public:
 
     void create_MPIRecv();
 
-    void create_PyFunc(bpy::object output, bpy::object py_fn, bpy::object t_in);
-
-    void create_PyFuncWithInput(bpy::object output, bpy::object py_fn,
-                    bpy::object t_in, bpy::object input, bpyn::array py_input);
+    void create_PyFunc(bpy::object py_fn, bpy::object t_in);
+    void create_PyFuncO(bpy::object output, bpy::object py_fn, bpy::object t_in);
+    void create_PyFuncI(bpy::object py_fn, bpy::object t_in,
+                    bpy::object input, bpyn::array py_input);
+    void create_PyFuncIO(bpy::object output, bpy::object py_fn, bpy::object t_in,
+                    bpy::object input, bpyn::array py_input);
 
 private:
     MpiSimulatorChunk mpi_sim_chunk;
