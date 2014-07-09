@@ -14,7 +14,7 @@ def test_reset(Simulator):
     D = 40
     reset_val = 4.0
 
-    def init_mpi(sim):
+    def init_func(sim):
         sim._probe_outputs = {3:[]}
 
         A = np.random.random((D,D))
@@ -29,7 +29,7 @@ def test_reset(Simulator):
         sim.mpi_sim.create_Reset(2, reset_val)
         sim.add_probe(2, 2, 2)
 
-    sim = Simulator(model=None, init_mpi=init_mpi)
+    sim = Simulator(network=None, init_func=init_func)
     sim.run(1.0)
 
     with Plotter(Simulator) as plt:
@@ -50,7 +50,7 @@ def test_copy(Simulator):
         all_data.append(data)
         return data
 
-    def init_mpi(sim):
+    def init_func(sim):
 
         A = np.random.random((D,D))
         X = 2 * np.ones(D)
@@ -68,7 +68,7 @@ def test_copy(Simulator):
         sim.add_probe(2, 2, 2)
         sim.add_probe(3, 3, 3)
 
-    sim = Simulator(model=None, init_mpi=init_mpi)
+    sim = Simulator(network=None, init_func=init_func)
     sim.run(1.0)
 
     with Plotter(Simulator) as plt:
@@ -95,7 +95,7 @@ def test_lif(Simulator):
     def make_random():
         return J
 
-    def init_mpi(sim):
+    def init_func(sim):
 
         A = np.zeros(n_neurons)
         B = np.zeros(n_neurons)
@@ -107,7 +107,7 @@ def test_lif(Simulator):
         sim.mpi_sim.create_SimLIF(n_neurons, tau_rc, tau_ref, dt, 0, 1)
         sim.add_probe(1, 1, 1)
 
-    sim = Simulator(model=None, init_mpi=init_mpi)
+    sim = Simulator(network=None, init_func=init_func)
     sim.run(1.0)
 
     spikes = sim.data[1]
@@ -137,7 +137,7 @@ def test_lif_rate(Simulator):
     def make_random():
         return J
 
-    def init_mpi(sim):
+    def init_func(sim):
 
         A = np.zeros(n_neurons)
         B = np.zeros(n_neurons)
@@ -149,8 +149,7 @@ def test_lif_rate(Simulator):
         sim.mpi_sim.create_SimLIFRate(n_neurons, tau_rc, tau_ref, dt, 0, 1)
         sim.add_probe(1, 1, 1)
 
-    sim = Simulator(model=None, init_mpi=init_mpi)
-    #sim = nengo_mpi.Simulator(model=None, init_mpi=init_mpi)
+    sim = Simulator(network=None, init_func=init_func)
     sim.run(1.0)
 
     output = sim.data[1]

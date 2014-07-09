@@ -72,7 +72,7 @@ def make_checked_func(func, t_in, takes_input):
 class Simulator(object):
     """MPI simulator for nengo 2.0."""
 
-    def __init__(self, network, dt=0.001, seed=None, model=None):
+    def __init__(self, network, dt=0.001, seed=None, model=None, init_func=None):
         """
         (Mostly copied from docstring for nengo.Simulator)
 
@@ -113,6 +113,10 @@ class Simulator(object):
             if you want to build the network manually, or to inject some
             build artifacts in the Model before building the network,
             then you can pass in a ``nengo.builder.Model`` instance.
+        init_func : function that accepts a Simulator, or None
+            This function permits the user to call functions like add_signals,
+            add_probes. This is useful for testing individual peices of them
+            simulator.
         """
 
         # Note: seed is not used right now, but one day...
@@ -132,6 +136,7 @@ class Simulator(object):
         self._probe_outputs = {}
 
         self.model = model
+        self.signals = builder.SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
 
         if network is not None:
 
@@ -145,6 +150,9 @@ class Simulator(object):
 
         if self.model is not None:
             self._init_from_model()
+
+        if init_func is not None:
+            init_func(self)
 
         self.data = ProbeDict(self._probe_outputs)
 
@@ -217,8 +225,6 @@ class Simulator(object):
         """
 
         assert hasattr(self, 'model') and self.model is not None
-
-        self.signals = builder.SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
 
         for op in self.model.operators:
             op.init_signals(self.signals, self.dt)
@@ -343,6 +349,7 @@ class Simulator(object):
             self._probe_outputs[probe].extend(data)
 
         self.n_steps += steps
+        self.signals['__time__'] += steps * self.dt
 
     def step(self):
         """Advance the simulator by `self.dt` seconds."""
@@ -355,7 +362,5 @@ class Simulator(object):
 
     def trange(self, dt=None):
         dt = self.dt if dt is None else dt
-        last_t = self.n_steps * self.dt - self.dt
-        n_steps = self.n_steps if dt is None else int(
-            self.n_steps / (dt / self.dt))
-        return np.linspace(0, last_t, n_steps)
+        n_steps = int(np.ceil(self.n_steps * self.dt / dt))
+        return dt * np.arange(0, n_steps)
