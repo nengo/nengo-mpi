@@ -113,12 +113,12 @@ void Filter::operator() (){
 
         (*output)[i] = 0.0;
 
-        for(int j = 0; j < numer->size(); j++){
-            output[i] += numer[j] * x[i][j];
+        for(int j = 0; j < x[i].size(); j++){
+            (*output)[i] += (*numer)[j] * x[i][j];
         }
 
-        for(int j = 0; j < denom->size(); j++){
-            output[i] -= denom[j] * y[i][j];
+        for(int j = 0; j < y[i].size(); j++){
+            (*output)[i] -= (*denom)[j] * y[i][j];
         }
 
         y[i].push_front((*output)[i]);
@@ -239,6 +239,23 @@ void Filter::print(ostream &out) const{
     out << *numer << endl;
     out << "denom:" << endl;
     out << *denom << endl;
+
+    out << "x & y:" << endl;
+    for(int i = 0; i < input->size(); i++){
+        out << "i: " << i << endl;
+
+        out << "x.size " << x[i].size() << endl;
+        for(int j = 0; j < x[i].size(); j++){
+            cout << "x[ "<< j << "] = "<< x[i][j] << ", ";
+        }
+        out << endl;
+
+        out << "y.size " << y[i].size() << endl;
+        for(int j = 0; j < y[i].size(); j++){
+            cout << "y[ "<< j << "] = "<< y[i][j] << ", ";
+        }
+        out << endl;
+    }
 }
 
 void SimLIF::print(ostream &out) const{
