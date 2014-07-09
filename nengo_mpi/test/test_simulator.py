@@ -19,26 +19,8 @@ import pytest
 
 import nengo_mpi
 
-#def Mpi2Simulator(*args, **kwargs):
-#    return nengo_mpi.Simulator(*args, **kwargs)
-#
-#def pytest_funcarg__Simulator(request):
-#    """the Simulator class being tested.
-#
-#    For this file, it's sim_npy.Simulator.
-#    """
-#    return Mpi2Simulator
-#
-#
-#def pytest_funcarg__RefSimulator(request):
-#    """the Simulator class being tested.
-#
-#    For this file, it's sim_npy.Simulator.
-#    """
-#    return Mpi2Simulator
-
-
 nengotestdir = os.path.dirname(nengo.tests.__file__)
+nengo.log(debug=True)
 
 for testfile in os.listdir(nengotestdir):
     if not testfile.startswith('test_') or not testfile.endswith('.py'):
@@ -53,7 +35,7 @@ for testfile in os.listdir(nengotestdir):
         if k.startswith('test_'):
             tst = getattr(m, k)
             args = inspect.getargspec(tst).args
-            if 'Simulator' in args or 'RefSimulator' in args:
+            if 'Simulator' in args:
                 locals()[testfile[:-3] + '.' + k] = tst
         if k.startswith('pytest'):
             locals()[k] = getattr(m, k)
