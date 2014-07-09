@@ -1,9 +1,12 @@
 #ifndef NENGO_MPI_OPERATOR_HPP
 #define NENGO_MPI_OPERATOR_HPP
 
+#include <vector>
+
 #include <boost/numeric/ublas/vector.hpp>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/io.hpp>
+#include <boost/circular_buffer.hpp>
 
 using namespace std;
 
@@ -167,6 +170,38 @@ private:
     }
 };
 
+class Filter: public Operator{
+
+public:
+    Filter(Vector* input, Vector* output, Vector* numer, Vector* denom);
+    void operator()();
+    virtual void print(ostream &out) const;
+
+protected:
+    Vector* input;
+    Vector* output;
+    Vector* numer;
+    Vector* denom;
+
+    vector< boost::circular_buffer<floattype> > x;
+    vector< boost::circular_buffer<floattype> > y;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::base_object<Operator>(*this);
+
+        ar & input;
+        ar & output;
+        ar & numer;
+        ar & denom;
+        ar & x;
+        ar & y;
+    }
+};
+
 class SimLIF: public Operator{
 public:
     SimLIF(){};
@@ -255,5 +290,7 @@ private:
         ar & output;
     }
 };
+
+
 
 #endif

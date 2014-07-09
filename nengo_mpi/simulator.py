@@ -226,6 +226,14 @@ class Simulator(object):
                 self.mpi_sim.create_ProdUpdate(id(op.B), id(op.Y))
                 self.add_dot_inc(id(op.A), id(op.X), id(op.Y))
 
+            elif op_type == builder.SimFilterSynapse:
+                logger.debug(
+                    "Creating Filter, input:%d, output:%d, numer:%s, denom:%s",
+                    id(op.input), id(op.output), str(op.num), str(op.den))
+
+                self.mpi_sim.create_Filter(
+                    id(op.input), id(op.output), op.num, op.den)
+
             elif op_type == builder.SimNeurons:
                 n_neurons = op.J.size
 
@@ -240,6 +248,7 @@ class Simulator(object):
                     self.mpi_sim.create_SimLIF(
                         n_neurons, tau_rc, tau_ref, self.dt,
                         id(op.J), id(op.output))
+
                 elif type(op.neurons) is LIFRate:
                     tau_ref = op.neurons.tau_ref
                     tau_rc = op.neurons.tau_rc

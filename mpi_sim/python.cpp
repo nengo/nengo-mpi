@@ -12,7 +12,7 @@ bool is_vector(bpyn::array a){
 Vector* ndarray_to_vector(bpyn::array a){
 
 #ifdef _DEBUG
-    std::cout << "Extracting vector:" << std::endl;
+    std::cout << "Extracting vector from ndarray:" << std::endl;
 #endif
 
     int size = bpy::extract<int>(a.attr("size"));
@@ -33,7 +33,7 @@ Vector* ndarray_to_vector(bpyn::array a){
 Matrix* ndarray_to_matrix(bpyn::array a){
 
 #ifdef _DEBUG
-    std::cout << "Extracting matrix:" << std::endl;
+    std::cout << "Extracting matrix from ndarray:" << std::endl;
 #endif
 
     int ndim = bpy::extract<int>(a.attr("ndim"));
@@ -63,6 +63,27 @@ Matrix* ndarray_to_matrix(bpyn::array a){
         std::cout << shape[i] << ",";
     }
     std::cout << ")" << std::endl;
+    std::cout << "Value:" << std::endl;
+    std::cout << *ret << std::endl << std::endl;
+#endif
+
+    return ret;
+}
+
+Vector* list_to_vector(bpy::list l){
+
+#ifdef _DEBUG
+    std::cout << "Extracting from python list vector:" << std::endl;
+#endif
+
+    int length = bpy::len(l);
+    Vector* ret = new Vector(length);
+    for(unsigned i = 0; i < length; i++){
+        (*ret)(i) = bpy::extract<floattype>(l[i]);
+    }
+
+#ifdef _DEBUG
+    std::cout << "Length:" << length << std::endl;
     std::cout << "Value:" << std::endl;
     std::cout << *ret << std::endl << std::endl;
 #endif
@@ -186,6 +207,22 @@ void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object B, bpy::object Y){
     mpi_sim_chunk.add_operator(prod_update);
 }
 
+void PythonMpiSimulatorChunk::create_Filter(bpy::object input, bpy::object output,
+                                            bpy::list numer, bpy::list denom){
+
+    key_type input_key = bpy::extract<key_type>(input);
+    key_type output_key = bpy::extract<key_type>(output);
+
+    Vector* input_vec = mpi_sim_chunk.get_vector_signal(input_key);
+    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+
+    Vector* numer_vec = list_to_vector(numer);
+    Vector* denom_vec = list_to_vector(denom);
+
+    Operator* filter = new Filter(input_vec, output_vec, numer_vec, denom_vec);
+    mpi_sim_chunk.add_operator(filter);
+}
+
 void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object tau_rc,
     bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){
 
@@ -259,8 +296,7 @@ void PythonMpiSimulatorChunk::create_PyFuncWithInput(bpy::object output, bpy::ob
 
 
 PyFunc::PyFunc(Vector* output, bpy::object py_fn, double* time)
-    :output(output), py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
-	input(NULL), py_input(0.0){
+    :output(output), py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false), input(NULL), py_input(0.0){
 }
 
 PyFunc::PyFunc(Vector* output, bpy::object py_fn, double* time, Vector* input, bpyn::array py_input)
@@ -323,6 +359,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("create_DotIncMV", &PythonMpiSimulatorChunk::create_DotIncMV)
         .def("create_DotIncVV", &PythonMpiSimulatorChunk::create_DotIncVV)
         .def("create_ProdUpdate", &PythonMpiSimulatorChunk::create_ProdUpdate)
+        .def("create_Filter", &PythonMpiSimulatorChunk::create_Filter)
         .def("create_SimLIF", &PythonMpiSimulatorChunk::create_SimLIF)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)

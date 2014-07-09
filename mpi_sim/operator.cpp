@@ -23,16 +23,32 @@ DotIncVV::DotIncVV(Vector* A, Vector* X, Vector* Y)
 ProdUpdate::ProdUpdate(Vector* B, Vector* Y)
     :B(B), Y(Y), size(Y->size()), scalar(B->size()==1){}
 
-SimLIF::SimLIF(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
-:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), dt_inv(1.0 / dt), J(J), output(output){
+Filter::Filter(Vector* input, Vector* output,
+               Vector* numer, Vector* denom)
+:input(input), output(output), numer(numer), denom(denom){
+
+    for(int i = 0; i < input->size(); i++){
+        x.push_back(boost::circular_buffer<floattype>(numer->size()));
+        y.push_back(boost::circular_buffer<floattype>(denom->size()));
+    }
+}
+
+SimLIF::SimLIF(int n_neurons, floattype tau_rc, floattype tau_ref,
+               floattype dt, Vector* J, Vector* output)
+:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref),
+dt_inv(1.0 / dt), J(J), output(output){
+
     voltage = ScalarVector(n_neurons, 0.0);
     refractory_time = ScalarVector(n_neurons, 0.0);
     one = ScalarVector(n_neurons, 1.0);
     dt_vec = dt * one;
 }
 
-SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output)
-:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
+SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref,
+                       floattype dt, Vector* J, Vector* output)
+:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), 
+tau_ref(tau_ref), J(J), output(output){
+
     j = Vector(n_neurons);
     one = ScalarVector(n_neurons, 1.0);
 }
@@ -84,6 +100,28 @@ void ProdUpdate::operator() (){
         for (unsigned i = 0; i < size; ++i){
             (*Y)[i] *= (*B)[i];
         }
+    }
+
+#ifdef _DEBUG
+    cout << *this;
+#endif
+}
+
+void Filter::operator() (){
+    for(int i = 0; i < input->size(); i++){
+        x[i].push_front((*input)[i]);
+
+        (*output)[i] = 0.0;
+
+        for(int j = 0; j < numer->size(); j++){
+            output[i] += numer[j] * x[i][j];
+        }
+
+        for(int j = 0; j < denom->size(); j++){
+            output[i] -= denom[j] * y[i][j];
+        }
+
+        y[i].push_front((*output)[i]);
     }
 
 #ifdef _DEBUG
@@ -188,6 +226,18 @@ void ProdUpdate::print(ostream &out) const{
     out << *B << endl;
     out << "Y:" << endl;
     out << *Y << endl << endl;
+}
+
+void Filter::print(ostream &out) const{
+    out << "Filter:" << endl;
+    out << "input:" << endl;
+    out << *input << endl;
+    out << "output:" << endl;
+    out << *output << endl;
+    out << "numer:" << endl;
+    out << *numer << endl;
+    out << "denom:" << endl;
+    out << *denom << endl;
 }
 
 void SimLIF::print(ostream &out) const{

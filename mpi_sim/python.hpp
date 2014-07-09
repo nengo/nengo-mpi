@@ -17,6 +17,7 @@ namespace bpyn = bpy::numeric;
 bool is_vector(bpyn::array a);
 Vector* ndarray_to_vector(bpyn::array a);
 Matrix* ndarray_to_matrix(bpyn::array a);
+Vector* list_to_vector(bpy::list l);
 bool hasattr(bpy::object obj, string const &attrName);
 
 class PythonMpiSimulatorChunk{
@@ -44,11 +45,16 @@ public:
 
     void create_ProdUpdate(bpy::object B, bpy::object Y);
 
+    void create_Filter(bpy::object input, bpy::object output,
+                       bpy::list numer, bpy::list denom);
+
     void create_SimLIF(bpy::object n_neurons, bpy::object tau_rc,
-                    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output);
+                       bpy::object tau_ref, bpy::object dt, bpy::object J,
+                       bpy::object output);
 
     void create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc,
-                    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output);
+                           bpy::object tau_ref, bpy::object dt, bpy::object J,
+                           bpy::object output);
 
     void create_MPISend();
 
@@ -66,7 +72,8 @@ private:
 class PyFunc: public Operator{
 public:
     PyFunc(Vector* output, bpy::object py_fn, double* t_in);
-    PyFunc(Vector* output, bpy::object py_fn, double* t_in, Vector* input, bpyn::array py_input);
+    PyFunc(Vector* output, bpy::object py_fn, double* t_in,
+           Vector* input, bpyn::array py_input);
     void operator()();
     virtual void print(ostream &out) const;
 
