@@ -16,7 +16,7 @@ void MPISend::operator() (){
 
     request = comm.isend(dst, tag, *content);
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -25,7 +25,7 @@ void MPIRecv::operator() (){
 
     request = comm.irecv(src, tag, *content);
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -38,7 +38,7 @@ void MPIWait::operator() (){
 
     first_call = true;
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }

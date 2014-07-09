@@ -59,7 +59,7 @@ void Reset::operator() (){
 
     (*dst) = dummy;
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -68,7 +68,7 @@ void Copy::operator() (){
 
     *dst = *src;
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -76,7 +76,7 @@ void Copy::operator() (){
 void DotIncMV::operator() (){
     axpy_prod(*A, *X, *Y, false);
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -88,7 +88,7 @@ void DotIncVV::operator() (){
         (*Y)[0] += inner_prod(*A, *X);
     }
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -102,7 +102,7 @@ void ProdUpdate::operator() (){
         }
     }
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -124,7 +124,7 @@ void Filter::operator() (){
         y[i].push_front((*output)[i]);
     }
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -160,7 +160,7 @@ void SimLIF::operator() (){
         }
     }
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -177,7 +177,7 @@ void SimLIFRate::operator() (){
         }
     }
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
@@ -230,6 +230,7 @@ void ProdUpdate::print(ostream &out) const{
 
 void Filter::print(ostream &out) const{
     out << "Filter:" << endl;
+
     out << "input:" << endl;
     out << *input << endl;
     out << "output:" << endl;

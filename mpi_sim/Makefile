@@ -26,12 +26,16 @@ DEFS=
 SO_LOC=../nengo_mpi
 WORKER_LOC=../nengo_mpi
 
+CXXFLAGS= -I${BOOST_INC} -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=c++0x
+
 all: mpi_sim mpi_sim_worker
 
-debug: DEFS+=-D_DEBUG
-debug: mpi_sim
+run_debug: DEFS+=-D_RUN_DEBUG
+run_debug: debug
 
-CXXFLAGS= -I${BOOST_INC} -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=c++0x
+debug: DEFS+=-D_DEBUG
+debug: CXXFLAGS+= -g
+debug: mpi_sim
 
 # ********* Worker *************
 mpi_sim_worker: worker.o ${OBJS}

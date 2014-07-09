@@ -333,7 +333,7 @@ void PyFunc::operator() (){
         (*output)[0] = bpy::extract<floattype>(py_output);
     }
 
-#ifdef _DEBUG
+#ifdef _RUN_DEBUG
     cout << *this;
 #endif
 }
