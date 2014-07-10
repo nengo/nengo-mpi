@@ -1,6 +1,8 @@
 """
 Black-box testing of the MPI Simulator.
 
+Modified from the same file in the nengo-ocl.
+
 TestCase classes are added automatically from
 nengo.tests, but you can still run individual
 test files like this:
@@ -14,31 +16,48 @@ See http://pytest.org/latest/usage.html for more invocations.
 import inspect
 import os.path
 
-import nengo.tests
+import nengo
 import pytest
 
-import nengo_mpi
+test_files = {}
 
-nengotestdir = os.path.dirname(nengo.tests.__file__)
+nengo_test_dir = os.path.dirname(nengo.tests.__file__)
+test_files["nengo.tests."] = os.listdir(nengo_test_dir)
+
+try:
+    import nengo.spa.tests
+    spa_test_dir = os.path.dirname(nengo.spa.tests.__file__)
+    test_files["nengo.spa.tests."] = os.listdir(spa_test_dir)
+except:
+    pass
+
+try:
+    import nengo.networks.tests
+    networks_test_dir = os.path.dirname(nengo.networks.tests.__file__)
+    test_files["nengo.networks.tests."] = os.listdir(networks_test_dir)
+except:
+    pass
+
 nengo.log(debug=True)
 
-for testfile in os.listdir(nengotestdir):
-    if not testfile.startswith('test_') or not testfile.endswith('.py'):
-        continue
+for key in test_files:
+    for test_file in test_files[key]:
+        if not test_file.startswith('test_') or not test_file.endswith('.py'):
+            continue
 
-    if testfile.startswith('test_examples'):
-        continue
+        if test_file.startswith('test_examples'):
+            continue
 
-    module_string = "nengo.tests." + testfile[:-3]
-    m = __import__(module_string, globals(), locals(), ['*'])
-    for k in dir(m):
-        if k.startswith('test_'):
-            tst = getattr(m, k)
-            args = inspect.getargspec(tst).args
-            if 'Simulator' in args:
-                locals()[testfile[:-3] + '.' + k] = tst
-        if k.startswith('pytest'):
-            locals()[k] = getattr(m, k)
+        module_string = key + test_file[:-3]
+        m = __import__(module_string, globals(), locals(), ['*'])
+        for k in dir(m):
+            if k.startswith('test_'):
+                tst = getattr(m, k)
+                args = inspect.getargspec(tst).args
+                if 'Simulator' in args:
+                    locals()[test_file[:-3] + '.' + k] = tst
+            if k.startswith('pytest'):
+                locals()[k] = getattr(m, k)
 
 
 if __name__ == '__main__':
