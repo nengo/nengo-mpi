@@ -36,7 +36,7 @@ def checks(val):
             val = float(val)
 
         elif getattr(val, 'dtype', None) != np.float64:
-            val = array(val, dtype=np.float64)
+            val = np.asarray(val, dtype=np.float64)
 
     elif isinstance(val, int):
         val = float(val)
