@@ -46,7 +46,8 @@ def checks(val):
             val = float(val)
 
     else:
-        raise ValueError("python function returning unexpected value, %s" % str(val))
+        raise ValueError(
+            "python function returning unexpected value, %s" % str(val))
 
     return val
 
@@ -72,7 +73,8 @@ def make_checked_func(func, t_in, takes_input):
 class Simulator(object):
     """MPI simulator for nengo 2.0."""
 
-    def __init__(self, network, dt=0.001, seed=None, model=None, init_func=None):
+    def __init__(self, network, dt=0.001, seed=None, model=None,
+                 init_func=None):
         """
         (Mostly copied from docstring for nengo.Simulator)
 
@@ -136,7 +138,8 @@ class Simulator(object):
         self._probe_outputs = {}
 
         self.model = model
-        self.signals = builder.SignalDict(__time__=np.asarray(0.0, dtype=np.float64))
+        self.signals = builder.SignalDict(
+            __time__=np.asarray(0.0, dtype=np.float64))
 
         if network is not None:
 
@@ -214,14 +217,17 @@ class Simulator(object):
             period = 1 if sample_every is None else int(sample_every / self.dt)
 
         self._probe_outputs[probe] = []
-        self.probe_keys[probe] = make_key(probe) if probe_key is None else probe_key
+        self.probe_keys[probe] = (make_key(probe)
+                                  if probe_key is None
+                                  else probe_key)
+
         self.mpi_sim.create_Probe(self.probe_keys[probe], signal_key, period)
 
     def _init_from_model(self):
         """
         Only to be called if self.model is defined.
 
-        self.mpi_sim must have been created by the time this function is called.
+        self.mpi_sim must have been created by the time this function is called
         """
 
         assert hasattr(self, 'model') and self.model is not None
@@ -241,29 +247,37 @@ class Simulator(object):
 
             if op_type == builder.Reset:
                 logger.debug(
-                    "Creating Reset, dst:%d, Val:%f", make_key(op.dst), op.value)
+                    "Creating Reset, dst:%d, Val:%f",
+                    make_key(op.dst), op.value)
+
                 self.mpi_sim.create_Reset(make_key(op.dst), op.value)
 
             elif op_type == builder.Copy:
                 logger.debug(
-                    "Creating Copy, dst:%d, src:%d", make_key(op.dst), make_key(op.src))
+                    "Creating Copy, dst:%d, src:%d",
+                    make_key(op.dst), make_key(op.src))
+
                 self.mpi_sim.create_Copy(make_key(op.dst), make_key(op.src))
 
             elif op_type == builder.DotInc:
-                self.add_dot_inc(make_key(op.A), make_key(op.X), make_key(op.Y))
+                self.add_dot_inc(
+                    make_key(op.A), make_key(op.X), make_key(op.Y))
 
             elif op_type == builder.ProdUpdate:
                 logger.debug(
                     "Creating ProdUpdate, A: %d, X: %d, B:%d, Y:%d",
-                    make_key(op.A), make_key(op.X), make_key(op.B), make_key(op.Y))
+                    make_key(op.A), make_key(op.X), make_key(op.B),
+                    make_key(op.Y))
 
                 self.mpi_sim.create_ProdUpdate(make_key(op.B), make_key(op.Y))
-                self.add_dot_inc(make_key(op.A), make_key(op.X), make_key(op.Y))
+                self.add_dot_inc(
+                    make_key(op.A), make_key(op.X), make_key(op.Y))
 
             elif op_type == builder.SimFilterSynapse:
                 logger.debug(
                     "Creating Filter, input:%d, output:%d, numer:%s, denom:%s",
-                    make_key(op.input), make_key(op.output), str(op.num), str(op.den))
+                    make_key(op.input), make_key(op.output), str(op.num),
+                    str(op.den))
 
                 self.mpi_sim.create_Filter(
                     make_key(op.input), make_key(op.output), op.num, op.den)
@@ -304,23 +318,31 @@ class Simulator(object):
                 fn = op.fn
                 x = op.x
 
-                output_id = make_key(op.output) if op.output is not None else -1
+                output_id = (make_key(op.output)
+                             if op.output is not None
+                             else -1)
 
                 if x is None:
-                    logger.debug("Creating PyFunc, output:%d", make_key(op.output))
+                    logger.debug(
+                        "Creating PyFunc, output:%d", make_key(op.output))
 
                     if op.output is None:
                         self.mpi_sim.create_PyFunc(fn, t_in)
                     else:
                         self.mpi_sim.create_PyFuncO(
-                            output_id, make_checked_func(fn, t_in, False), t_in)
+                            output_id, make_checked_func(fn, t_in, False),
+                            t_in)
 
                 else:
                     logger.debug(
-                        "Creating PyFuncWithInput, output:%d", make_key(op.output))
+                        "Creating PyFuncWithInput, output:%d",
+                        make_key(op.output))
 
                     if op.output is None:
-                        self.mpi_sim.create_PyFuncI(fn, t_in, make_key(x), x.value)
+
+                        self.mpi_sim.create_PyFuncI(
+                            fn, t_in, make_key(x), x.value)
+
                     else:
                         self.mpi_sim.create_PyFuncIO(
                             output_id, make_checked_func(fn, t_in, True),
