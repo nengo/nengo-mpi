@@ -95,32 +95,53 @@ bool hasattr(bpy::object obj, string const &attrName) {
       return PyObject_HasAttrString(obj.ptr(), attrName.c_str());
  }
 
+PythonMpiSimulator::PythonMpiSimulator(){
+}
+
+/*
+void PythonMpiSimulator::add_chunk(PythonMpiSimulatorChunk* chunk){
+    mpi_sim.add_chunk(chunk->mpi_sim_chunk);
+    py_chunks.push_back(chunk);
+}
+*/
+
+PythonMpiSimulatorChunk* PythonMpiSimulator::add_chunk(){
+    MpiSimulatorChunk* mpi_sim_chunk = mpi_sim.add_chunk();
+    PythonMpiSimulatorChunk* py_chunk = new PythonMpiSimulatorChunk(mpi_sim_chunk);
+    py_chunks.push_back(py_chunk);
+    return py_chunk;
+}
+
+void PythonMpiSimulator::finalize(){
+    mpi_sim.finalize();
+}
+
+void PythonMpiSimulator::run_n_steps(bpy::object pysteps){
+    int steps = bpy::extract<int>(pysteps);
+    mpi_sim.run_n_steps(steps);
+}
+
 PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(){
 }
 
-PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(double dt)
-    :mpi_sim_chunk(dt){
-}
-
-void PythonMpiSimulatorChunk::run_n_steps(bpy::object pysteps){
-    int steps = bpy::extract<int>(pysteps);
-    mpi_sim_chunk.run_n_steps(steps);
+PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(MpiSimulatorChunk* mpi_sim_chunk)
+    :mpi_sim_chunk(mpi_sim_chunk){
 }
 
 void PythonMpiSimulatorChunk::add_vector_signal(bpy::object key, bpyn::array sig){
     Vector* vec = ndarray_to_vector(sig);
-    mpi_sim_chunk.add_vector_signal(bpy::extract<key_type>(key), vec);
+    mpi_sim_chunk->add_vector_signal(bpy::extract<key_type>(key), vec);
 }
 
 void PythonMpiSimulatorChunk::add_matrix_signal(bpy::object key, bpyn::array sig){
     Matrix* mat = ndarray_to_matrix(sig);
-    mpi_sim_chunk.add_matrix_signal(bpy::extract<key_type>(key), mat);
+    mpi_sim_chunk->add_matrix_signal(bpy::extract<key_type>(key), mat);
 }
 
 bpy::object PythonMpiSimulatorChunk::get_probe_data(bpy::object probe_key, bpy::object make_array){
     key_type c_probe_key ;
     c_probe_key = bpy::extract<key_type>(probe_key);
-    Probe<Vector>* probe = mpi_sim_chunk.get_probe(c_probe_key);
+    Probe<Vector>* probe = mpi_sim_chunk->get_probe(c_probe_key);
     list<Vector*> data = probe->get_data();
 
     bpy::list py_list;
@@ -140,34 +161,34 @@ bpy::object PythonMpiSimulatorChunk::get_probe_data(bpy::object probe_key, bpy::
 
 void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, bpy::object period){
     key_type signal_key = bpy::extract<key_type>(signal);
-    Vector* signal_vec = mpi_sim_chunk.get_vector_signal(signal_key);
+    Vector* signal_vec = mpi_sim_chunk->get_vector_signal(signal_key);
     int c_period = bpy::extract<int>(period);
 
     Probe<Vector>* probe = new Probe<Vector>(signal_vec, c_period);
 
     key_type c_key = bpy::extract<key_type>(key);
-    mpi_sim_chunk.add_probe(c_key, probe);
+    mpi_sim_chunk->add_probe(c_key, probe);
 }
 
 void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){
     key_type dst_key = bpy::extract<key_type>(dst);
     floattype c_value = bpy::extract<floattype>(value);
 
-    Vector* dst_vec = mpi_sim_chunk.get_vector_signal(dst_key);
+    Vector* dst_vec = mpi_sim_chunk->get_vector_signal(dst_key);
 
     Operator* reset = new Reset(dst_vec, c_value);
-    mpi_sim_chunk.add_operator(reset);
+    mpi_sim_chunk->add_operator(reset);
 }
 
 void PythonMpiSimulatorChunk::create_Copy(bpy::object dst, bpy::object src){
     key_type dst_key = bpy::extract<key_type>(dst);
     key_type src_key = bpy::extract<key_type>(src);
 
-    Vector* dst_vec = mpi_sim_chunk.get_vector_signal(dst_key);
-    Vector* src_vec = mpi_sim_chunk.get_vector_signal(src_key);
+    Vector* dst_vec = mpi_sim_chunk->get_vector_signal(dst_key);
+    Vector* src_vec = mpi_sim_chunk->get_vector_signal(src_key);
 
     Operator* copy = new Copy(dst_vec, src_vec);
-    mpi_sim_chunk.add_operator(copy);
+    mpi_sim_chunk->add_operator(copy);
 }
 
 void PythonMpiSimulatorChunk::create_DotIncMV(bpy::object A, bpy::object X, bpy::object Y){
@@ -175,12 +196,12 @@ void PythonMpiSimulatorChunk::create_DotIncMV(bpy::object A, bpy::object X, bpy:
     key_type X_key = bpy::extract<key_type>(X);
     key_type Y_key = bpy::extract<key_type>(Y);
 
-    Matrix* A_mat = mpi_sim_chunk.get_matrix_signal(A_key);
-    Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
-    Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
+    Matrix* A_mat = mpi_sim_chunk->get_matrix_signal(A_key);
+    Vector* X_vec = mpi_sim_chunk->get_vector_signal(X_key);
+    Vector* Y_vec = mpi_sim_chunk->get_vector_signal(Y_key);
 
     Operator* dot_inc = new DotIncMV(A_mat, X_vec, Y_vec);
-    mpi_sim_chunk.add_operator(dot_inc);
+    mpi_sim_chunk->add_operator(dot_inc);
 }
 
 void PythonMpiSimulatorChunk::create_DotIncVV(bpy::object A, bpy::object X, bpy::object Y){
@@ -188,23 +209,23 @@ void PythonMpiSimulatorChunk::create_DotIncVV(bpy::object A, bpy::object X, bpy:
     key_type X_key = bpy::extract<key_type>(X);
     key_type Y_key = bpy::extract<key_type>(Y);
 
-    Vector* A_vec = mpi_sim_chunk.get_vector_signal(A_key);
-    Vector* X_vec = mpi_sim_chunk.get_vector_signal(X_key);
-    Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
+    Vector* A_vec = mpi_sim_chunk->get_vector_signal(A_key);
+    Vector* X_vec = mpi_sim_chunk->get_vector_signal(X_key);
+    Vector* Y_vec = mpi_sim_chunk->get_vector_signal(Y_key);
 
     Operator* dot_inc = new DotIncVV(A_vec, X_vec, Y_vec);
-    mpi_sim_chunk.add_operator(dot_inc);
+    mpi_sim_chunk->add_operator(dot_inc);
 }
 
 void PythonMpiSimulatorChunk::create_ProdUpdate(bpy::object B, bpy::object Y){
     key_type B_key = bpy::extract<key_type>(B);
     key_type Y_key = bpy::extract<key_type>(Y);
 
-    Vector* B_vec = mpi_sim_chunk.get_vector_signal(B_key);
-    Vector* Y_vec = mpi_sim_chunk.get_vector_signal(Y_key);
+    Vector* B_vec = mpi_sim_chunk->get_vector_signal(B_key);
+    Vector* Y_vec = mpi_sim_chunk->get_vector_signal(Y_key);
 
     Operator* prod_update = new ProdUpdate(B_vec, Y_vec);
-    mpi_sim_chunk.add_operator(prod_update);
+    mpi_sim_chunk->add_operator(prod_update);
 }
 
 void PythonMpiSimulatorChunk::create_Filter(bpy::object input, bpy::object output,
@@ -213,14 +234,14 @@ void PythonMpiSimulatorChunk::create_Filter(bpy::object input, bpy::object outpu
     key_type input_key = bpy::extract<key_type>(input);
     key_type output_key = bpy::extract<key_type>(output);
 
-    Vector* input_vec = mpi_sim_chunk.get_vector_signal(input_key);
-    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+    Vector* input_vec = mpi_sim_chunk->get_vector_signal(input_key);
+    Vector* output_vec = mpi_sim_chunk->get_vector_signal(output_key);
 
     Vector* numer_vec = list_to_vector(numer);
     Vector* denom_vec = list_to_vector(denom);
 
     Operator* filter = new Filter(input_vec, output_vec, numer_vec, denom_vec);
-    mpi_sim_chunk.add_operator(filter);
+    mpi_sim_chunk->add_operator(filter);
 }
 
 void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object tau_rc,
@@ -234,11 +255,11 @@ void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object t
     key_type J_key = bpy::extract<key_type>(J);
     key_type output_key = bpy::extract<key_type>(output);
 
-    Vector* J_vec = mpi_sim_chunk.get_vector_signal(J_key);
-    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+    Vector* J_vec = mpi_sim_chunk->get_vector_signal(J_key);
+    Vector* output_vec = mpi_sim_chunk->get_vector_signal(output_key);
 
     Operator* sim_lif = new SimLIF(c_n_neurons, c_tau_rc, c_tau_ref, c_dt, J_vec, output_vec);
-    mpi_sim_chunk.add_operator(sim_lif);
+    mpi_sim_chunk->add_operator(sim_lif);
 }
 
 void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc,
@@ -252,52 +273,75 @@ void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::obje
     key_type J_key = bpy::extract<key_type>(J);
     key_type output_key = bpy::extract<key_type>(output);
 
-    Vector* J_vec = mpi_sim_chunk.get_vector_signal(J_key);
-    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+    Vector* J_vec = mpi_sim_chunk->get_vector_signal(J_key);
+    Vector* output_vec = mpi_sim_chunk->get_vector_signal(output_key);
 
     Operator* sim_lif_rate = new SimLIFRate(c_n_neurons, c_tau_rc, c_tau_ref, c_dt, J_vec, output_vec);
-    mpi_sim_chunk.add_operator(sim_lif_rate);
+    mpi_sim_chunk->add_operator(sim_lif_rate);
 }
 
-void PythonMpiSimulatorChunk::create_MPISend(){}
+void PythonMpiSimulatorChunk::create_MPISend(bpy::object dst, bpy::object tag, bpy::object content){
+    int c_dst = bpy::extract<int>(dst);
+    int c_tag = bpy::extract<int>(tag);
+    key_type content_key = bpy::extract<key_type>(content);
+    Vector* content_vector = mpi_sim_chunk->get_vector_signal(content_key);
 
-void PythonMpiSimulatorChunk::create_MPIRecv(){}
+    MPISend* mpi_send = new MPISend(c_dst, c_tag, content_vector);
+    mpi_sim_chunk->add_operator(mpi_send);
+}
+
+void PythonMpiSimulatorChunk::create_MPIRecv(bpy::object src, bpy::object tag, bpy::object content){
+    int c_src = bpy::extract<int>(src);
+    int c_tag = bpy::extract<int>(tag);
+    key_type content_key = bpy::extract<key_type>(content);
+    Vector* content_vector = mpi_sim_chunk->get_vector_signal(content_key);
+
+    MPIRecv* mpi_recv = new MPIRecv(c_src, c_tag, content_vector);
+    mpi_sim_chunk->add_mpi_recv(mpi_recv);
+}
+
+void PythonMpiSimulatorChunk::create_MPIWait(bpy::object tag){
+    int c_tag = bpy::extract<int>(tag);
+
+    MPIWait* mpi_wait = new MPIWait(c_tag);
+    mpi_sim_chunk->add_wait(mpi_wait);
+}
 
 void PythonMpiSimulatorChunk::create_PyFunc(bpy::object py_fn, bpy::object t_in){
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    double* time_pointer = c_t_in ? mpi_sim_chunk.get_time_pointer() : NULL;
+    double* time_pointer = c_t_in ? mpi_sim_chunk->get_time_pointer() : NULL;
 
     Operator* sim_py_func = new PyFunc(NULL, py_fn, time_pointer);
 
-    mpi_sim_chunk.add_operator(sim_py_func);
+    mpi_sim_chunk->add_operator(sim_py_func);
 }
 
 void PythonMpiSimulatorChunk::create_PyFuncO(bpy::object output, bpy::object py_fn, bpy::object t_in){
 
     key_type output_key = bpy::extract<key_type>(output);
-    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+    Vector* output_vec = mpi_sim_chunk->get_vector_signal(output_key);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    double* time_pointer = c_t_in ? mpi_sim_chunk.get_time_pointer() : NULL;
+    double* time_pointer = c_t_in ? mpi_sim_chunk->get_time_pointer() : NULL;
 
     Operator* sim_py_func = new PyFunc(output_vec, py_fn, time_pointer);
 
-    mpi_sim_chunk.add_operator(sim_py_func);
+    mpi_sim_chunk->add_operator(sim_py_func);
 }
 
 void PythonMpiSimulatorChunk::create_PyFuncI(
         bpy::object py_fn, bpy::object t_in, bpy::object input, bpyn::array py_input){
 
     key_type input_key = bpy::extract<key_type>(input);
-    Vector* input_vec = mpi_sim_chunk.get_vector_signal(input_key);
+    Vector* input_vec = mpi_sim_chunk->get_vector_signal(input_key);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    double* time_pointer = c_t_in ? mpi_sim_chunk.get_time_pointer() : NULL;
+    double* time_pointer = c_t_in ? mpi_sim_chunk->get_time_pointer() : NULL;
 
     Operator* sim_py_func = new PyFunc(NULL, py_fn, time_pointer, input_vec, py_input);
 
-    mpi_sim_chunk.add_operator(sim_py_func);
+    mpi_sim_chunk->add_operator(sim_py_func);
 }
 
 void PythonMpiSimulatorChunk::create_PyFuncIO(
@@ -305,18 +349,18 @@ void PythonMpiSimulatorChunk::create_PyFuncIO(
         bpy::object input, bpyn::array py_input){
 
     key_type output_key = bpy::extract<key_type>(output);
-    Vector* output_vec = mpi_sim_chunk.get_vector_signal(output_key);
+    Vector* output_vec = mpi_sim_chunk->get_vector_signal(output_key);
 
     key_type input_key = bpy::extract<key_type>(input);
-    Vector* input_vec = mpi_sim_chunk.get_vector_signal(input_key);
+    Vector* input_vec = mpi_sim_chunk->get_vector_signal(input_key);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    double* time_pointer = c_t_in ? mpi_sim_chunk.get_time_pointer() : NULL;
+    double* time_pointer = c_t_in ? mpi_sim_chunk->get_time_pointer() : NULL;
 
     Operator* sim_py_func = new PyFunc(
         output_vec, py_fn, time_pointer, input_vec, py_input);
 
-    mpi_sim_chunk.add_operator(sim_py_func);
+    mpi_sim_chunk->add_operator(sim_py_func);
 }
 
 
@@ -375,8 +419,6 @@ BOOST_PYTHON_MODULE(mpi_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk", bpy::init<>())
-        .def(bpy::init<double>())
-        .def("run_n_steps", &PythonMpiSimulatorChunk::run_n_steps)
         .def("add_vector_signal", &PythonMpiSimulatorChunk::add_vector_signal)
         .def("add_matrix_signal", &PythonMpiSimulatorChunk::add_matrix_signal)
         .def("get_probe_data", &PythonMpiSimulatorChunk::get_probe_data)
@@ -391,9 +433,15 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)
         .def("create_MPIRecv", &PythonMpiSimulatorChunk::create_MPIRecv)
+        .def("create_MPIWait", &PythonMpiSimulatorChunk::create_MPIWait)
         .def("create_PyFunc", &PythonMpiSimulatorChunk::create_PyFunc)
         .def("create_PyFuncO", &PythonMpiSimulatorChunk::create_PyFuncO)
         .def("create_PyFuncI", &PythonMpiSimulatorChunk::create_PyFuncI)
         .def("create_PyFuncIO", &PythonMpiSimulatorChunk::create_PyFuncIO);
+    bpy::class_<PythonMpiSimulator>("PythonMpiSimulator", bpy::init<>())
+        .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
+        .def("finalize", &PythonMpiSimulator::finalize)
+        .def("add_chunk", &PythonMpiSimulator::add_chunk,
+             bpy::return_internal_reference<>());
 }
 

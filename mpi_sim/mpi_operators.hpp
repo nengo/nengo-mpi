@@ -19,19 +19,28 @@ class MPIWait;
 // should occur before the MPISend/Receive in the operator ordering
 // in MpiSimulatorChunk.
 
+//This all assumes that communication happens on nengo signals that
+//are UPDATED (rather than just incremented or set).
+
+//We use mpi tags to identify signals. The tags will be the address of
+//the corresponding python signal.
+
 //In INTERLEAVED mode the MPISend operator should be called directly
 //after its content vector is updated by an operation. The corresponding
 //MPIWait operator should be called directly before the content vector is
 //updated.
 class MPISend: public Operator{
 public:
-    MPISend();
+    MPISend(){};
+    MPISend(int dst, int tag, Vector* content);
     void operator()();
     virtual void print(ostream &out) const;
+    void set_waiter(MPIWait* mpi_wait);
+
+    int tag;
 
 private:
     int dst;
-    int tag;
     mpi::communicator comm;
     Vector* content;
     MPIWait* waiter;
@@ -55,13 +64,16 @@ private:
 //the operators that make use of the content vector.
 class MPIRecv: public Operator{
 public:
-    MPIRecv();
+    MPIRecv(){};
+    MPIRecv(int src, int tag, Vector* content);
     void operator()();
     virtual void print(ostream &out) const;
+    void set_waiter(MPIWait* mpi_wait);
+
+    int tag;
 
 private:
     int src;
-    int tag;
     mpi::communicator comm;
     Vector* content;
     MPIWait* waiter;
@@ -87,9 +99,12 @@ class MPIWait: public Operator{
     friend class MPIRecv;
 
 public:
-    MPIWait();
+    MPIWait(){};
+    MPIWait(int tag);
     void operator()();
     virtual void print(ostream &out) const;
+
+    int tag;
 
 private:
     bool first_call;

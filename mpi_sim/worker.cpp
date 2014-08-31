@@ -14,6 +14,7 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
 
+    cout << "Worker" << endl;
     int parent_size, parent_id, my_id, numprocs;
     // parent intercomm
     MPI_Comm parent;

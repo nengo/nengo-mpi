@@ -1,6 +1,8 @@
 #ifndef NENGO_MPI_MPI_SIM_HPP
 #define NENGO_MPI_MPI_SIM_HPP
 
+#include <list>
+
 #include <mpi.h>
 #include <boost/mpi.hpp>
 #include <boost/mpi/environment.hpp>
@@ -13,6 +15,6 @@
 namespace mpi = boost::mpi;
 using namespace std;
 
-void send_chunks(int, MpiSimulatorChunk*);
+void send_chunks(list<MpiSimulatorChunk*> chunks);
 
 #endif

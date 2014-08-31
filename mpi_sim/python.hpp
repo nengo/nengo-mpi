@@ -20,11 +20,32 @@ Matrix* ndarray_to_matrix(bpyn::array a);
 Vector* list_to_vector(bpy::list l);
 bool hasattr(bpy::object obj, string const &attrName);
 
+class PythonMpiSimulatorChunk;
+
+class PythonMpiSimulator{
+public:
+    PythonMpiSimulator();
+
+    PythonMpiSimulatorChunk* add_chunk();
+
+    void finalize();
+
+    void run_n_steps(bpy::object steps);
+
+private:
+    list<PythonMpiSimulatorChunk*> py_chunks;
+    MpiSimulator mpi_sim;
+};
+
 class PythonMpiSimulatorChunk{
+
+    friend class PythonMpiSimulator;
+
 public:
     PythonMpiSimulatorChunk();
-    PythonMpiSimulatorChunk(double dt);
+    PythonMpiSimulatorChunk(MpiSimulatorChunk* mpi_sim_chunk);
 
+    //TODO: factor this method out
     void run_n_steps(bpy::object steps);
 
     void add_vector_signal(bpy::object key, bpyn::array sig);
@@ -56,9 +77,9 @@ public:
                            bpy::object tau_ref, bpy::object dt, bpy::object J,
                            bpy::object output);
 
-    void create_MPISend();
-
-    void create_MPIRecv();
+    void create_MPISend(bpy::object dst, bpy::object tag, bpy::object content);
+    void create_MPIRecv(bpy::object src, bpy::object tag, bpy::object content);
+    void create_MPIWait(bpy::object content);
 
     void create_PyFunc(bpy::object py_fn, bpy::object t_in);
     void create_PyFuncO(bpy::object output, bpy::object py_fn, bpy::object t_in);
@@ -68,7 +89,7 @@ public:
                     bpy::object input, bpyn::array py_input);
 
 private:
-    MpiSimulatorChunk mpi_sim_chunk;
+    MpiSimulatorChunk* mpi_sim_chunk;
 };
 
 class PyFunc: public Operator{

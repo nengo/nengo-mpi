@@ -1,15 +1,15 @@
 #include "mpi_operators.hpp"
 
-MPISend::MPISend(){
-    waiter->request = &request;
+MPISend::MPISend(int dst, int tag, Vector* content):
+    dst(dst), tag(tag), content(content){
 }
 
-MPIRecv::MPIRecv(){
-    waiter->request = &request;
+MPIRecv::MPIRecv(int src, int tag, Vector* content):
+    src(src), tag(tag), content(content){
 }
 
-MPIWait::MPIWait()
-    :first_call(false){
+MPIWait::MPIWait(int tag)
+    :tag(tag), first_call(false){
 }
 
 void MPISend::operator() (){
@@ -34,9 +34,9 @@ void MPIWait::operator() (){
 
     if(not first_call){
         request->wait();
+    }else{
+        first_call = true;
     }
-
-    first_call = true;
 
 #ifdef _RUN_DEBUG
     cout << *this;
@@ -52,3 +52,10 @@ void MPIRecv::print(ostream &out) const{
 void MPIWait::print(ostream &out) const{
 }
 
+void MPISend::set_waiter(MPIWait* mpi_wait){
+    mpi_wait->request = &request;
+}
+
+void MPIRecv::set_waiter(MPIWait* mpi_wait){
+    mpi_wait->request = &request;
+}

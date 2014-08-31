@@ -34,6 +34,21 @@ void MpiSimulatorChunk::add_operator(Operator *op){
     operator_list.push_back(op);
 }
 
+void MpiSimulatorChunk::add_mpi_send(MPISend* mpi_send){
+    operator_list.push_back(mpi_send);
+    mpi_send->set_waiter(find_wait(mpi_send->tag));
+}
+
+void MpiSimulatorChunk::add_mpi_recv(MPIRecv* mpi_recv){
+    operator_list.push_back(mpi_recv);
+    mpi_recv->set_waiter(find_wait(mpi_recv->tag));
+}
+
+void MpiSimulatorChunk::add_wait(MPIWait* mpi_wait){
+    operator_list.push_back(mpi_wait);
+    mpi_waits.push_back(mpi_wait);
+}
+
 void MpiSimulatorChunk::add_probe(key_type key, Probe<Vector>* probe){
     probe_map[key] = probe;
 }
@@ -44,6 +59,19 @@ void MpiSimulatorChunk::add_vector_signal(key_type key, Vector* sig){
 
 void MpiSimulatorChunk::add_matrix_signal(key_type key, Matrix* sig){
     matrix_signal_map[key] = sig;
+}
+
+MPIWait* MpiSimulatorChunk::find_wait(int tag){
+    list<MPIWait*>::const_iterator it;
+    for(it = mpi_waits.begin(); it != mpi_waits.end(); ++it){
+        if ((*it)->tag == tag){
+            return *it;
+        }
+    }
+
+    ostringstream error;
+    error << "MPIWait object with tag " << tag << " does not exist.";
+    throw invalid_argument(error.str());
 }
 
 Probe<Vector>* MpiSimulatorChunk::get_probe(key_type key){
@@ -71,13 +99,12 @@ Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
         Matrix* mat = matrix_signal_map.at(key);
         return mat;
     }catch(const out_of_range& e){
-        cerr << "Error accessing MpiSimulatorChunk matrix signal with key " << key << endl;
+        cerr << "Error accessing MpiSimulatorChunk :: matrix signal with key " << key << endl;
         throw e;
     }
 }
 
 string MpiSimulatorChunk::to_string() const{
-    //Print maps
     stringstream out;
 
     map<key_type, Vector*>::const_iterator vector_it = vector_signal_map.begin();
@@ -107,11 +134,18 @@ string MpiSimulatorChunk::to_string() const{
     return out_string;
 }
 
-MpiSimulator::MpiSimulator(int num_chunks, MpiSimulatorChunk* chunks){
+MpiSimulator::MpiSimulator(){}
+
+MpiSimulatorChunk* MpiSimulator::add_chunk(){
+    MpiSimulatorChunk* chunk = new MpiSimulatorChunk();
+    chunks.push_back(chunk);
+    return chunk;
+}
+
+void MpiSimulator::finalize(){
     // Use MPI DPM to setup processes on other nodes
     // Then pass the chunks to those nodes.
-
-    send_chunks(num_chunks, chunks);
+    send_chunks(chunks);
 }
 
 void MpiSimulator::run_n_steps(int steps){

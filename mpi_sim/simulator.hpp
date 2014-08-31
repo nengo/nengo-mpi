@@ -16,7 +16,6 @@ using namespace std;
 
 typedef unsigned long long int key_type;
 
-//TODO: add a probing system
 class MpiSimulatorChunk{
 
     friend class boost::serialization::access;
@@ -54,11 +53,15 @@ public:
     void run_n_steps(int steps);
 
     void add_operator(Operator* op);
+    void add_mpi_send(MPISend* mpi_send);
+    void add_mpi_recv(MPIRecv* mpi_recv);
+    void add_wait(MPIWait* mpi_wait);
 
     void add_probe(key_type key, Probe<Vector>* probe);
 
     void add_vector_signal(key_type key, Vector* sig);
     void add_matrix_signal(key_type key, Matrix* sig);
+    MPIWait* find_wait(int tag);
 
     Probe<Vector>* get_probe(key_type key);
     Vector* get_vector_signal(key_type key);
@@ -83,18 +86,26 @@ private:
     list<Operator*> operator_list;
     Operator* operators;
     int num_operators;
+    list<MPIWait*> mpi_waits;
 };
 
 class MpiSimulator{
 public:
-    MpiSimulator(int, MpiSimulatorChunk*);
+    MpiSimulator();
+
+    MpiSimulatorChunk* add_chunk();
+
+    // After this is called, chunks cannot be added.
+    // Must be called before run_n_steps
+    void finalize();
+
     void run_n_steps(int steps);
 
 private:
-    MpiSimulatorChunk* chunks;
-    int num_chunks;
+    list<MpiSimulatorChunk*> chunks;
 };
 
-void send_chunks(int, MpiSimulatorChunk*);
+//Forward declaration. Definition is in mpi_simulator.cpp.
+void send_chunks(list<MpiSimulatorChunk*>);
 
 #endif
