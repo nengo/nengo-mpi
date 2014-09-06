@@ -6,8 +6,9 @@
 
 #include "simulator.hpp"
 #include "operator.hpp"
-#include "mpi_operators.hpp"
+#include "mpi_operator.hpp"
 #include "probe.hpp"
+#include "debug.hpp"
 
 using namespace std;
 
@@ -31,6 +32,9 @@ public:
     void finalize();
 
     void run_n_steps(bpy::object steps);
+
+    void write_to_file(string filename);
+    void read_from_file(string filename);
 
 private:
     list<PythonMpiSimulatorChunk*> py_chunks;
@@ -97,8 +101,9 @@ public:
     PyFunc(Vector* output, bpy::object py_fn, double* t_in);
     PyFunc(Vector* output, bpy::object py_fn, double* t_in,
            Vector* input, bpyn::array py_input);
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 private:
     Vector* output;

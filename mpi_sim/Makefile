@@ -19,7 +19,7 @@ else
 endif
 
 # Doesn't contain python.o
-OBJS=simulator.o operator.o mpi_operators.o mpi_simulator.o probe.o
+OBJS=simulator.o operator.o mpi_operator.o mpi_simulator.o probe.o
 
 DEFS=
 
@@ -28,12 +28,14 @@ WORKER_LOC=../nengo_mpi
 
 CXXFLAGS= -I${BOOST_INC} -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=c++0x
 
-all: mpi_sim mpi_sim_worker
+all: mpi_sim
 
-run_debug: DEFS+=-D_RUN_DEBUG
+#mpi_sim_worker
+
+run_debug: DEFS+=-DRUN_DEBUG
 run_debug: debug
 
-debug: DEFS+=-D_DEBUG
+debug: DEFS+=-DDEBUG
 debug: CXXFLAGS+= -g
 debug: mpi_sim
 
@@ -49,16 +51,16 @@ worker.o: worker.cpp
 mpi_sim: ${OBJS} python.o
 	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared -L${PYTHON_LIB} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lboost_python -lmpi -lboost_mpi -lm
 
-mpi_operators.o: mpi_operators.cpp mpi_operators.hpp
-	mpicxx -std=c++0x -c -o mpi_operators.o -fPIC mpi_operators.cpp -I${BOOST_INC} -I${MPI_INC}
+mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
+	mpicxx -std=c++0x -c -o mpi_operator.o -fPIC mpi_operator.cpp -I${BOOST_INC} -I${MPI_INC}
 
-mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp
+mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
 	mpicxx -std=c++0x -c -o mpi_simulator.o -fPIC mpi_simulator.cpp -I${BOOST_INC} -I${MPI_INC}
 
-probe.o: probe.hpp probe.cpp
-python.o: python.cpp python.hpp
-operator.o: operator.hpp operator.cpp
-simulator.o: simulator.hpp simulator.cpp
+probe.o: probe.cpp probe.hpp operator.hpp
+python.o: python.cpp python.hpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
+operator.o: operator.cpp operator.hpp debug.hpp
+simulator.o: simulator.cpp simulator.hpp mpi_operator.hpp operator.hpp probe.hpp debug.hpp
 
 
 clean:

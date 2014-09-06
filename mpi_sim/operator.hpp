@@ -2,11 +2,15 @@
 #define NENGO_MPI_OPERATOR_HPP
 
 #include <vector>
+#include <string>
+#include <sstream>
 
 #include <boost/numeric/ublas/vector.hpp>
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/circular_buffer.hpp>
+
+#include "debug.hpp"
 
 using namespace std;
 
@@ -27,11 +31,12 @@ typedef boost::numeric::ublas::matrix<floattype> Matrix;
 class Operator{
 
 public:
+    const string classname() { return "Operator"; }
     virtual void operator() () = 0;
-    virtual void print(ostream &out) const = 0;
+    virtual string to_string() const = 0;
 
     friend ostream& operator << (ostream &out, const Operator &op){
-        op.print(out);
+        out << op.to_string() << endl;
         return out;
     }
 
@@ -47,8 +52,10 @@ class Reset: public Operator{
 public:
     Reset(){};
     Reset(Vector* dst, floattype value);
+    const string classname() { return "Reset"; }
+
     void operator() ();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 protected:
     Vector* dst;
@@ -60,6 +67,9 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & dst;
         ar & dummy;
@@ -71,8 +81,10 @@ class Copy: public Operator{
 public:
     Copy(){};
     Copy(Vector* dst, Vector* src);
+    const string classname() { return "Copy"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 protected:
     Vector* dst;
@@ -83,6 +95,9 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & dst;
         ar & src;
@@ -94,8 +109,10 @@ class DotIncMV: public Operator{
 public:
     DotIncMV(){};
     DotIncMV(Matrix* A, Vector* X, Vector* Y);
+    const string classname() { return "DotIncMV"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 protected:
     Matrix* A;
@@ -107,6 +124,9 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & A;
         ar & X;
@@ -119,8 +139,10 @@ class DotIncVV: public Operator{
 public:
     DotIncVV(){};
     DotIncVV(Vector* A, Vector* X, Vector* Y);
+    const string classname() { return "DotIncVV"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 protected:
     Vector* A;
@@ -134,6 +156,9 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & A;
         ar & X;
@@ -148,8 +173,10 @@ class ProdUpdate: public Operator{
 public:
     ProdUpdate(){};
     ProdUpdate(Vector* B, Vector* Y);
+    const string classname() { return "ProdUpdate"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 protected:
     Vector* B;
@@ -162,6 +189,9 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & B;
         ar & Y;
@@ -174,8 +204,10 @@ class Filter: public Operator{
 
 public:
     Filter(Vector* input, Vector* output, Vector* numer, Vector* denom);
+    const string classname() { return "Filter"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 protected:
     Vector* input;
@@ -191,6 +223,9 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
 
         ar & input;
@@ -206,8 +241,10 @@ class SimLIF: public Operator{
 public:
     SimLIF(){};
     SimLIF(int n_neuron, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output);
+    const string classname() { return "SimLIF"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 protected:
     floattype dt;
@@ -232,6 +269,9 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & dt;
         ar & dt_inv;
@@ -257,8 +297,10 @@ class SimLIFRate: public Operator{
 public:
     SimLIFRate(){};
     SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Vector* J, Vector* output);
+    const string classname() { return "SimLIFRate"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
 protected:
     floattype dt;
@@ -277,6 +319,9 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & dt;
         ar & tau_rc;

@@ -33,8 +33,10 @@ class MPISend: public Operator{
 public:
     MPISend(){};
     MPISend(int dst, int tag, Vector* content);
+    const string classname() { return "MPISend"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
     void set_waiter(MPIWait* mpi_wait);
 
     int tag;
@@ -50,11 +52,15 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & dst;
         ar & tag;
+        // comm not serialized
+        //ar & comm;
         ar & content;
-        ar & waiter;
+        //ar & waiter;
     }
 };
 
@@ -66,8 +72,10 @@ class MPIRecv: public Operator{
 public:
     MPIRecv(){};
     MPIRecv(int src, int tag, Vector* content);
+    const string classname() { return "MPIRecv"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
     void set_waiter(MPIWait* mpi_wait);
 
     int tag;
@@ -83,11 +91,14 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
         ar & src;
         ar & tag;
+        //ar & comm;
         ar & content;
-        ar & waiter;
+        //ar & waiter;
     }
 };
 
@@ -101,8 +112,10 @@ class MPIWait: public Operator{
 public:
     MPIWait(){};
     MPIWait(int tag);
+    const string classname() { return "MPIWait"; }
+
     void operator()();
-    virtual void print(ostream &out) const;
+    virtual string to_string() const;
 
     int tag;
 
@@ -114,7 +127,13 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
         ar & boost::serialization::base_object<Operator>(*this);
+        ar & tag;
+        ar & first_call;
+        //ar & request;
     }
 };
 

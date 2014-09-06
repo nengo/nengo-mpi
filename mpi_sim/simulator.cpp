@@ -1,6 +1,3 @@
-#include <iostream>
-#include <sstream>
-
 #include "simulator.hpp"
 
 MpiSimulatorChunk::MpiSimulatorChunk()
@@ -69,7 +66,7 @@ MPIWait* MpiSimulatorChunk::find_wait(int tag){
         }
     }
 
-    ostringstream error;
+    stringstream error;
     error << "MPIWait object with tag " << tag << " does not exist.";
     throw invalid_argument(error.str());
 }
@@ -106,6 +103,8 @@ Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
 
 string MpiSimulatorChunk::to_string() const{
     stringstream out;
+
+    out << "<MpiSimulatorChunk" << endl;
 
     map<key_type, Vector*>::const_iterator vector_it = vector_signal_map.begin();
 
@@ -149,4 +148,34 @@ void MpiSimulator::finalize(){
 }
 
 void MpiSimulator::run_n_steps(int steps){
+}
+
+void MpiSimulator::write_to_file(string filename){
+    ofstream ofs(filename);
+
+    boost::archive::text_oarchive oa(ofs);
+    oa << *this;
+}
+
+void MpiSimulator::read_from_file(string filename){
+    ifstream ifs(filename);
+
+    boost::archive::text_iarchive ia(ifs);
+    ia >> *this;
+}
+
+string MpiSimulator::to_string() const{
+    stringstream out;
+
+    out << "<MpiSimulator" << endl;
+
+    list<MpiSimulatorChunk*>::const_iterator it;
+    for(it = chunks.begin(); it != chunks.end(); ++it){
+        out << **it << endl;
+    }
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }

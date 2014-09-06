@@ -46,7 +46,7 @@ dt_inv(1.0 / dt), J(J), output(output){
 
 SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref,
                        floattype dt, Vector* J, Vector* output)
-:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), 
+:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc),
 tau_ref(tau_ref), J(J), output(output){
 
     j = Vector(n_neurons);
@@ -59,26 +59,20 @@ void Reset::operator() (){
 
     (*dst) = dummy;
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
 void Copy::operator() (){
 
     *dst = *src;
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
 void DotIncMV::operator() (){
     axpy_prod(*A, *X, *Y, false);
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
 void DotIncVV::operator() (){
@@ -88,9 +82,7 @@ void DotIncVV::operator() (){
         (*Y)[0] += inner_prod(*A, *X);
     }
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
 void ProdUpdate::operator() (){
@@ -102,9 +94,7 @@ void ProdUpdate::operator() (){
         }
     }
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
 void Filter::operator() (){
@@ -124,9 +114,7 @@ void Filter::operator() (){
         y[i].push_front((*output)[i]);
     }
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
 void SimLIF::operator() (){
@@ -160,9 +148,7 @@ void SimLIF::operator() (){
         }
     }
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
 void SimLIFRate::operator() (){
@@ -177,27 +163,41 @@ void SimLIFRate::operator() (){
         }
     }
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
-//Printing
-void Reset::print(ostream &out) const {
+//to_string
+string Reset::to_string() const {
+    stringstream out;
+
     out << "Reset:" << endl;
     out << "dst:" << endl;
     out << *dst << endl << endl;
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
-void Copy::print(ostream &out) const  {
+string Copy::to_string() const  {
+    stringstream out;
+
     out << "Copy:" << endl;
     out << "dst:" << endl;
     out << *dst << endl;
     out << "src:" << endl;
     out << *src << endl << endl;
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
-void DotIncMV::print(ostream &out) const{
+string DotIncMV::to_string() const{
+    stringstream out;
+
     out << "DotIncMV:" << endl;
     out << "A:" << endl;
     out << *A << endl;
@@ -206,9 +206,16 @@ void DotIncMV::print(ostream &out) const{
     out << "Y:" << endl;
     out << *Y << endl;
     out << endl;
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
-void DotIncVV::print(ostream &out) const{
+string DotIncVV::to_string() const{
+    stringstream out;
+
     out << "DotIncVV:" << endl;
     out << "A:" << endl;
     out << *A << endl;
@@ -218,17 +225,31 @@ void DotIncVV::print(ostream &out) const{
     out << *Y << endl;
     out << "Scalar: " << scalar << endl;
     out << endl;
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
-void ProdUpdate::print(ostream &out) const{
+string ProdUpdate::to_string() const{
+    stringstream out;
+
     out << "ProdUpdate:" << endl;
     out << "B:" << endl;
     out << *B << endl;
     out << "Y:" << endl;
     out << *Y << endl << endl;
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
-void Filter::print(ostream &out) const{
+string Filter::to_string() const{
+    stringstream out;
+
     out << "Filter:" << endl;
 
     out << "input:" << endl;
@@ -256,9 +277,16 @@ void Filter::print(ostream &out) const{
         }
         out << endl;
     }
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
-void SimLIF::print(ostream &out) const{
+string SimLIF::to_string() const{
+    stringstream out;
+
     out << "SimLIF:" << endl;
     out << "J:" << endl;
     out << *J << endl;
@@ -268,13 +296,25 @@ void SimLIF::print(ostream &out) const{
     out << voltage << endl << endl;
     out << "refractory_time:" << endl;
     out << refractory_time << endl << endl;
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
-void SimLIFRate::print(ostream &out) const{
+string SimLIFRate::to_string() const{
+    stringstream out;
+
     out << "SimLIFRate:" << endl;
     out << "J:" << endl;
     out << *J << endl;
     out << "output:" << endl;
     out << *output << endl;
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 

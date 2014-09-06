@@ -11,9 +11,7 @@ bool is_vector(bpyn::array a){
 
 Vector* ndarray_to_vector(bpyn::array a){
 
-#ifdef _DEBUG
-    std::cout << "Extracting vector from ndarray:" << std::endl;
-#endif
+    dbg("Extracting vector from ndarray:");
 
     int size = bpy::extract<int>(a.attr("size"));
     Vector* ret = new Vector(size);
@@ -21,25 +19,22 @@ Vector* ndarray_to_vector(bpyn::array a){
         (*ret)(i) = bpy::extract<floattype>(a[i]);
     }
 
-#ifdef _DEBUG
-    std::cout << "Size:" << size << std::endl;
-    std::cout << "Value:" << std::endl;
-    std::cout << *ret << std::endl << std::endl;
-#endif
+    dbg("Size:" << size);
+    dbg("Value:");
+    dbg(*ret);
+    dbg(endl);
 
     return ret;
 }
 
 Matrix* ndarray_to_matrix(bpyn::array a){
 
-#ifdef _DEBUG
-    std::cout << "Extracting matrix from ndarray:" << std::endl;
-#endif
+    dbg("Extracting matrix from ndarray:");
 
     int ndim = bpy::extract<int>(a.attr("ndim"));
     int size = bpy::extract<int>(a.attr("size"));
-    std::vector<int> shape(ndim);
-    std::vector<int> strides(ndim);
+    vector<int> shape(ndim);
+    vector<int> strides(ndim);
     bpy::object python_shape = a.attr("shape");
     bpy::object python_strides = a.attr("strides");
     for(unsigned i = 0; i < ndim; i++){
@@ -54,27 +49,23 @@ Matrix* ndarray_to_matrix(bpyn::array a){
         }
     }
 
-#ifdef _DEBUG
-    std::cout << "Ndim:" << ndim << std::endl;
-    std::cout << "Size:" << size << std::endl;
-    std::cout << "Shape:" << std::endl;
-    std::cout << "(";
+    dbg("Ndim:" << ndim);
+    dbg("Size:" << size);
+    dbg("Shape:");
+    dbg("(");
     for(unsigned i = 0; i < ndim; i++){
-        std::cout << shape[i] << ",";
+        dbg(shape[i]);
     }
-    std::cout << ")" << std::endl;
-    std::cout << "Value:" << std::endl;
-    std::cout << *ret << std::endl << std::endl;
-#endif
+    dbg(")");
+    dbg("Value:");
+    dbg(*ret << endl);
 
     return ret;
 }
 
 Vector* list_to_vector(bpy::list l){
 
-#ifdef _DEBUG
-    std::cout << "Extracting from python list vector:" << std::endl;
-#endif
+    dbg("Extracting from python list vector:");
 
     int length = bpy::len(l);
     Vector* ret = new Vector(length);
@@ -82,11 +73,9 @@ Vector* list_to_vector(bpy::list l){
         (*ret)(i) = bpy::extract<floattype>(l[i]);
     }
 
-#ifdef _DEBUG
-    std::cout << "Length:" << length << std::endl;
-    std::cout << "Value:" << std::endl;
-    std::cout << *ret << std::endl << std::endl;
-#endif
+    dbg("Length:" << length);
+    dbg("Value:");
+    dbg(*ret << endl);
 
     return ret;
 }
@@ -119,6 +108,14 @@ void PythonMpiSimulator::finalize(){
 void PythonMpiSimulator::run_n_steps(bpy::object pysteps){
     int steps = bpy::extract<int>(pysteps);
     mpi_sim.run_n_steps(steps);
+}
+
+void PythonMpiSimulator::write_to_file(string filename){
+    mpi_sim.write_to_file(filename);
+}
+
+void PythonMpiSimulator::read_from_file(string filename){
+    mpi_sim.read_from_file(filename);
 }
 
 PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(){
@@ -404,15 +401,20 @@ void PyFunc::operator() (){
         }
     }
 
-#ifdef _RUN_DEBUG
-    cout << *this;
-#endif
+    run_dbg(*this);
 }
 
-void PyFunc::print(ostream &out) const{
+string PyFunc::to_string() const{
+    stringstream out;
+
     out << "PyFunc: " << endl;
     out << "Output: " << endl;
     out << *output << endl << endl;
+
+    string out_string;
+    out >> out_string;
+
+    return out_string;
 }
 
 BOOST_PYTHON_MODULE(mpi_sim)
@@ -442,6 +444,8 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("finalize", &PythonMpiSimulator::finalize)
         .def("add_chunk", &PythonMpiSimulator::add_chunk,
-             bpy::return_internal_reference<>());
+             bpy::return_internal_reference<>())
+        .def("write_to_file", &PythonMpiSimulator::write_to_file)
+        .def("read_from_file", &PythonMpiSimulator::read_from_file);
 }
 
