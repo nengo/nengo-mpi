@@ -46,10 +46,7 @@ string MPISend::to_string() const{
     out << "content: " << endl;
     out << *content << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string MPIRecv::to_string() const{
@@ -61,10 +58,7 @@ string MPIRecv::to_string() const{
     out << "content: " << endl;
     out << *content << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string MPIWait::to_string() const{
@@ -74,10 +68,7 @@ string MPIWait::to_string() const{
     out << "tag: " << tag << endl;
     out << "first_call: " << first_call << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 void MPISend::set_waiter(MPIWait* mpi_wait){

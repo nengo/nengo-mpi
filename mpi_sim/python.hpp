@@ -27,6 +27,8 @@ class PythonMpiSimulator{
 public:
     PythonMpiSimulator();
 
+    string to_string() const;
+
     PythonMpiSimulatorChunk* add_chunk();
 
     void finalize();
@@ -49,7 +51,9 @@ public:
     PythonMpiSimulatorChunk();
     PythonMpiSimulatorChunk(MpiSimulatorChunk* mpi_sim_chunk);
 
-    //TODO: factor this method out
+    string to_string() const;
+
+    //TODO: factor out this method
     void run_n_steps(bpy::object steps);
 
     void add_vector_signal(bpy::object key, bpyn::array sig);
@@ -117,6 +121,16 @@ private:
 
     bool supply_time;
     bool supply_input;
+
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        //TODO
+        ar & input;
+        ar & output;
+        ar & time;
+    }
 };
 
 #endif

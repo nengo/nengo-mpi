@@ -36,19 +36,21 @@ def make_builder(base):
             model.push_object(obj)
         except AttributeError:
             raise ValueError(
-                "Must use an instance of MpiModel with MpiBuilder.")
+                "Must use an instance of MpiModel.")
 
         base(obj, model, config)
         model.pop_object(obj)
 
     return build_object
 
-#MpiBuilder.register_builder(make_builder(builder.build_ensemble), Ensemble)
-#MpiBuilder.register_builder(make_builder(builder.build_node), Node)
-#MpiBuilder.register_builder(make_builder(builder.build_connection), Connection)
-builder.Builder.register_builder(make_builder(builder.build_ensemble), Ensemble)
-builder.Builder.register_builder(make_builder(builder.build_node), Node)
-builder.Builder.register_builder(make_builder(builder.build_connection), Connection)
+builder.Builder.register_builder(
+    make_builder(builder.build_ensemble), Ensemble)
+
+builder.Builder.register_builder(
+    make_builder(builder.build_node), Node)
+
+builder.Builder.register_builder(
+    make_builder(builder.build_connection), Connection)
 
 
 # Shouldn't have to do this, shoule be able to inherit registered builders
@@ -190,7 +192,7 @@ class MpiModel(builder.Model):
 class Simulator(object):
     """MPI simulator for nengo 2.0."""
 
-    def __init__(self, network, dt=0.001, seed=None, model=None,
+    def __init__(self, network=None, dt=0.001, seed=None, model=None,
                  init_func=None, num_partitions=None, partition_func=None,
                  fixed_nodes=None):
         """
@@ -273,7 +275,6 @@ class Simulator(object):
                     dt=dt, label="%s, dt=%f" % (network.label, dt))
 
             mpi_model = MpiModel()
-            #MpiBuilder.build(network, model=mpi_model)
             builder.Builder.build(network, model=mpi_model)
 
             if partition_func is None:
@@ -282,34 +283,26 @@ class Simulator(object):
             if fixed_nodes is None:
                 fixed_nodes = {}
 
-            if num_partitions is None:
-                num_partitions = 2
-
-            partition = partition_func(network, num_partitions, fixed_nodes)
-
-            print partition
+            partition, num_partitions = partition_func(
+                network, num_partitions, fixed_nodes)
 
             # now mpi model is populated
             models = mpi_model.partition_ops(
                 num_partitions, partition, network.connections)
 
             for model in models:
-                print "MODEL OPERATORS"
-                print model.operators
-
-            for model in models:
                 mpi_chunk = self.mpi_sim.add_chunk()
-                simulator_chunk = chunk.SimulatorChunk(model, mpi_chunk, dt)
+                simulator_chunk = chunk.SimulatorChunk(mpi_chunk, model, dt)
 
             self.mpi_sim.finalize()
-
-        if self.model is not None:
-            self._init_from_model()
 
         if init_func is not None:
             init_func(self)
 
         self.data = ProbeDict(self._probe_outputs)
+
+    def __str__(self):
+        return self.mpi_sim.to_string()
 
     def run_steps(self, steps):
         """Simulate for the given number of `dt` steps."""
@@ -337,7 +330,7 @@ class Simulator(object):
         return dt * np.arange(0, n_steps)
 
 
-def default_partition_func(network, num_partitions, fixed_nodes):
+def default_partition_func(network, num_partitions=None, fixed_nodes=None):
     """
     Puts all nengo nodes on partition 0.
     Pseudo-randomly assigns nengo ensembles to partitions.
@@ -358,6 +351,12 @@ def default_partition_func(network, num_partitions, fixed_nodes):
     partition = {}
     partition.update(fixed_nodes)
 
+    if num_partitions is None:
+        if fixed_nodes is not None:
+            num_partitions = len(set(fixed_nodes.values()))
+        else:
+            num_partitions = 1
+
     for ensemble in network.ensembles:
         if ensemble not in partition:
             partition[ensemble] = random.choice(xrange(num_partitions))
@@ -366,4 +365,4 @@ def default_partition_func(network, num_partitions, fixed_nodes):
         if node not in partition:
             partition[node] = 0
 
-    return partition
+    return partition, num_partitions

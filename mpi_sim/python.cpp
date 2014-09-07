@@ -87,12 +87,9 @@ bool hasattr(bpy::object obj, string const &attrName) {
 PythonMpiSimulator::PythonMpiSimulator(){
 }
 
-/*
-void PythonMpiSimulator::add_chunk(PythonMpiSimulatorChunk* chunk){
-    mpi_sim.add_chunk(chunk->mpi_sim_chunk);
-    py_chunks.push_back(chunk);
+string PythonMpiSimulator::to_string() const{
+    return mpi_sim.to_string();
 }
-*/
 
 PythonMpiSimulatorChunk* PythonMpiSimulator::add_chunk(){
     MpiSimulatorChunk* mpi_sim_chunk = mpi_sim.add_chunk();
@@ -123,6 +120,10 @@ PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(){
 
 PythonMpiSimulatorChunk::PythonMpiSimulatorChunk(MpiSimulatorChunk* mpi_sim_chunk)
     :mpi_sim_chunk(mpi_sim_chunk){
+}
+
+string PythonMpiSimulatorChunk::to_string() const{
+    return mpi_sim_chunk->to_string();
 }
 
 void PythonMpiSimulatorChunk::add_vector_signal(bpy::object key, bpyn::array sig){
@@ -411,16 +412,14 @@ string PyFunc::to_string() const{
     out << "Output: " << endl;
     out << *output << endl << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 BOOST_PYTHON_MODULE(mpi_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk", bpy::init<>())
+        .def("to_string", &PythonMpiSimulatorChunk::to_string)
         .def("add_vector_signal", &PythonMpiSimulatorChunk::add_vector_signal)
         .def("add_matrix_signal", &PythonMpiSimulatorChunk::add_matrix_signal)
         .def("get_probe_data", &PythonMpiSimulatorChunk::get_probe_data)
@@ -441,6 +440,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("create_PyFuncI", &PythonMpiSimulatorChunk::create_PyFuncI)
         .def("create_PyFuncIO", &PythonMpiSimulatorChunk::create_PyFuncIO);
     bpy::class_<PythonMpiSimulator>("PythonMpiSimulator", bpy::init<>())
+        .def("to_string", &PythonMpiSimulator::to_string)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("finalize", &PythonMpiSimulator::finalize)
         .def("add_chunk", &PythonMpiSimulator::add_chunk,

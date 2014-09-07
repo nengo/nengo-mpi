@@ -108,13 +108,9 @@ class MpiWait(builder.Operator):
 
 class SimulatorChunk(object):
 
-    def __init__(self, model, mpi_chunk, dt):
+    def __init__(self, mpi_chunk, model=None, dt=0.001):
 
         self.model = model
-
-        print "MODEL", model
-        print "SEND SIGNALS", model.send_signals
-        print "RECV SIGNALS", model.recv_signals
 
         # C++ key (int) -> ndarray
         self.sig_dict = {}
@@ -127,53 +123,51 @@ class SimulatorChunk(object):
         self.signals = builder.SignalDict(
             __time__=np.asarray(0.0, dtype=np.float64))
 
-        for op in model.operators:
-            op.init_signals(self.signals, self.dt)
+        if model is not None:
+            print "MODEL", model
+            print "SEND SIGNALS", model.send_signals
+            print "RECV SIGNALS", model.recv_signals
 
-            print "OP"
-            print op
-            for sig in op.all_signals:
-                print sig
+            for op in model.operators:
+                op.init_signals(self.signals, self.dt)
 
+            for signal, dst in self.model.send_signals:
+                mpi_wait = MpiWait(signal)
+                self.model.operators.append(mpi_wait)
 
+            for signal, src in self.model.recv_signals:
+                mpi_wait = MpiWait(signal)
+                self.model.operators.append(mpi_wait)
 
-        for signal, dst in self.model.send_signals:
-            mpi_wait = MpiWait(signal)
-            self.model.operators.append(mpi_wait)
+            self.dg = operator_depencency_graph(self.model.operators)
+            self._step_order = [node for node in toposort(self.dg)
+                                if hasattr(node, 'make_step')]
 
-        for signal, src in self.model.recv_signals:
-            mpi_wait = MpiWait(signal)
-            self.model.operators.append(mpi_wait)
+            for signal, dst in model.send_signals:
+                # find the op that updates the signal
+                update_index = map(
+                    lambda x: signal in x.updates, self._step_order).index(True)
 
-        self.dg = operator_depencency_graph(self.model.operators)
-        self._step_order = [node for node in toposort(self.dg)
-                            if hasattr(node, 'make_step')]
+                mpi_send = MpiSend(dst, signal)
 
-        for signal, dst in model.send_signals:
-            # find the op that updates the signal
-            update_index = map(
-                lambda x: signal in x.updates, self._step_order).index(True)
+                self._step_order.insert(update_index+1, mpi_send)
+                #self._step_order.insert(update_index, mpi_wait)
 
-            mpi_send = MpiSend(dst, signal)
+            for signal, src in model.recv_signals:
+                # find the first op that reads from the signal
+                reads = map(
+                    lambda x: signal in x.reads, self._step_order)
 
-            self._step_order.insert(update_index+1, mpi_send)
-            #self._step_order.insert(update_index, mpi_wait)
+                read_index_last = len(reads) - reads[::-1].index(True) - 1
 
-        for signal, src in model.recv_signals:
-            # find the first op that reads from the signal
-            reads = map(
-                lambda x: signal in x.reads, self._step_order)
+                mpi_recv = MpiRecv(src, signal)
 
-            read_index_last = len(reads) - reads[::-1].index(True) - 1
+                # Put the recv after the last read,
+                # and the wait before the first read
+                self._step_order.insert(read_index_last+1, mpi_recv)
 
-            mpi_recv = MpiRecv(src, signal)
-
-            # Put the recv after the last read,
-            # and the wait before the first read
-            self._step_order.insert(read_index_last+1, mpi_recv)
-
-        for sig, numpy_array in self.signals.items():
-            self.add_signal(make_key(sig), numpy_array, str(sig))
+            for sig, numpy_array in self.signals.items():
+                self.add_signal(make_key(sig), numpy_array, str(sig))
 
 
         print "ALL SIGNALS ADDED"

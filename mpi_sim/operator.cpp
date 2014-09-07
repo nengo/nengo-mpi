@@ -172,12 +172,9 @@ string Reset::to_string() const {
 
     out << "Reset:" << endl;
     out << "dst:" << endl;
-    out << *dst << endl << endl;
+    out << *dst << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string Copy::to_string() const  {
@@ -187,12 +184,9 @@ string Copy::to_string() const  {
     out << "dst:" << endl;
     out << *dst << endl;
     out << "src:" << endl;
-    out << *src << endl << endl;
+    out << *src << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string DotIncMV::to_string() const{
@@ -205,12 +199,8 @@ string DotIncMV::to_string() const{
     out << *X << endl;
     out << "Y:" << endl;
     out << *Y << endl;
-    out << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string DotIncVV::to_string() const{
@@ -224,12 +214,8 @@ string DotIncVV::to_string() const{
     out << "Y:" << endl;
     out << *Y << endl;
     out << "Scalar: " << scalar << endl;
-    out << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string ProdUpdate::to_string() const{
@@ -239,12 +225,9 @@ string ProdUpdate::to_string() const{
     out << "B:" << endl;
     out << *B << endl;
     out << "Y:" << endl;
-    out << *Y << endl << endl;
+    out << *Y << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string Filter::to_string() const{
@@ -261,6 +244,7 @@ string Filter::to_string() const{
     out << "denom:" << endl;
     out << *denom << endl;
 
+    /*
     out << "x & y:" << endl;
     for(int i = 0; i < input->size(); i++){
         out << "i: " << i << endl;
@@ -277,11 +261,9 @@ string Filter::to_string() const{
         }
         out << endl;
     }
+    */
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string SimLIF::to_string() const{
@@ -295,12 +277,9 @@ string SimLIF::to_string() const{
     out << "voltage:" << endl;
     out << voltage << endl << endl;
     out << "refractory_time:" << endl;
-    out << refractory_time << endl << endl;
+    out << refractory_time << endl;
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 
 string SimLIFRate::to_string() const{
@@ -311,10 +290,6 @@ string SimLIFRate::to_string() const{
     out << *J << endl;
     out << "output:" << endl;
     out << *output << endl;
-
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
 

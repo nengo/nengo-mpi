@@ -36,7 +36,7 @@ public:
     virtual string to_string() const = 0;
 
     friend ostream& operator << (ostream &out, const Operator &op){
-        out << op.to_string() << endl;
+        out << op.to_string();
         return out;
     }
 
@@ -203,6 +203,7 @@ private:
 class Filter: public Operator{
 
 public:
+    Filter(){};
     Filter(Vector* input, Vector* output, Vector* numer, Vector* denom);
     const string classname() { return "Filter"; }
 
@@ -232,8 +233,11 @@ private:
         ar & output;
         ar & numer;
         ar & denom;
-        ar & x;
-        ar & y;
+
+        // Circular buffers do not have serialization method.
+        // They should be empty anyway.
+        //ar & x;
+        //ar & y;
     }
 };
 

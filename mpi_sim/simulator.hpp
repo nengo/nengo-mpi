@@ -50,7 +50,7 @@ public:
     string to_string() const;
 
     friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
-        out << chunk.to_string() << endl;
+        out << chunk.to_string();
         return out;
     }
 
@@ -85,6 +85,7 @@ private:
         ar.template register_type<ProdUpdate>();
         ar.template register_type<SimLIF>();
         ar.template register_type<SimLIFRate>();
+        ar.template register_type<Filter>();
         ar.template register_type<MPISend>();
         ar.template register_type<MPIRecv>();
         ar.template register_type<MPIWait>();
@@ -119,7 +120,7 @@ public:
     string to_string() const;
 
     friend ostream& operator << (ostream &out, const MpiSimulator &sim){
-        out << sim.to_string() << endl;
+        out << sim.to_string();
         return out;
     }
 

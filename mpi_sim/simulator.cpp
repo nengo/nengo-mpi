@@ -108,6 +108,7 @@ string MpiSimulatorChunk::to_string() const{
 
     map<key_type, Vector*>::const_iterator vector_it = vector_signal_map.begin();
 
+    out << "** Vectors: **" << endl;
     for(; vector_it != vector_signal_map.end(); vector_it++){
         out << "Key: " << vector_it->first << endl;
         out << "Vector: " << *(vector_it->second) << endl;
@@ -115,6 +116,7 @@ string MpiSimulatorChunk::to_string() const{
 
     map<key_type, Matrix*>::const_iterator matrix_it = matrix_signal_map.begin();
 
+    out << "** Matrices: **" << endl;
     for(; matrix_it != matrix_signal_map.end(); matrix_it++){
         out << "Key: " << matrix_it->first << endl;
         out << "Matrix: " << *(matrix_it->second) << endl;
@@ -122,15 +124,20 @@ string MpiSimulatorChunk::to_string() const{
 
     map<key_type, Probe<Vector>*>::const_iterator probe_it = probe_map.begin();
 
+    out << "** Probes: **" << endl;
     for(; probe_it != probe_map.end(); probe_it++){
         out << "Key: " << probe_it->first << endl;
         out << "Probe: " << *(probe_it->second) << endl;
     }
 
-    string out_string;
-    out >> out_string;
+    list<Operator*>::const_iterator it;
 
-    return out_string;
+    out << "** Operators: **" << endl;
+    for(it = operator_list.begin(); it != operator_list.end(); ++it){
+        out << (**it) << endl;
+    }
+
+    return out.str();
 }
 
 MpiSimulator::MpiSimulator(){}
@@ -144,7 +151,7 @@ MpiSimulatorChunk* MpiSimulator::add_chunk(){
 void MpiSimulator::finalize(){
     // Use MPI DPM to setup processes on other nodes
     // Then pass the chunks to those nodes.
-    send_chunks(chunks);
+    //send_chunks(chunks);
 }
 
 void MpiSimulator::run_n_steps(int steps){
@@ -171,11 +178,8 @@ string MpiSimulator::to_string() const{
 
     list<MpiSimulatorChunk*>::const_iterator it;
     for(it = chunks.begin(); it != chunks.end(); ++it){
-        out << **it << endl;
+        out << (**it) << endl;
     }
 
-    string out_string;
-    out >> out_string;
-
-    return out_string;
+    return out.str();
 }
