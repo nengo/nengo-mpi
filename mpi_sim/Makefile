@@ -18,8 +18,8 @@ else
 	BOOST_LIB=${SCINET_BOOST_LIB}
 endif
 
-# Doesn't contain python.o
-OBJS=simulator.o operator.o mpi_operator.o mpi_simulator.o probe.o
+# Note this doesn't contain python.o or mpi_simulator.o
+OBJS=simulator.o operator.o mpi_operator.o probe.o
 
 DEFS=
 
@@ -28,28 +28,32 @@ WORKER_LOC=../nengo_mpi
 
 CXXFLAGS= -I${BOOST_INC} -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=c++0x
 
-all: mpi_sim
-
-#mpi_sim_worker
+all: build
 
 run_debug: DEFS+=-DRUN_DEBUG
 run_debug: debug
 
 debug: DEFS+=-DDEBUG
 debug: CXXFLAGS+= -g
-debug: mpi_sim
+debug: build
 
-# ********* Worker *************
+build: mpi_sim_worker mpi_sim
+
+clean:
+	rm -rf ${SO_LOC}/mpi_sim.so ${WORKER_LOC}/mpi_sim_worker *.o
+
+# ********* mpi_sim_worker *************
+
 mpi_sim_worker: worker.o ${OBJS}
-	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} -L${BOOST_LIB} -lboost_mpi -lboost_serialization -lm -std=c++0x
+	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lmpi -lboost_mpi -lm -std=c++0x
 
-worker.o: worker.cpp
-	mpicxx -c -o worker.o worker.cpp -I${SCINET_BOOST_INC} ${CXXFLAGS}
+worker.o: worker.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
+	mpicxx -std=c++0x -c -o worker.o worker.cpp -I${BOOST_INC} -I${MPI_INC}
 
+# ********* mpi_sim.so *************
 
-# ********* Shared library *************
-mpi_sim: ${OBJS} python.o
-	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared -L${PYTHON_LIB} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lboost_python -lmpi -lboost_mpi -lm
+mpi_sim: ${OBJS} python.o mpi_simulator.o
+	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o mpi_simulator.o -shared -L${PYTHON_LIB} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lboost_python -lmpi -lboost_mpi -lm
 
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
 	mpicxx -std=c++0x -c -o mpi_operator.o -fPIC mpi_operator.cpp -I${BOOST_INC} -I${MPI_INC}
@@ -61,9 +65,4 @@ probe.o: probe.cpp probe.hpp operator.hpp
 python.o: python.cpp python.hpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
 simulator.o: simulator.cpp simulator.hpp mpi_operator.hpp operator.hpp probe.hpp debug.hpp
-
-
-clean:
-	rm -rf ${SO_LOC}/mpi_sim.so ${WORKER_LOC}/mpi_sim_worker *.o
-
 
