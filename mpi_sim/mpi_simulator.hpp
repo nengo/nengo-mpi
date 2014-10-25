@@ -10,11 +10,17 @@
 #include <boost/mpi/intercommunicator.hpp>
 #include <boost/serialization/string.hpp>
 
-#include "simulator.hpp"
+#include "chunk.hpp"
 
 namespace mpi = boost::mpi;
 using namespace std;
 
-void send_chunks(list<MpiSimulatorChunk*> chunks);
+class MpiInterface{
+public:
+    void send_chunks(list<MpiSimulatorChunk*> chunks);
+    void start_simulation(int steps);
+private:
+    mpi::communicator comm;
+};
 
 #endif

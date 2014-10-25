@@ -6,15 +6,18 @@ MpiSimulatorChunk* MpiSimulator::add_chunk(){
     return chunk;
 }
 
-MpiSimulator::MpiSimulator(){}
+MpiSimulator::MpiSimulator(){
+}
 
 void MpiSimulator::finalize(){
     // Use MPI DPM to setup processes on other nodes
     // Then pass the chunks to those nodes.
-    send_chunks(chunks);
+    mpi_interface.send_chunks(chunks);
 }
 
 void MpiSimulator::run_n_steps(int steps){
+    cout << "In MPI run_n_steps: " << steps << endl;
+    mpi_interface.start_simulation(steps);
 }
 
 void MpiSimulator::write_to_file(string filename){

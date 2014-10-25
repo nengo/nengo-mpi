@@ -1,6 +1,6 @@
 #include "mpi_simulator.hpp"
 
-void send_chunks(list<MpiSimulatorChunk*> chunks){
+void MpiInterface::send_chunks(list<MpiSimulatorChunk*> chunks){
     cout << "C++: SENDING CHUNKS\n";
     int num_chunks = chunks.size();
     MPI_Comm everyone;
@@ -19,15 +19,15 @@ void send_chunks(list<MpiSimulatorChunk*> chunks){
     cout << "Master done spawning children." << endl;
 
     mpi::intercommunicator intercomm(everyone, mpi::comm_duplicate);
-    mpi::communicator comm = intercomm.merge(false);
+    comm = intercomm.merge(false);
+    //mpi::communicator comm = intercomm.merge(false);
 
-#ifdef _DEBUG
-    cout << "Master rank in merged : " << comm.rank() << endl;
-
+#ifdef DEBUG
     int buflen = 512;
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
     cout << "Master host: " << name << endl;
+    cout << "Master rank in merged communicator: " << comm.rank() << " (should be 0)." << endl;
 #endif
 
     int i = 0;
@@ -44,6 +44,7 @@ void send_chunks(list<MpiSimulatorChunk*> chunks){
         cout << "Master finished sending chunk " << i << endl;
 
         cout << "Master receiving chunk " << i << "..." << endl;
+
         // Make sure the chunk was sent correctly
         comm.recv(i+1, 2, remote_string);
         cout << "Master finished receiving chunk " << i << endl;
@@ -58,5 +59,9 @@ void send_chunks(list<MpiSimulatorChunk*> chunks){
         //TODO: Free the chunks on this node!
     }
 
-    MPI_Finalize();
+    //MPI_Finalize();
+}
+
+void MpiInterface::start_simulation(int steps){
+    broadcast(comm, steps, 0);
 }

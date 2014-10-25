@@ -12,10 +12,10 @@
 #include <sstream>
 
 #include "chunk.hpp"
+#include "mpi_simulator.hpp"
 #include "debug.hpp"
 
 using namespace std;
-
 class MpiSimulator{
 
 public:
@@ -42,6 +42,7 @@ public:
 
 private:
     list<MpiSimulatorChunk*> chunks;
+    MpiInterface mpi_interface;
 
     friend class boost::serialization::access;
 
@@ -53,10 +54,5 @@ private:
         ar & chunks;
     }
 };
-
-// Forward declaration. Definition is in mpi_simulator.cpp.
-// Avoids our having to include mpi_simulator.hpp, which would result
-// in a circular include.
-void send_chunks(list<MpiSimulatorChunk*>);
 
 #endif

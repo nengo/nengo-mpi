@@ -40,13 +40,13 @@ int main(int argc, char *argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs) ;
 
     cout << "I'm child process rank "<< my_id << " and we are " << numprocs << endl;
-    cout << "The parent process rank "<< parent_id << " and we are " << parent_size << endl;
+    cout << "The parent process has rank "<< parent_id << " and has size" << parent_size << endl;
 
     int buflen = 512;
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
     cout << "Child " << my_id << " host: " << name << endl;
-    cout << "Child " << my_id << " rank in merged : " << comm.rank() << endl;
+    cout << "Child " << my_id << " rank in merged communicator: " << comm.rank() << endl;
 #endif
 
     MpiSimulatorChunk chunk;
@@ -54,9 +54,17 @@ int main(int argc, char *argv[]) {
     // Recv the chunk from master
     comm.recv(0, 1, chunk);
 
-    // Send a validation string to master
+    // Send a validation string to master to confirm that
+    // the chunk was transferred properly
     string validation_string = chunk.to_string();
     comm.send(0, 2, validation_string);
+
+    // Wait for the signal to run the simulation
+    int steps;
+    broadcast(comm, steps, 0);
+    cout << "Child " << my_id << " got the signal to start simulation!: " << steps << " steps." << endl;
+
+    //chunk.run_n_steps(steps);
 
     MPI_Finalize();
     return 0;

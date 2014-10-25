@@ -313,7 +313,6 @@ class Simulator(object):
             self._probe_outputs[probe].extend(data)
 
         self.n_steps += steps
-        #self.signals['__time__'] += steps * self.dt
 
     def step(self):
         """Advance the simulator by `self.dt` seconds."""
