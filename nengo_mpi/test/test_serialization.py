@@ -6,6 +6,7 @@ import nengo_mpi
 
 logger = logging.getLogger(__name__)
 
+
 def test_serialization():
     """Test the serialization of MPISimulators"""
 

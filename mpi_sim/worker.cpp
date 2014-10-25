@@ -14,8 +14,8 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
 
-    cout << "Worker" << endl;
     int parent_size, parent_id, my_id, numprocs;
+
     // parent intercomm
     MPI_Comm parent;
     MPI_Init(&argc, &argv);
@@ -35,8 +35,7 @@ int main(int argc, char *argv[]) {
         cout << "Something's wrong with the parent" << endl;
     }
 
-#ifdef _DEBUG
-
+#ifdef DEBUG
     MPI_Comm_rank(MPI_COMM_WORLD, &my_id) ;
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs) ;
 

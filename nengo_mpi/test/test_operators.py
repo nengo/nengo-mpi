@@ -9,6 +9,7 @@ import nengo_mpi
 
 logger = logging.getLogger(__name__)
 
+
 def test_reset(Simulator):
 
     D = 40
@@ -21,13 +22,16 @@ def test_reset(Simulator):
         X = 2 * np.ones(D)
         Y = np.zeros(D)
 
-        sim.add_signal(0, A)
-        sim.add_signal(1, X)
-        sim.add_signal(2, Y)
+        mpi_chunk = self.mpi_sim.add_chunk()
+        simulator_chunk = chunk.SimulatorChunk(mpi_chunk)
 
-        sim.add_dot_inc(0, 1, 2)
-        sim.mpi_sim.create_Reset(2, reset_val)
-        sim.add_probe(2, 2, 2)
+        sim_chunk.add_signal(0, A)
+        sim_chunk.add_signal(1, X)
+        sim_chunk.add_signal(2, Y)
+
+        sim_chunk.add_dot_inc(0, 1, 2)
+        sim_chunk.mpi_sim_chunk.create_Reset(2, reset_val)
+        sim_chunk.add_probe(2, 2, 2)
 
     sim = Simulator(network=None, init_func=init_func)
     sim.run(1.0)
@@ -39,6 +43,7 @@ def test_reset(Simulator):
         plt.close()
 
     assert rmse(sim.data[2], reset_val) < 0.001
+
 
 def test_copy(Simulator):
 
@@ -83,6 +88,7 @@ def test_copy(Simulator):
     assert rmse(sim.data[2], sim.data[3]) < 0.001
     assert rmse(sim.data[2], all_data) < 0.001
 
+
 def test_lif(Simulator):
     """Test that the dynamic model approximately matches the rates."""
     n_neurons = 40
@@ -125,6 +131,7 @@ def test_lif(Simulator):
 
     assert np.allclose(sim_rates, math_rates, atol=1, rtol=0.02)
 
+
 def test_lif_rate(Simulator):
     """Test that the dynamic model approximately matches the rates."""
     n_neurons = 40
@@ -156,7 +163,8 @@ def test_lif_rate(Simulator):
     sim_rates = output[-1, :] / dt
 
     lif = nengo.LIF(tau_rc=tau_rc, tau_ref=tau_ref)
-    math_rates = lif.rates(J, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
+    math_rates = lif.rates(
+        J, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
 
     with Plotter(Simulator) as plt:
         plt.plot(J, sim_rates, label='sim')

@@ -19,12 +19,13 @@ else
 endif
 
 # Note this doesn't contain python.o or mpi_simulator.o
-OBJS=simulator.o operator.o mpi_operator.o probe.o
+OBJS=simulator.o operator.o mpi_operator.o probe.o chunk.o mpi_simulator.o
 
 DEFS=
 
 SO_LOC=../nengo_mpi
-WORKER_LOC=../nengo_mpi
+#WORKER_LOC=../nengo_mpi
+WORKER_LOC=../scripts
 
 CXXFLAGS= -I${BOOST_INC} -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=c++0x
 
@@ -45,24 +46,25 @@ clean:
 # ********* mpi_sim_worker *************
 
 mpi_sim_worker: worker.o ${OBJS}
-	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lmpi -lboost_mpi -lm -std=c++0x
+	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lmpi -lboost_mpi -lm -std=c++0x ${DEFS}
 
 worker.o: worker.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
-	mpicxx -std=c++0x -c -o worker.o worker.cpp -I${BOOST_INC} -I${MPI_INC}
+	mpicxx -std=c++0x -c -o worker.o worker.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
 
 # ********* mpi_sim.so *************
 
-mpi_sim: ${OBJS} python.o mpi_simulator.o
-	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o mpi_simulator.o -shared -L${PYTHON_LIB} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lboost_python -lmpi -lboost_mpi -lm
+mpi_sim: ${OBJS} python.o
+	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared -L${PYTHON_LIB} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lboost_python -lmpi -lboost_mpi -lm ${DEFS}
 
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
-	mpicxx -std=c++0x -c -o mpi_operator.o -fPIC mpi_operator.cpp -I${BOOST_INC} -I${MPI_INC}
+	mpicxx -std=c++0x -c -o mpi_operator.o -fPIC mpi_operator.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
 
 mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
-	mpicxx -std=c++0x -c -o mpi_simulator.o -fPIC mpi_simulator.cpp -I${BOOST_INC} -I${MPI_INC}
+	mpicxx -std=c++0x -c -o mpi_simulator.o -fPIC mpi_simulator.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
 
 probe.o: probe.cpp probe.hpp operator.hpp
-python.o: python.cpp python.hpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
+python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
-simulator.o: simulator.cpp simulator.hpp mpi_operator.hpp operator.hpp probe.hpp debug.hpp
+chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
+simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_simulator.hpp debug.hpp
 

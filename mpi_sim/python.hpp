@@ -5,6 +5,7 @@
 #include <string>
 
 #include "simulator.hpp"
+#include "chunk.hpp"
 #include "operator.hpp"
 #include "mpi_operator.hpp"
 #include "probe.hpp"

@@ -92,8 +92,9 @@ class MpiRecv(builder.Operator):
 class MpiWait(builder.Operator):
     def __init__(self, signal):
         """Sets the signal so that the signal has a set. Otherwise an assertion
-        is violated in the order finding algorithm. Also puts the MpiWait in the
-        right place, i.e. before any operators that read from the signal."""
+        is violated in the order finding algorithm. Also puts the MpiWait in
+        the right place, i.e. before any operators that read from the signal.
+        """
 
         self.sets = [signal]
         self.incs = []
@@ -168,7 +169,6 @@ class SimulatorChunk(object):
 
             for sig, numpy_array in self.signals.items():
                 self.add_signal(make_key(sig), numpy_array, str(sig))
-
 
         print "ALL SIGNALS ADDED"
         print self._step_order
