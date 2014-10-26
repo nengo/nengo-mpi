@@ -29,23 +29,28 @@ class MPIWait;
 //after its content vector is updated by an operation. The corresponding
 //MPIWait operator should be called directly before the content vector is
 //updated.
+//
+
 class MPISend: public Operator{
+
+    friend class MPIWait;
+
 public:
     MPISend(){};
     MPISend(int dst, int tag, Vector* content);
-    const string classname() { return "MPISend"; }
+    string classname() const { return "MPISend"; }
 
     void operator()();
     virtual string to_string() const;
-    void set_waiter(MPIWait* mpi_wait);
+
+    mpi::request* get_request_pointer(){ return &request;}
 
     int tag;
+    mpi::communicator* comm;
+    Vector* content;
 
 private:
     int dst;
-    mpi::communicator comm;
-    Vector* content;
-    MPIWait* waiter;
     mpi::request request;
 
     friend class boost::serialization::access;
@@ -57,10 +62,7 @@ private:
         ar & boost::serialization::base_object<Operator>(*this);
         ar & dst;
         ar & tag;
-        // comm not serialized
-        //ar & comm;
         ar & content;
-        //ar & waiter;
     }
 };
 
@@ -69,22 +71,25 @@ private:
 //The corresponding MPIWait operator should be called directly before any of
 //the operators that make use of the content vector.
 class MPIRecv: public Operator{
+
+    friend class MPIWait;
+
 public:
     MPIRecv(){};
     MPIRecv(int src, int tag, Vector* content);
-    const string classname() { return "MPIRecv"; }
+    string classname() const { return "MPIRecv"; }
 
     void operator()();
     virtual string to_string() const;
-    void set_waiter(MPIWait* mpi_wait);
+
+    mpi::request* get_request_pointer(){ return &request;}
 
     int tag;
+    mpi::communicator* comm;
+    Vector* content;
 
 private:
     int src;
-    mpi::communicator comm;
-    Vector* content;
-    MPIWait* waiter;
     mpi::request request;
 
     friend class boost::serialization::access;
@@ -96,44 +101,38 @@ private:
         ar & boost::serialization::base_object<Operator>(*this);
         ar & src;
         ar & tag;
-        //ar & comm;
         ar & content;
-        //ar & waiter;
     }
 };
 
 // Used to complete isend/irecv operations.
 class MPIWait: public Operator{
 
-    // So they can access request pointer
-    friend class MPISend;
-    friend class MPIRecv;
-
 public:
     MPIWait(){};
     MPIWait(int tag);
-    const string classname() { return "MPIWait"; }
+    string classname() const { return "MPIWait"; }
 
     void operator()();
     virtual string to_string() const;
 
     int tag;
+    mpi::request* request;
 
 private:
     bool first_call;
-    mpi::request* request;
 
     friend class boost::serialization::access;
 
     template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
+    void serialize(Archive & ar, const unsigned int version) {
 
         dbg("Serializing: " << classname());
 
         ar & boost::serialization::base_object<Operator>(*this);
+
         ar & tag;
         ar & first_call;
-        //ar & request;
     }
 };
 

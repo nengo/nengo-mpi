@@ -285,7 +285,7 @@ void PythonMpiSimulatorChunk::create_MPISend(bpy::object dst, bpy::object tag, b
     Vector* content_vector = mpi_sim_chunk->get_vector_signal(content_key);
 
     MPISend* mpi_send = new MPISend(c_dst, c_tag, content_vector);
-    mpi_sim_chunk->add_operator(mpi_send);
+    mpi_sim_chunk->add_mpi_send(mpi_send);
 }
 
 void PythonMpiSimulatorChunk::create_MPIRecv(bpy::object src, bpy::object tag, bpy::object content){
@@ -302,7 +302,7 @@ void PythonMpiSimulatorChunk::create_MPIWait(bpy::object tag){
     int c_tag = bpy::extract<int>(tag);
 
     MPIWait* mpi_wait = new MPIWait(c_tag);
-    mpi_sim_chunk->add_wait(mpi_wait);
+    mpi_sim_chunk->add_mpi_wait(mpi_wait);
 }
 
 void PythonMpiSimulatorChunk::create_PyFunc(bpy::object py_fn, bpy::object t_in){

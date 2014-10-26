@@ -18,18 +18,23 @@ with m:
     input = nengo.Node(output=val, label='input')
     A = nengo.Ensemble(n_neurons=N, dimensions=1, label='A')
     B = nengo.Ensemble(n_neurons=N, dimensions=1, label='B')
+    C = nengo.Ensemble(n_neurons=N, dimensions=1, label='B')
+    D = nengo.Ensemble(n_neurons=N, dimensions=1, label='B')
 
     nengo.Connection(input, A)
     nengo.Connection(A, B)
-    nengo.Connection(B, A)
+    nengo.Connection(B, C)
+    nengo.Connection(C, A)
+    nengo.Connection(C, D)
+
     #in_p = nengo.Probe(input, 'output')
     #A_p = nengo.Probe(A, 'decoded_output', synapse=0.1) 
     #spike_probe = nengo.Probe(A, 'spikes')
 
-partition = {input: 0, A: 0, B: 1}
+partition = {input: 0, A: 0, B: 1, C: 2, D: 3}
 
 sim = nengo_mpi.Simulator(m, dt=0.001, fixed_nodes=partition)
-sim.run(1.0)
+sim.run(1)
 
 #t = sim.trange()
 #plt.plot(t, sim.data[in_p], label='Input')

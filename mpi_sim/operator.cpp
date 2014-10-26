@@ -99,6 +99,7 @@ void ProdUpdate::operator() (){
 
 void Filter::operator() (){
     for(int i = 0; i < input->size(); i++){
+
         x[i].push_front((*input)[i]);
 
         (*output)[i] = 0.0;
@@ -292,4 +293,3 @@ string SimLIFRate::to_string() const{
     out << *output << endl;
     return out.str();
 }
-

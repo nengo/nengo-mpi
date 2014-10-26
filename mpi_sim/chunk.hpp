@@ -28,12 +28,13 @@ public:
     void add_operator(Operator* op);
     void add_mpi_send(MPISend* mpi_send);
     void add_mpi_recv(MPIRecv* mpi_recv);
-    void add_wait(MPIWait* mpi_wait);
+    void add_mpi_wait(MPIWait* mpi_wait);
 
     void add_probe(key_type key, Probe<Vector>* probe);
-
     void add_vector_signal(key_type key, Vector* sig);
     void add_matrix_signal(key_type key, Matrix* sig);
+
+    void fix_mpi_waits();
     MPIWait* find_wait(int tag);
 
     Probe<Vector>* get_probe(key_type key);
@@ -43,11 +44,16 @@ public:
     double* get_time_pointer(){return &time;}
 
     string to_string() const;
+    void print_maps();
 
     friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
         out << chunk.to_string();
         return out;
     }
+
+    map<int, MPISend*> mpi_sends;
+    map<int, MPIRecv*> mpi_recvs;
+    map<int, MPIWait*> mpi_waits;
 
 private:
     double time;
@@ -59,7 +65,6 @@ private:
     list<Operator*> operator_list;
     Operator* operators;
     int num_operators;
-    list<MPIWait*> mpi_waits;
 
     // See http://www.boost.org/doc/libs/1_56_0/libs/serialization/doc/serialization.html
     // for how boost serialization works.
@@ -67,7 +72,6 @@ private:
 
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version){
-
         dbg("Serializing: " << classname());
 
         // Make the serialization aware of derived classes.
@@ -92,6 +96,10 @@ private:
         ar & time;
         ar & dt;
         ar & n_steps;
+
+        ar & mpi_sends;
+        ar & mpi_recvs;
+        ar & mpi_waits;
     }
 };
 

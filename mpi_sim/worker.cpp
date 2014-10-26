@@ -59,12 +59,25 @@ int main(int argc, char *argv[]) {
     string validation_string = chunk.to_string();
     comm.send(0, 2, validation_string);
 
+    chunk.fix_mpi_waits();
+
+    map<int, MPISend*>::iterator send_it;
+    for(send_it = chunk.mpi_sends.begin(); send_it != chunk.mpi_sends.end(); ++send_it){
+        send_it->second->comm = &comm;
+    }
+
+    map<int, MPIRecv*>::iterator recv_it;
+    for(recv_it = chunk.mpi_recvs.begin(); recv_it != chunk.mpi_recvs.end(); ++recv_it){
+        recv_it->second->comm = &comm;
+    }
+
     // Wait for the signal to run the simulation
     int steps;
     broadcast(comm, steps, 0);
     cout << "Child " << my_id << " got the signal to start simulation!: " << steps << " steps." << endl;
 
-    //chunk.run_n_steps(steps);
+    chunk.run_n_steps(steps);
+    comm.barrier();
 
     MPI_Finalize();
     return 0;

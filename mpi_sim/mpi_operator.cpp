@@ -9,29 +9,28 @@ MPIRecv::MPIRecv(int src, int tag, Vector* content):
 }
 
 MPIWait::MPIWait(int tag)
-    :tag(tag), first_call(false){
+    :tag(tag), first_call(true){
 }
 
 void MPISend::operator() (){
 
-    request = comm.isend(dst, tag, *content);
+    request = comm->isend(dst+1, tag, content->data());
 
     run_dbg(*this);
 }
 
 void MPIRecv::operator() (){
 
-    request = comm.irecv(src, tag, *content);
+    request = comm->irecv(src+1, tag, content->data());
 
     run_dbg(*this);
 }
 
 void MPIWait::operator() (){
-
-    if(not first_call){
-        request->wait();
+    if(first_call){
+        first_call = false;
     }else{
-        first_call = true;
+        request->wait();
     }
 
     run_dbg(*this);
@@ -43,7 +42,7 @@ string MPISend::to_string() const{
     out << "MPISend:" << endl;
     out << "tag: " << tag << endl;
     out << "dst: " << dst << endl;
-    out << "content: " << endl;
+    out << "content:" << endl;
     out << *content << endl;
 
     return out.str();
@@ -55,7 +54,7 @@ string MPIRecv::to_string() const{
     out << "MPIRecv:" << endl;
     out << "tag: " << tag << endl;
     out << "src: " << src << endl;
-    out << "content: " << endl;
+    out << "content:" << endl;
     out << *content << endl;
 
     return out.str();
@@ -69,12 +68,4 @@ string MPIWait::to_string() const{
     out << "first_call: " << first_call << endl;
 
     return out.str();
-}
-
-void MPISend::set_waiter(MPIWait* mpi_wait){
-    //mpi_wait->request = &request;
-}
-
-void MPIRecv::set_waiter(MPIWait* mpi_wait){
-    //mpi_wait->request = &request;
 }

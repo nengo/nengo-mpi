@@ -11,10 +11,18 @@ MpiSimulatorChunk::MpiSimulatorChunk(double dt)
 void MpiSimulatorChunk::run_n_steps(int steps){
 
     for(unsigned step = 0; step < steps; ++step){
+        if(step % 100 == 0){
+            cout << "Starting step: " << step << endl;
+        }
+
         list<Operator*>::const_iterator it;
         for(it = operator_list.begin(); it != operator_list.end(); ++it){
+            run_dbg("Before calling: " << **it << endl);
+
             //Call the operator
             (**it)();
+
+            run_dbg("After calling: " << **it << endl);
         }
 
         map<key_type, Probe<Vector>*>::iterator probe_it;
@@ -34,17 +42,20 @@ void MpiSimulatorChunk::add_operator(Operator *op){
 
 void MpiSimulatorChunk::add_mpi_send(MPISend* mpi_send){
     operator_list.push_back(mpi_send);
-    mpi_send->set_waiter(find_wait(mpi_send->tag));
+
+    mpi_sends[mpi_send->tag] = mpi_send;
 }
 
 void MpiSimulatorChunk::add_mpi_recv(MPIRecv* mpi_recv){
     operator_list.push_back(mpi_recv);
-    mpi_recv->set_waiter(find_wait(mpi_recv->tag));
+
+    mpi_recvs[mpi_recv->tag] = mpi_recv;
 }
 
-void MpiSimulatorChunk::add_wait(MPIWait* mpi_wait){
+void MpiSimulatorChunk::add_mpi_wait(MPIWait* mpi_wait){
     operator_list.push_back(mpi_wait);
-    mpi_waits.push_back(mpi_wait);
+
+    mpi_waits[mpi_wait->tag] = mpi_wait;
 }
 
 void MpiSimulatorChunk::add_probe(key_type key, Probe<Vector>* probe){
@@ -59,17 +70,54 @@ void MpiSimulatorChunk::add_matrix_signal(key_type key, Matrix* sig){
     matrix_signal_map[key] = sig;
 }
 
-MPIWait* MpiSimulatorChunk::find_wait(int tag){
-    list<MPIWait*>::const_iterator it;
-    for(it = mpi_waits.begin(); it != mpi_waits.end(); ++it){
-        if ((*it)->tag == tag){
-            return *it;
-        }
+void MpiSimulatorChunk::print_maps(){
+    map<int, MPISend*>::iterator send_it;
+    cout << "SENDS" << endl;
+    for(send_it = mpi_sends.begin(); send_it != mpi_sends.end(); ++send_it){
+        cout << "key: " << send_it->first <<  ", value: " << send_it->second << endl;
     }
 
-    stringstream error;
-    error << "MPIWait object with tag " << tag << " does not exist.";
-    throw invalid_argument(error.str());
+    map<int, MPIRecv*>::iterator recv_it;
+    cout << "RECVS" << endl;
+    for(recv_it = mpi_recvs.begin(); recv_it != mpi_recvs.end(); ++recv_it){
+        cout << "key: " << recv_it->first <<  ", value: " << recv_it->second << endl;
+    }
+}
+
+void MpiSimulatorChunk::fix_mpi_waits(){
+
+    map<int, MPIWait*>::iterator wait_it;
+
+    for(wait_it = mpi_waits.begin(); wait_it != mpi_waits.end(); ++wait_it){
+        try{
+            MPISend* send = mpi_sends.at(wait_it->first);
+            wait_it->second->request = send->get_request_pointer();
+        }catch(const out_of_range& e){
+            try{
+                MPIRecv* recv = mpi_recvs.at(wait_it->first);
+                wait_it->second->request = recv->get_request_pointer();
+            }catch(const out_of_range& e){
+                cerr << "Found MPIWait with no matching operator. tag = "
+                     << wait_it->first << "." << endl;
+                throw e;
+            }
+        }
+    }
+}
+
+MPIWait* MpiSimulatorChunk::find_wait(int tag){
+
+    MPIWait* mpi_wait;
+
+    try{
+        mpi_wait = mpi_waits.at(tag);
+    }catch(const out_of_range& e){
+        stringstream error;
+        error << "MPIWait object with tag " << tag << " does not exist.";
+        throw invalid_argument(error.str());
+    }
+
+    return mpi_wait;
 }
 
 Probe<Vector>* MpiSimulatorChunk::get_probe(key_type key){
