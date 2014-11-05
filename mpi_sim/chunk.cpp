@@ -36,6 +36,48 @@ void MpiSimulatorChunk::run_n_steps(int steps){
     }
 }
 
+void MpiSimulatorChunk::add_vector_signal(key_type key, Vector* sig){
+    vector_signal_map[key] = sig;
+}
+
+void MpiSimulatorChunk::add_matrix_signal(key_type key, Matrix* sig){
+    matrix_signal_map[key] = sig;
+}
+
+void MpiSimulatorChunk::add_probe(key_type key, Probe<Vector>* probe){
+    probe_map[key] = probe;
+}
+
+Vector* MpiSimulatorChunk::get_vector_signal(key_type key){
+    try{
+        Vector* vec = vector_signal_map.at(key);
+        return vec;
+    }catch(const out_of_range& e){
+        cerr << "Error accessing MpiSimulatorChunk :: vector signal with key " << key << endl;
+        throw e;
+    }
+}
+
+Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
+    try{
+        Matrix* mat = matrix_signal_map.at(key);
+        return mat;
+    }catch(const out_of_range& e){
+        cerr << "Error accessing MpiSimulatorChunk :: matrix signal with key " << key << endl;
+        throw e;
+    }
+}
+
+Probe<Vector>* MpiSimulatorChunk::get_probe(key_type key){
+    try{
+        Probe<Vector>* probe = probe_map.at(key);
+        return probe;
+    }catch(const out_of_range& e){
+        cerr << "Error accessing MpiSimulatorChunk :: probe with key " << key << endl;
+        throw e;
+    }
+}
+
 void MpiSimulatorChunk::add_operator(Operator *op){
     operator_list.push_back(op);
 }
@@ -56,32 +98,6 @@ void MpiSimulatorChunk::add_mpi_wait(MPIWait* mpi_wait){
     operator_list.push_back(mpi_wait);
 
     mpi_waits[mpi_wait->tag] = mpi_wait;
-}
-
-void MpiSimulatorChunk::add_probe(key_type key, Probe<Vector>* probe){
-    probe_map[key] = probe;
-}
-
-void MpiSimulatorChunk::add_vector_signal(key_type key, Vector* sig){
-    vector_signal_map[key] = sig;
-}
-
-void MpiSimulatorChunk::add_matrix_signal(key_type key, Matrix* sig){
-    matrix_signal_map[key] = sig;
-}
-
-void MpiSimulatorChunk::print_maps(){
-    map<int, MPISend*>::iterator send_it;
-    cout << "SENDS" << endl;
-    for(send_it = mpi_sends.begin(); send_it != mpi_sends.end(); ++send_it){
-        cout << "key: " << send_it->first <<  ", value: " << send_it->second << endl;
-    }
-
-    map<int, MPIRecv*>::iterator recv_it;
-    cout << "RECVS" << endl;
-    for(recv_it = mpi_recvs.begin(); recv_it != mpi_recvs.end(); ++recv_it){
-        cout << "key: " << recv_it->first <<  ", value: " << recv_it->second << endl;
-    }
 }
 
 void MpiSimulatorChunk::fix_mpi_waits(){
@@ -118,36 +134,6 @@ MPIWait* MpiSimulatorChunk::find_wait(int tag){
     }
 
     return mpi_wait;
-}
-
-Probe<Vector>* MpiSimulatorChunk::get_probe(key_type key){
-    try{
-        Probe<Vector>* probe = probe_map.at(key);
-        return probe;
-    }catch(const out_of_range& e){
-        cerr << "Error accessing MpiSimulatorChunk :: probe with key " << key << endl;
-        throw e;
-    }
-}
-
-Vector* MpiSimulatorChunk::get_vector_signal(key_type key){
-    try{
-        Vector* vec = vector_signal_map.at(key);
-        return vec;
-    }catch(const out_of_range& e){
-        cerr << "Error accessing MpiSimulatorChunk :: vector signal with key " << key << endl;
-        throw e;
-    }
-}
-
-Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
-    try{
-        Matrix* mat = matrix_signal_map.at(key);
-        return mat;
-    }catch(const out_of_range& e){
-        cerr << "Error accessing MpiSimulatorChunk :: matrix signal with key " << key << endl;
-        throw e;
-    }
 }
 
 string MpiSimulatorChunk::to_string() const{
@@ -193,4 +179,19 @@ string MpiSimulatorChunk::to_string() const{
 
     return out.str();
 }
+
+void MpiSimulatorChunk::print_maps(){
+    map<int, MPISend*>::iterator send_it;
+    cout << "SENDS" << endl;
+    for(send_it = mpi_sends.begin(); send_it != mpi_sends.end(); ++send_it){
+        cout << "key: " << send_it->first <<  ", value: " << send_it->second << endl;
+    }
+
+    map<int, MPIRecv*>::iterator recv_it;
+    cout << "RECVS" << endl;
+    for(recv_it = mpi_recvs.begin(); recv_it != mpi_recvs.end(); ++recv_it){
+        cout << "key: " << recv_it->first <<  ", value: " << recv_it->second << endl;
+    }
+}
+
 

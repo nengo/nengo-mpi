@@ -63,6 +63,10 @@ def make_checked_func(func, t_in, takes_input):
 
 
 def make_key(obj):
+    """
+    Create a key for an object. Must be unique, and reproducable (i.e. produce
+    the same key if called with the same object multiple times).
+    """
     if isinstance(obj, builder.SignalView):
         return id(obj.base)
     else:
@@ -70,6 +74,11 @@ def make_key(obj):
 
 
 class MpiSend(builder.Operator):
+    """
+    MpiSend placeholder operator. Stores the signal that the operator will
+    send and the partition that it will be sent to. No makestep is defined,
+    as it will never be called.
+    """
     def __init__(self, dst, signal):
         self.sets = []
         self.incs = []
@@ -80,6 +89,11 @@ class MpiSend(builder.Operator):
 
 
 class MpiRecv(builder.Operator):
+    """
+    MpiRecv placeholder operator. Stores the signal that the operator will
+    receive and the partition that it will be received from. No makestep is
+    defined, as it will never be called.
+    """
     def __init__(self, src, signal):
         self.sets = []
         self.incs = []
@@ -146,13 +160,14 @@ class SimulatorChunk(object):
 
             for signal, dst in model.send_signals:
                 # find the op that updates the signal
-                update_index = map(
-                    lambda x: signal in x.updates, self._step_order).index(True)
+                updates_signal = map(
+                    lambda x: signal in x.updates, self._step_order)
+
+                update_index = updates_signal.index(True)
 
                 mpi_send = MpiSend(dst, signal)
 
                 self._step_order.insert(update_index+1, mpi_send)
-                #self._step_order.insert(update_index, mpi_wait)
 
             for signal, src in model.recv_signals:
                 # find the first op that reads from the signal
@@ -286,6 +301,7 @@ class SimulatorChunk(object):
                 logger.debug(
                     "Creating MpiSend, dst: %d, signal: %s, signal_key: %d",
                     op.dst, str(op.signal), signal_key)
+
                 self.mpi_chunk.create_MPISend(op.dst, signal_key, signal_key)
 
             elif op_type == MpiRecv:
@@ -293,6 +309,7 @@ class SimulatorChunk(object):
                 logger.debug(
                     "Creating MpiRecv, src: %d, signal: %s, signal_key: %d",
                     op.src, str(op.signal), signal_key)
+
                 self.mpi_chunk.create_MPIRecv(op.src, signal_key, signal_key)
 
             elif op_type == MpiWait:
@@ -300,6 +317,7 @@ class SimulatorChunk(object):
                 logger.debug(
                     "Creating MpiWait, signal: %s, signal_key: %d",
                     str(op.signal), signal_key)
+
                 self.mpi_chunk.create_MPIWait(signal_key)
 
             else:

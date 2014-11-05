@@ -6,7 +6,7 @@ import numpy as np
 import nengo
 import nengo_mpi
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
