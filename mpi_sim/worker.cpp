@@ -35,16 +35,17 @@ int main(int argc, char *argv[]) {
         cout << "Something's wrong with the parent" << endl;
     }
 
-#ifdef DEBUG
     MPI_Comm_rank(MPI_COMM_WORLD, &my_id) ;
     MPI_Comm_size(MPI_COMM_WORLD, &numprocs) ;
-
-    cout << "I'm child process rank "<< my_id << " and we are " << numprocs << endl;
-    cout << "The parent process has rank "<< parent_id << " and has size" << parent_size << endl;
 
     int buflen = 512;
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
+
+#ifdef DEBUG
+    cout << "I'm child process rank "<< my_id << " and we are " << numprocs << endl;
+    cout << "The parent process has rank "<< parent_id << " and has size " << parent_size << endl;
+
     cout << "Child " << my_id << " host: " << name << endl;
     cout << "Child " << my_id << " rank in merged communicator: " << comm.rank() << endl;
 #endif

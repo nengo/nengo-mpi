@@ -45,12 +45,12 @@ public:
 
     // Probe the signal corresponding to key. A signal with this
     // key must already be in the chunk when this function is called
-    void add_probe(key_type key, Probe<Vector>* probe);
+    void add_probe(key_type key, Probe<Matrix>* probe);
 
     // Look up internal object by key
     Vector* get_vector_signal(key_type key);
     Matrix* get_matrix_signal(key_type key);
-    Probe<Vector>* get_probe(key_type key);
+    Probe<Matrix>* get_probe(key_type key);
 
     // Functions used to add operators to the chunk. These
     // operators operate on signals that have been added
@@ -95,7 +95,7 @@ private:
     double time;
     double dt;
     int n_steps;
-    map<key_type, Probe<Vector>*> probe_map;
+    map<key_type, Probe<Matrix>*> probe_map;
     map<key_type, Matrix*> matrix_signal_map;
     map<key_type, Vector*> vector_signal_map;
     list<Operator*> operator_list;
@@ -115,9 +115,8 @@ private:
         // a pointer whose type is Operator* (i.e. the base class).
         ar.template register_type<Reset>();
         ar.template register_type<Copy>();
-        ar.template register_type<DotIncMV>();
-        ar.template register_type<DotIncVV>();
-        ar.template register_type<ProdUpdate>();
+        ar.template register_type<DotInc>();
+        ar.template register_type<ElementwiseInc>();
         ar.template register_type<SimLIF>();
         ar.template register_type<SimLIFRate>();
         ar.template register_type<Filter>();

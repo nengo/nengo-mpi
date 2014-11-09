@@ -25,7 +25,7 @@ void MpiSimulatorChunk::run_n_steps(int steps){
             run_dbg("After calling: " << **it << endl);
         }
 
-        map<key_type, Probe<Vector>*>::iterator probe_it;
+        map<key_type, Probe<Matrix>*>::iterator probe_it;
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
             probe_it->second->gather(n_steps);
@@ -44,7 +44,7 @@ void MpiSimulatorChunk::add_matrix_signal(key_type key, Matrix* sig){
     matrix_signal_map[key] = sig;
 }
 
-void MpiSimulatorChunk::add_probe(key_type key, Probe<Vector>* probe){
+void MpiSimulatorChunk::add_probe(key_type key, Probe<Matrix>* probe){
     probe_map[key] = probe;
 }
 
@@ -68,9 +68,9 @@ Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
     }
 }
 
-Probe<Vector>* MpiSimulatorChunk::get_probe(key_type key){
+Probe<Matrix>* MpiSimulatorChunk::get_probe(key_type key){
     try{
-        Probe<Vector>* probe = probe_map.at(key);
+        Probe<Matrix>* probe = probe_map.at(key);
         return probe;
     }catch(const out_of_range& e){
         cerr << "Error accessing MpiSimulatorChunk :: probe with key " << key << endl;
@@ -160,7 +160,7 @@ string MpiSimulatorChunk::to_string() const{
     }
     out << endl;
 
-    map<key_type, Probe<Vector>*>::const_iterator probe_it = probe_map.begin();
+    map<key_type, Probe<Matrix>*>::const_iterator probe_it = probe_map.begin();
 
     out << "** Probes: **" << endl;
     for(; probe_it != probe_map.end(); probe_it++){

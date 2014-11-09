@@ -1,7 +1,6 @@
 """Build an MpiSimulatorChunk that can be manipulated from Python"""
 
-
-import nengo.builder as builder
+from nengo import builder
 from nengo.neurons import LIF, LIFRate
 from nengo.utils.graphs import toposort
 from nengo.utils.simulator import operator_depencency_graph
@@ -67,13 +66,13 @@ def make_key(obj):
     Create a key for an object. Must be unique, and reproducable (i.e. produce
     the same key if called with the same object multiple times).
     """
-    if isinstance(obj, builder.SignalView):
+    if isinstance(obj, builder.signal.SignalView):
         return id(obj.base)
     else:
         return id(obj)
 
 
-class MpiSend(builder.Operator):
+class MpiSend(builder.operator.Operator):
     """
     MpiSend placeholder operator. Stores the signal that the operator will
     send and the partition that it will be sent to. No makestep is defined,
@@ -88,7 +87,7 @@ class MpiSend(builder.Operator):
         self.signal = signal
 
 
-class MpiRecv(builder.Operator):
+class MpiRecv(builder.operator.Operator):
     """
     MpiRecv placeholder operator. Stores the signal that the operator will
     receive and the partition that it will be received from. No makestep is
@@ -103,7 +102,7 @@ class MpiRecv(builder.Operator):
         self.signal = signal
 
 
-class MpiWait(builder.Operator):
+class MpiWait(builder.operator.Operator):
     def __init__(self, signal):
         """Sets the signal so that the signal has a set. Otherwise an assertion
         is violated in the order finding algorithm. Also puts the MpiWait in
@@ -135,7 +134,7 @@ class SimulatorChunk(object):
 
         self.dt = dt
 
-        self.signals = builder.SignalDict(
+        self.signals = builder.signal.SignalDict(
             __time__=np.asarray(0.0, dtype=np.float64))
 
         if model is not None:
@@ -144,7 +143,7 @@ class SimulatorChunk(object):
             print "RECV SIGNALS", model.recv_signals
 
             for op in model.operators:
-                op.init_signals(self.signals, self.dt)
+                op.init_signals(self.signals)
 
             for signal, dst in self.model.send_signals:
                 mpi_wait = MpiWait(signal)
@@ -191,37 +190,41 @@ class SimulatorChunk(object):
         for op in self._step_order:
             op_type = type(op)
 
-            if op_type == builder.Reset:
+            if op_type == builder.operator.Reset:
                 logger.debug(
                     "Creating Reset, dst:%d, Val:%f",
                     make_key(op.dst), op.value)
 
                 self.mpi_chunk.create_Reset(make_key(op.dst), op.value)
 
-            elif op_type == builder.Copy:
+            elif op_type == builder.operator.Copy:
                 logger.debug(
                     "Creating Copy, dst:%d, src:%d",
                     make_key(op.dst), make_key(op.src))
 
                 self.mpi_chunk.create_Copy(make_key(op.dst), make_key(op.src))
 
-            elif op_type == builder.DotInc:
-                self.add_dot_inc(
-                    make_key(op.A), make_key(op.X), make_key(op.Y))
+            elif op_type == builder.operator.DotInc:
 
-            elif op_type == builder.ProdUpdate:
                 logger.debug(
-                    "Creating ProdUpdate, A: %d, X: %d, B:%d, Y:%d",
-                    make_key(op.A), make_key(op.X), make_key(op.B),
-                    make_key(op.Y))
-
-                self.mpi_chunk.create_ProdUpdate(
-                    make_key(op.B), make_key(op.Y))
-
-                self.add_dot_inc(
+                    "Creating DotInc, A:%d, X:%d, Y:%d",
                     make_key(op.A), make_key(op.X), make_key(op.Y))
 
-            elif op_type == builder.SimFilterSynapse:
+                self.mpi_chunk.create_DotInc(
+                    make_key(op.A), make_key(op.X), make_key(op.Y))
+
+                # self.add_dot_inc(
+                #     make_key(op.A), make_key(op.X), make_key(op.Y))
+
+            elif op_type == builder.operator.ElementwiseInc:
+                logger.debug(
+                    "Creating ElementwiseInc, A: %d, X: %d, Y:%d",
+                    make_key(op.A), make_key(op.X), make_key(op.Y))
+
+                self.mpi_chunk.create_ElementwiseInc(
+                    make_key(op.A), make_key(op.X), make_key(op.Y))
+
+            elif op_type == builder.synapses.SimFilterSynapse:
                 logger.debug(
                     "Creating Filter, input:%d, output:%d, numer:%s, denom:%s",
                     make_key(op.input), make_key(op.output), str(op.num),
@@ -230,7 +233,7 @@ class SimulatorChunk(object):
                 self.mpi_chunk.create_Filter(
                     make_key(op.input), make_key(op.output), op.num, op.den)
 
-            elif op_type == builder.SimNeurons:
+            elif op_type == builder.neurons.SimNeurons:
                 n_neurons = op.J.size
 
                 if type(op.neurons) is LIF:
@@ -261,7 +264,7 @@ class SimulatorChunk(object):
                         'nengo_mpi cannot handle neurons of type ' +
                         str(type(op.neurons)))
 
-            elif op_type == builder.SimPyFunc:
+            elif op_type == builder.node.SimPyFunc:
                 t_in = op.t_in
                 fn = op.fn
                 x = op.x
@@ -364,24 +367,10 @@ class SimulatorChunk(object):
                 self.mpi_chunk.create_DotIncVV(A_key, X_key, Y_key)
 
     def add_signal(self, key, A, label=''):
+        if A.ndim == 0:
+            A = np.reshape(A, (1, 1))
 
-        A_shape = A.shape
-
-        if A.ndim > 1 and A_shape[0] > 1 and A_shape[1] > 1:
-            logger.debug(
-                "Creating matrix signal, name: %s, key: %d", label, key)
-
-            self.mpi_chunk.add_matrix_signal(key, A)
-        else:
-            A = np.squeeze(A)
-
-            if A.shape == ():
-                A = np.array([A])
-
-            logger.debug(
-                "Creating vector signal, name: %s, key: %d", label, key)
-
-            self.mpi_chunk.add_vector_signal(key, A)
+        self.mpi_chunk.add_signal(key, A, label)
 
         self.sig_dict[key] = A
 

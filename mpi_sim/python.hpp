@@ -16,11 +16,11 @@ using namespace std;
 namespace bpy = boost::python;
 namespace bpyn = bpy::numeric;
 
-bool is_vector(bpyn::array a);
-Vector* ndarray_to_vector(bpyn::array a);
-Matrix* ndarray_to_matrix(bpyn::array a);
-Vector* list_to_vector(bpy::list l);
 bool hasattr(bpy::object obj, string const &attrName);
+
+Matrix* ndarray_to_matrix(bpyn::array a);
+Matrix* list_to_matrix(bpy::list l);
+Vector* list_to_vector(bpy::list l);
 
 class PythonMpiSimulatorChunk;
 
@@ -57,9 +57,7 @@ public:
     //TODO: factor out this method
     void run_n_steps(bpy::object steps);
 
-    void add_vector_signal(bpy::object key, bpyn::array sig);
-
-    void add_matrix_signal(bpy::object key, bpyn::array sig);
+    void add_signal(bpy::object key, bpyn::array sig, bpy::object label);
 
     bpy::object get_probe_data(bpy::object probe, bpy::object make_array);
 
@@ -69,11 +67,9 @@ public:
 
     void create_Copy(bpy::object dst, bpy::object src);
 
-    void create_DotIncMV(bpy::object A, bpy::object X, bpy::object Y);
+    void create_DotInc(bpy::object A, bpy::object X, bpy::object Y);
 
-    void create_DotIncVV(bpy::object A, bpy::object X, bpy::object Y);
-
-    void create_ProdUpdate(bpy::object B, bpy::object Y);
+    void create_ElementwiseInc(bpy::object A, bpy::object X, bpy::object Y);
 
     void create_Filter(bpy::object input, bpy::object output,
                        bpy::list numer, bpy::list denom);
@@ -103,16 +99,16 @@ private:
 
 class PyFunc: public Operator{
 public:
-    PyFunc(Vector* output, bpy::object py_fn, double* t_in);
-    PyFunc(Vector* output, bpy::object py_fn, double* t_in,
-           Vector* input, bpyn::array py_input);
+    PyFunc(Matrix* output, bpy::object py_fn, double* t_in);
+    PyFunc(Matrix* output, bpy::object py_fn, double* t_in,
+           Matrix* input, bpyn::array py_input);
 
     void operator()();
     virtual string to_string() const;
 
 private:
-    Vector* output;
-    Vector* input;
+    Matrix* output;
+    Matrix* input;
 
     double* time;
 

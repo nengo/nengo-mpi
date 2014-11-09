@@ -37,7 +37,7 @@ class MPISend: public Operator{
 
 public:
     MPISend(){};
-    MPISend(int dst, int tag, Vector* content);
+    MPISend(int dst, int tag, Matrix* content);
     string classname() const { return "MPISend"; }
 
     void operator()();
@@ -47,7 +47,7 @@ public:
 
     int tag;
     mpi::communicator* comm;
-    Vector* content;
+    Matrix* content;
 
 private:
     int dst;
@@ -76,7 +76,7 @@ class MPIRecv: public Operator{
 
 public:
     MPIRecv(){};
-    MPIRecv(int src, int tag, Vector* content);
+    MPIRecv(int src, int tag, Matrix* content);
     string classname() const { return "MPIRecv"; }
 
     void operator()();
@@ -86,7 +86,7 @@ public:
 
     int tag;
     mpi::communicator* comm;
-    Vector* content;
+    Matrix* content;
 
 private:
     int src;

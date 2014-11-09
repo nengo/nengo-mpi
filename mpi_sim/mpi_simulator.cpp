@@ -20,7 +20,6 @@ void MpiInterface::send_chunks(list<MpiSimulatorChunk*> chunks){
 
     mpi::intercommunicator intercomm(everyone, mpi::comm_duplicate);
     comm = intercomm.merge(false);
-    //mpi::communicator comm = intercomm.merge(false);
 
 #ifdef DEBUG
     int buflen = 512;
@@ -37,23 +36,26 @@ void MpiInterface::send_chunks(list<MpiSimulatorChunk*> chunks){
     for(it = chunks.begin(); it != chunks.end(); ++it){
 
         cout << "Master sending chunk " << i << "..." << endl;
+
         // Send the chunk
         comm.send(i+1, 1, **it);
 
         cout << "Master finished sending chunk " << i << endl;
 
-        cout << "Master receiving chunk " << i << "..." << endl;
+        cout << "Master receiving chunk " << i << " for validation..." << endl;
 
         // Make sure the chunk was sent correctly
         comm.recv(i+1, 2, remote_string);
 
-        cout << "Master finished receiving chunk " << i << endl;
+        cout << "Master finished receiving chunk " << i << " for validation." << endl;
 
-        cout << "Remote string, i: " << i << endl;
-        cout << remote_string << endl;
+        dbg("Remote string, i: " << i << endl);
+        dbg(remote_string << endl);
 
         original_string = (**it).to_string();
         assert(original_string == remote_string);
+
+        cout << "Chunk " << i << " sent successfully." << endl;
 
         i++;
 
@@ -64,7 +66,10 @@ void MpiInterface::send_chunks(list<MpiSimulatorChunk*> chunks){
 }
 
 void MpiInterface::start_simulation(int steps){
+    cout << "Simulating..." << endl;
     broadcast(comm, steps, 0);
     comm.barrier();
+    cout << "Finished simulation." << endl;
+
     MPI_Finalize();
 }

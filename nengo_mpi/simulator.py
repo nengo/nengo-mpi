@@ -1,14 +1,9 @@
 import nengo
 from nengo.connection import Connection
 from nengo.ensemble import Ensemble
-from nengo.learning_rules import BCM, Oja, PES
-from nengo.network import Network
-from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate
-from nengo.neurons import LIF, LIFRate, Direct
+from nengo.neurons import Direct
 from nengo.node import Node
-from nengo.probe import Probe
-from nengo.synapses import Alpha, LinearFilter, Lowpass
-import nengo.builder as builder
+from nengo import builder
 from nengo.simulator import ProbeDict
 import nengo.utils.numpy as npext
 
@@ -25,12 +20,8 @@ logger = logging.getLogger(__name__)
 nengo.log(debug=True, path=None)
 
 
-class MpiBuilder(builder.Builder):
-    builders = {}
-
-
 def make_builder(base):
-    def build_object(obj, model, config):
+    def build_object(model, obj):
         print model
         try:
             model.push_object(obj)
@@ -38,35 +29,20 @@ def make_builder(base):
             raise ValueError(
                 "Must use an instance of MpiModel.")
 
-        base(obj, model, config)
+        base(model, obj)
         model.pop_object(obj)
 
     return build_object
 
-builder.Builder.register_builder(
-    make_builder(builder.build_ensemble), Ensemble)
 
-builder.Builder.register_builder(
-    make_builder(builder.build_node), Node)
+builder.Builder.register(Ensemble)(
+    make_builder(builder.build_ensemble))
 
-builder.Builder.register_builder(
-    make_builder(builder.build_connection), Connection)
+builder.Builder.register(Node)(
+    make_builder(builder.build_node))
 
-
-# Shouldn't have to do this, shoule be able to inherit registered builders
-# from builder.Builder
-MpiBuilder.register_builder(builder.build_network, Network)
-MpiBuilder.register_builder(builder.build_lifrate, LIFRate)
-MpiBuilder.register_builder(builder.build_lif, LIF)
-MpiBuilder.register_builder(builder.build_alifrate, AdaptiveLIFRate)
-MpiBuilder.register_builder(builder.build_alif, AdaptiveLIF)
-MpiBuilder.register_builder(builder.build_probe, Probe)
-MpiBuilder.register_builder(builder.build_filter_synapse, LinearFilter)
-MpiBuilder.register_builder(builder.build_lowpass_synapse, Lowpass)
-MpiBuilder.register_builder(builder.build_alpha_synapse, Alpha)
-MpiBuilder.register_builder(builder.build_pes, PES)
-MpiBuilder.register_builder(builder.build_bcm, BCM)
-MpiBuilder.register_builder(builder.build_bcm, Oja)
+builder.Builder.register(Connection)(
+    make_builder(builder.build_connection))
 
 
 class MpiModel(builder.Model):
@@ -95,12 +71,12 @@ class MpiModel(builder.Model):
     def partition_ops(self, num_partitions, partition, connections):
         """
         Returns a list of (non-mpi) models, one for each partition,
-        containing the operators appropriate for that partition.
-        The models will also have the appropriate mpi operators added in.
+        containing the operators designated for that partition.
+        The models will have the appropriate mpi operators added in.
 
         Partition will not contain any information about networks.
-        Only ensembles and nodes. Map from ensemble/nodes to int
-        giving the partition.
+        Only ensembles and nodes. It is a map from ensemble/nodes to
+        int giving the partition.
 
         Connections is the list of connections in the network.
         """
@@ -142,41 +118,47 @@ class MpiModel(builder.Model):
                 for op in self.object_ops[conn]:
                     model.add_op(op)
             else:
-                # Have a connection that spans partitions
 
+                # This is a connection that spans partitions
                 if conn.modulatory:
                     raise Exception(
                         "Connections spanning partitions "
                         "must not be modulatory")
 
-                if (isinstance(conn.pre_obj, Node) or
-                        (isinstance(conn.pre_obj, Ensemble) and
-                         isinstance(conn.pre_obj.neuron_type, Direct))):
+                #if (isinstance(conn.pre_obj, Node) or
+                #        (isinstance(conn.pre_obj, Ensemble) and
+                #         isinstance(conn.pre_obj.neuron_type, Direct))):
 
-                    if conn.function is None:
-                        decoded_signal = self.sig[conn]['in']
-                    else:
-                        decoded_signal = [sig for sig in self.sig[conn]
-                                          if hasattr(sig, 'name') and
-                                          sig.name == "%s.output" % conn.label]
-                        decoded_signal = decoded_signal[0]
+                #    if conn.function is None:
+                #        signal = self.sig[conn]['in']
+                #    else:
+                #        signal = [sig for sig in self.sig[conn]
+                #                  if hasattr(sig, 'name') and
+                #                  sig.name == "%s.output" % conn.label][0]
 
-                elif isinstance(conn.pre_obj, Ensemble):
-                    # Break the connection at the decoded signal.
-                    # The decoded signal has name: conn.label
-                    decoded_signal = self.sig[conn]['decoded']
+                if (isinstance(conn.pre_obj, Ensemble) and
+                        'synapse_out' in self.sig[conn]):
+
+                    # Formaly broke the graph up at decoded signal
+                    # signal = self.sig[conn]['decoded']
+
+                    # Currently break the graph up at the output
+                    # of the synapses
+                    signal = self.sig[conn]['synapse_out']
+
                 else:
                     raise Exception(
                         "Connections of this type cannot span partitions")
 
                 models[pre_partition].send_signals.append(
-                    (decoded_signal, post_partition))
+                    (signal, post_partition))
 
                 models[post_partition].recv_signals.append(
-                    (decoded_signal, pre_partition))
+                    (signal, pre_partition))
 
                 pre_ops = [op for op in self.object_ops[conn]
-                           if decoded_signal in op.updates]
+                           if signal in op.updates]
+
                 post_ops = filter(
                     lambda op: op not in pre_ops, self.object_ops[conn])
 
@@ -275,7 +257,7 @@ class Simulator(object):
                     dt=dt, label="%s, dt=%f" % (network.label, dt))
 
             mpi_model = MpiModel()
-            builder.Builder.build(network, model=mpi_model)
+            builder.Builder.build(mpi_model, network)
 
             if partition_func is None:
                 partition_func = default_partition_func

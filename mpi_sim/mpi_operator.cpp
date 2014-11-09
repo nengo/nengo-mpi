@@ -1,10 +1,10 @@
 #include "mpi_operator.hpp"
 
-MPISend::MPISend(int dst, int tag, Vector* content):
+MPISend::MPISend(int dst, int tag, Matrix* content):
     dst(dst), tag(tag), content(content){
 }
 
-MPIRecv::MPIRecv(int src, int tag, Vector* content):
+MPIRecv::MPIRecv(int src, int tag, Matrix* content):
     src(src), tag(tag), content(content){
 }
 

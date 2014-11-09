@@ -16,7 +16,6 @@ void MpiSimulator::finalize(){
 }
 
 void MpiSimulator::run_n_steps(int steps){
-    cout << "In MPI run_n_steps: " << steps << endl;
     mpi_interface.start_simulation(steps);
 }
 
