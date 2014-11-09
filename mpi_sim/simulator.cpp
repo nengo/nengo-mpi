@@ -1,18 +1,27 @@
 #include "simulator.hpp"
 
+// The first chunk is kept on the master process,
+// subsequent chunks will be sent out to other processes.
 MpiSimulatorChunk* MpiSimulator::add_chunk(){
     MpiSimulatorChunk* chunk = new MpiSimulatorChunk();
-    chunks.push_back(chunk);
+
+    if(master_chunk == NULL){
+        master_chunk = chunk;
+    }else{
+        remote_chunks.push_back(chunk);
+    }
+
     return chunk;
 }
 
-MpiSimulator::MpiSimulator(){
+MpiSimulator::MpiSimulator():
+    master_chunk(NULL){
 }
 
 void MpiSimulator::finalize(){
     // Use MPI DPM to setup processes on other nodes
     // Then pass the chunks to those nodes.
-    mpi_interface.send_chunks(chunks);
+    mpi_interface.initialize_chunks(master_chunk, remote_chunks);
 }
 
 void MpiSimulator::run_n_steps(int steps){
@@ -38,8 +47,12 @@ string MpiSimulator::to_string() const{
 
     out << "<MpiSimulator" << endl;
 
+    out << "**master chunk**" << endl;
+    out << master_chunk << endl;
+
+    out << "**remote chunks**" << endl;
     list<MpiSimulatorChunk*>::const_iterator it;
-    for(it = chunks.begin(); it != chunks.end(); ++it){
+    for(it = remote_chunks.begin(); it != remote_chunks.end(); ++it){
         out << (**it) << endl;
     }
 

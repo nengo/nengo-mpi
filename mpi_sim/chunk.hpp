@@ -80,7 +80,7 @@ public:
     double* get_time_pointer(){return &time;}
 
     string to_string() const;
-    void print_maps();
+    string print_maps();
 
     friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
         out << chunk.to_string();

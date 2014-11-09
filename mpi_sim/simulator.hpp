@@ -41,7 +41,8 @@ public:
     }
 
 private:
-    list<MpiSimulatorChunk*> chunks;
+    MpiSimulatorChunk* master_chunk;
+    list<MpiSimulatorChunk*> remote_chunks;
     MpiInterface mpi_interface;
 
     friend class boost::serialization::access;
@@ -51,7 +52,8 @@ private:
 
         dbg("Serializing: " << classname());
 
-        ar & chunks;
+        ar & master_chunk;
+        ar & remote_chunks;
     }
 };
 

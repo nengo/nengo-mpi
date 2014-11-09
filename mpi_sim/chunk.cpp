@@ -180,18 +180,22 @@ string MpiSimulatorChunk::to_string() const{
     return out.str();
 }
 
-void MpiSimulatorChunk::print_maps(){
+string MpiSimulatorChunk::print_maps(){
+    stringstream out;
+
     map<int, MPISend*>::iterator send_it;
-    cout << "SENDS" << endl;
+    out << "SENDS" << endl;
     for(send_it = mpi_sends.begin(); send_it != mpi_sends.end(); ++send_it){
-        cout << "key: " << send_it->first <<  ", value: " << send_it->second << endl;
+        out << "key: " << send_it->first <<  ", value: " << *(send_it->second) << endl;
     }
 
     map<int, MPIRecv*>::iterator recv_it;
-    cout << "RECVS" << endl;
+    out << "RECVS" << endl;
     for(recv_it = mpi_recvs.begin(); recv_it != mpi_recvs.end(); ++recv_it){
-        cout << "key: " << recv_it->first <<  ", value: " << recv_it->second << endl;
+        out << "key: " << recv_it->first <<  ", value: " << *(recv_it->second) << endl;
     }
+
+    return out.str();
 }
 
 

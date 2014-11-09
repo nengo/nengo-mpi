@@ -72,6 +72,8 @@ int main(int argc, char *argv[]) {
         recv_it->second->comm = &comm;
     }
 
+    dbg("Child " << my_id << " mpi ops: " << endl << chunk.print_maps());
+
     // Wait for the signal to run the simulation
     int steps;
     broadcast(comm, steps, 0);

@@ -17,10 +17,11 @@ using namespace std;
 
 class MpiInterface{
 public:
-    void send_chunks(list<MpiSimulatorChunk*> chunks);
+    void initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulatorChunk*> remote_chunks);
     void start_simulation(int steps);
 private:
     mpi::communicator comm;
+    MpiSimulatorChunk* master_chunk;
 };
 
 #endif

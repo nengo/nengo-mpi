@@ -14,14 +14,14 @@ MPIWait::MPIWait(int tag)
 
 void MPISend::operator() (){
 
-    request = comm->isend(dst+1, tag, content->data());
+    request = comm->isend(dst, tag, content->data());
 
     run_dbg(*this);
 }
 
 void MPIRecv::operator() (){
 
-    request = comm->irecv(src+1, tag, content->data());
+    request = comm->irecv(src, tag, content->data());
 
     run_dbg(*this);
 }
