@@ -4,7 +4,7 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulator
 
     master_chunk = chunk;
 
-    cout << "C++: initializing master chunk\n";
+    cout << "C++: initializing master chunk" << endl;
     master_chunk->fix_mpi_waits();
 
     map<int, MPISend*>::iterator send_it;
@@ -17,7 +17,7 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulator
         recv_it->second->comm = &comm;
     }
 
-    cout << "C++: sending remote chunks\n";
+    cout << "C++: sending remote chunks" << endl;
     int num_remote_chunks = remote_chunks.size();
     MPI_Comm everyone;
 

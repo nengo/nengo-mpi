@@ -38,13 +38,22 @@ void MpiSimulator::finalize(){
         chunk_index++;
     }
 
-    mpi_interface.initialize_chunks(master_chunk, remote_chunks);
+    if(!remote_chunks.empty()){
+        mpi_interface.initialize_chunks(master_chunk, remote_chunks);
+    }else{
+        cout << "C++: Only one chunk supplied. Simulations will not use MPI." << endl;
+    }
 }
 
 void MpiSimulator::run_n_steps(int steps){
-    mpi_interface.run_n_steps(steps);
-    mpi_interface.gather_probe_data(probe_data, probe_counts);
-    mpi_interface.finish_simulation();
+
+    if(remote_chunks.empty()){
+        master_chunk->run_n_steps(steps);
+    }else{
+        mpi_interface.run_n_steps(steps);
+        mpi_interface.gather_probe_data(probe_data, probe_counts);
+        mpi_interface.finish_simulation();
+    }
 }
 
 vector<Matrix*>* MpiSimulator::get_probe_data(key_type probe_key){
