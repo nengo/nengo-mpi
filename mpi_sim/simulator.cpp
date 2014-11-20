@@ -19,13 +19,36 @@ MpiSimulator::MpiSimulator():
 }
 
 void MpiSimulator::finalize(){
-    // Use MPI DPM to setup processes on other nodes
-    // Then pass the chunks to those nodes.
+    probe_counts[0] = master_chunk->get_num_probes();
+
+    key_type probe_key;
+    map<key_type, Probe<Matrix>*>::const_iterator probe_it = master_chunk->probe_map.begin();
+
+    // Hook the probes in the master chunk into the probe_map
+    for(; probe_it != master_chunk->probe_map.end(); probe_it++){
+        probe_key = probe_it->first;
+        probe_data[probe_key] = probe_it->second->get_data();
+    }
+
+    int chunk_index = 1;
+    list<MpiSimulatorChunk*>::const_iterator it;
+
+    for(it = remote_chunks.begin(); it != remote_chunks.end(); ++it){
+        probe_counts[chunk_index] = (*it)->get_num_probes();
+        chunk_index++;
+    }
+
     mpi_interface.initialize_chunks(master_chunk, remote_chunks);
 }
 
 void MpiSimulator::run_n_steps(int steps){
-    mpi_interface.start_simulation(steps);
+    mpi_interface.run_n_steps(steps);
+    mpi_interface.gather_probe_data(probe_data, probe_counts);
+    mpi_interface.finish_simulation();
+}
+
+vector<Matrix*>* MpiSimulator::get_probe_data(key_type probe_key){
+    return probe_data.at(probe_key);
 }
 
 void MpiSimulator::write_to_file(string filename){

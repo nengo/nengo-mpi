@@ -1,7 +1,3 @@
-#include <iostream>
-#include <vector>
-#include <list>
-
 #include "python.hpp"
 
 bool hasattr(bpy::object obj, string const &attrName) {
@@ -107,6 +103,31 @@ void PythonMpiSimulator::run_n_steps(bpy::object pysteps){
     mpi_sim.run_n_steps(steps);
 }
 
+bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::object make_array){
+    key_type c_probe_key;
+    c_probe_key = bpy::extract<key_type>(probe_key);
+    vector<Matrix*>* data = mpi_sim.get_probe_data(c_probe_key);
+
+    bpy::list py_list;
+    vector<Matrix*>::const_iterator it;
+    for(it = data->begin(); it != data->end(); ++it){
+
+        bpy::object a = make_array(bpy::make_tuple((*it)->size1(), (*it)->size2()));
+
+        for(unsigned i=0; i < (*it)->size1(); ++i){
+            for(unsigned j=0; j < (*it)->size2(); ++j){
+                // TODO: make sure this goes in the right direction wrt to storage format
+                // (col major vs row major)
+                a[i][j] = (**it)(i, j);
+            }
+        }
+
+        py_list.append(a);
+    }
+
+    return py_list;
+}
+
 void PythonMpiSimulator::write_to_file(string filename){
     mpi_sim.write_to_file(filename);
 }
@@ -142,32 +163,6 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig, bpy::
     mpi_sim_chunk->add_matrix_signal(c_key, mat);
 }
 
-bpy::object PythonMpiSimulatorChunk::get_probe_data(bpy::object probe_key, bpy::object make_array){
-    key_type c_probe_key ;
-    c_probe_key = bpy::extract<key_type>(probe_key);
-    Probe<Matrix>* probe = mpi_sim_chunk->get_probe(c_probe_key);
-    list<Matrix*> data = probe->get_data();
-
-    bpy::list py_list;
-    list<Matrix*>::const_iterator it;
-    for(it = data.begin(); it != data.end(); ++it){
-
-        bpy::object a = make_array(bpy::make_tuple((*it)->size1(), (*it)->size2()));
-
-        for(unsigned i=0; i < (*it)->size1(); ++i){
-            for(unsigned j=0; j < (*it)->size2(); ++j){
-                // TODO: make sure this goes in the right direction wrt to storage format
-                // (col major vs row major)
-                a[i][j] = (**it)(i, j);
-            }
-        }
-
-        py_list.append(a);
-    }
-
-    return py_list;
-}
-
 void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, bpy::object period){
     key_type signal_key = bpy::extract<key_type>(signal);
     Matrix* signal_mat = mpi_sim_chunk->get_matrix_signal(signal_key);
@@ -176,7 +171,9 @@ void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, 
     Probe<Matrix>* probe = new Probe<Matrix>(signal_mat, c_period);
 
     key_type c_key = bpy::extract<key_type>(key);
+    cout << "Adding probe with key:" << c_key << endl;
     mpi_sim_chunk->add_probe(c_key, probe);
+
 }
 
 void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){
@@ -424,7 +421,6 @@ BOOST_PYTHON_MODULE(mpi_sim)
     bpy::class_<PythonMpiSimulatorChunk>("PythonMpiSimulatorChunk", bpy::init<>())
         .def("to_string", &PythonMpiSimulatorChunk::to_string)
         .def("add_signal", &PythonMpiSimulatorChunk::add_signal)
-        .def("get_probe_data", &PythonMpiSimulatorChunk::get_probe_data)
         .def("create_Probe", &PythonMpiSimulatorChunk::create_Probe)
         .def("create_Reset", &PythonMpiSimulatorChunk::create_Reset)
         .def("create_Copy", &PythonMpiSimulatorChunk::create_Copy)
@@ -443,6 +439,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
     bpy::class_<PythonMpiSimulator>("PythonMpiSimulator", bpy::init<>())
         .def("to_string", &PythonMpiSimulator::to_string)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
+        .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
         .def("finalize", &PythonMpiSimulator::finalize)
         .def("add_chunk", &PythonMpiSimulator::add_chunk,
              bpy::return_internal_reference<>())

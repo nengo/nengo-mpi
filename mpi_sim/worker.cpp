@@ -82,6 +82,14 @@ int main(int argc, char *argv[]) {
     chunk.run_n_steps(steps);
     comm.barrier();
 
+    map<key_type, Probe<Matrix>*>::iterator probe_it;
+    for(probe_it = chunk.probe_map.begin(); probe_it != chunk.probe_map.end(); ++probe_it){
+        comm.send(0, 3, probe_it->first);
+        comm.send(0, 3, *(probe_it->second->get_data()));
+    }
+
+    comm.barrier();
+
     MPI_Finalize();
     return 0;
 }

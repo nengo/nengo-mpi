@@ -45,13 +45,11 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulator
     cout << "Master rank in merged communicator: " << comm.rank() << " (should be 0)." << endl;
 #endif
 
-    int i = 0, chunk_index;
+    int chunk_index = 1;
     string original_string, remote_string;
     list<MpiSimulatorChunk*>::const_iterator it;
 
     for(it = remote_chunks.begin(); it != remote_chunks.end(); ++it){
-
-        chunk_index = i + 1;
 
         cout << "Master sending chunk " << chunk_index << "..." << endl;
 
@@ -67,21 +65,21 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulator
 
         cout << "Master finished receiving chunk " << chunk_index << " for validation." << endl;
 
-        dbg("Remote string, i: " << i << endl);
+        dbg("Remote string: " <<  chunk_index << endl);
         dbg(remote_string << endl);
 
         original_string = (**it).to_string();
         assert(original_string == remote_string);
 
-        cout << "Chunk " << i << " sent successfully." << endl;
+        cout << "Chunk " << chunk_index << " sent successfully." << endl;
 
-        i++;
+        chunk_index++;
 
         //TODO: Free the remote_chunks on this node!
     }
 }
 
-void MpiInterface::start_simulation(int steps){
+void MpiInterface::run_n_steps(int steps){
     cout << "Simulating..." << endl;
     broadcast(comm, steps, 0);
 
@@ -90,9 +88,45 @@ void MpiInterface::start_simulation(int steps){
     cout << "Master starting simulation!: " << steps << " steps." << endl;
 
     master_chunk->run_n_steps(steps);
+
     comm.barrier();
 
     cout << "Finished simulation." << endl;
+}
 
+void MpiInterface::gather_probe_data(map<key_type, vector<Matrix*>*>& probe_data,
+                                     map<int, int>& probe_counts){
+    key_type probe_key;
+    vector<Matrix*>* data = NULL;
+    map<int, int>::iterator count_it;
+    int chunk_index, probe_count;
+
+    cout << "Master gathering probe data from children..." << endl;
+
+    for(count_it = probe_counts.begin(); count_it != probe_counts.end(); ++count_it){
+        chunk_index = count_it->first;
+        probe_count = count_it->second;
+
+        if(chunk_index > 0){
+            for(unsigned i = 0; i < probe_count; i++){
+                data = new vector<Matrix*>();
+
+                cout << "Master receiving probe from chunk " << chunk_index;
+                comm.recv(chunk_index, 3, probe_key);
+                cout << " with key " << probe_key << "..." << endl;
+                comm.recv(chunk_index, 3, *data);
+                cout << "Done receiving probe data." << endl;
+
+                probe_data[probe_key] = data;
+            }
+        }
+    }
+
+    cout << "Master done gathering probe data from children." << endl;
+
+    comm.barrier();
+}
+
+void MpiInterface::finish_simulation(){
     MPI_Finalize();
 }

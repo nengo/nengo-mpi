@@ -3,6 +3,7 @@ from nengo.connection import Connection
 from nengo.ensemble import Ensemble
 from nengo.neurons import Direct
 from nengo.node import Node
+from nengo.probe import Probe
 from nengo import builder
 from nengo.simulator import ProbeDict
 import nengo.utils.numpy as npext
@@ -14,6 +15,8 @@ import numpy as np
 import random
 from collections import defaultdict
 
+import warnings
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -22,7 +25,6 @@ nengo.log(debug=True, path=None)
 
 def make_builder(base):
     def build_object(model, obj):
-        print model
         try:
             model.push_object(obj)
         except AttributeError:
@@ -35,14 +37,18 @@ def make_builder(base):
     return build_object
 
 
-builder.Builder.register(Ensemble)(
-    make_builder(builder.build_ensemble))
+with warnings.catch_warnings():
+    builder.Builder.register(Ensemble)(
+        make_builder(builder.build_ensemble))
 
-builder.Builder.register(Node)(
-    make_builder(builder.build_node))
+    builder.Builder.register(Node)(
+        make_builder(builder.build_node))
 
-builder.Builder.register(Connection)(
-    make_builder(builder.build_connection))
+    builder.Builder.register(Connection)(
+        make_builder(builder.build_connection))
+
+    builder.Builder.register(Probe)(
+        make_builder(builder.build_probe))
 
 
 class MpiModel(builder.Model):
@@ -63,12 +69,14 @@ class MpiModel(builder.Model):
 
     def add_op(self, op):
         self.object_ops[self._object_context[-1]].append(op)
-        print "ADD_OP"
-        print self._object_context[-1]
-        print op
+        print "Adding op to model"
+        print "OP:", op
+        print "object:", self._object_context[-1]
+        print '\n'
+
         super(MpiModel, self).add_op(op)
 
-    def partition_ops(self, num_partitions, partition, connections):
+    def partition_ops(self, num_partitions, partition, network):
         """
         Returns a list of (non-mpi) models, one for each partition,
         containing the operators designated for that partition.
@@ -77,14 +85,17 @@ class MpiModel(builder.Model):
         Partition will not contain any information about networks.
         Only ensembles and nodes. It is a map from ensemble/nodes to
         int giving the partition.
-
-        Connections is the list of connections in the network.
         """
+
+        connections = network.connections
+        probes = network.probes
 
         models = [builder.Model(label="Partition %d" % i)
                   for i in range(num_partitions)]
 
         for model in models:
+            model.sig = self.sig
+
             model.send_signals = []
             model.recv_signals = []
 
@@ -107,7 +118,21 @@ class MpiModel(builder.Model):
         for i, model in enumerate(models):
             print "MODEL: ", i, " ", model.operators
 
+        for probe in probes:
+            print "PROBE", probe
+
+            p = partition[probe.target]
+            print "partition: ", p
+            print "probe ops: ", self.object_ops[probe]
+
+            for op in self.object_ops[probe]:
+                models[p].add_op(op)
+
+            models[p].probes.append(probe)
+
         for conn in connections:
+            print "CONNECTION", conn
+
             pre_partition = partition[conn.pre]
             post_partition = partition[conn.post]
 
@@ -238,45 +263,37 @@ class Simulator(object):
         self.n_steps = 0
         self.dt = dt
 
+        self.model = MpiModel()
+
         # probe -> C++ key (int)
         self.probe_keys = {}
 
         # probe -> python list
-        self._probe_outputs = {}
-
-        self.model = model
+        self._probe_outputs = self.model.params
 
         self.mpi_sim = mpi_sim.PythonMpiSimulator()
 
-        # TODO: use MpiModel in case where a model is passed in (ie convert the
-        # model) to an MpiModel.
-        if network is not None:
+        builder.Builder.build(self.model, network)
 
-            if self.model is None:
-                self.model = builder.Model(
-                    dt=dt, label="%s, dt=%f" % (network.label, dt))
+        if partition_func is None:
+            partition_func = default_partition_func
 
-            mpi_model = MpiModel()
-            builder.Builder.build(mpi_model, network)
+        if fixed_nodes is None:
+            fixed_nodes = {}
 
-            if partition_func is None:
-                partition_func = default_partition_func
+        partition, num_partitions = partition_func(
+            network, num_partitions, fixed_nodes)
 
-            if fixed_nodes is None:
-                fixed_nodes = {}
+        # now mpi model is populated
+        models = self.model.partition_ops(
+            num_partitions, partition, network)
 
-            partition, num_partitions = partition_func(
-                network, num_partitions, fixed_nodes)
+        for model in models:
+            mpi_chunk = self.mpi_sim.add_chunk()
+            simulator_chunk = chunk.SimulatorChunk(
+                mpi_chunk, model, dt, self.probe_keys, self._probe_outputs)
 
-            # now mpi model is populated
-            models = mpi_model.partition_ops(
-                num_partitions, partition, network.connections)
-
-            for model in models:
-                mpi_chunk = self.mpi_sim.add_chunk()
-                simulator_chunk = chunk.SimulatorChunk(mpi_chunk, model, dt)
-
-            self.mpi_sim.finalize()
+        self.mpi_sim.finalize()
 
         if init_func is not None:
             init_func(self)
@@ -292,7 +309,11 @@ class Simulator(object):
 
         for probe, probe_key in self.probe_keys.items():
             data = self.mpi_sim.get_probe_data(probe_key, np.empty)
-            self._probe_outputs[probe].extend(data)
+
+            if probe not in self._probe_outputs:
+                self._probe_outputs[probe] = data
+            else:
+                self._probe_outputs[probe].extend(data)
 
         self.n_steps += steps
 
@@ -309,6 +330,11 @@ class Simulator(object):
         dt = self.dt if dt is None else dt
         n_steps = int(np.ceil(self.n_steps * self.dt / dt))
         return dt * np.arange(0, n_steps)
+
+    def reset(self):
+        #TODO: clear probes in _probe_outputs
+        pass
+
 
 
 def default_partition_func(network, num_partitions=None, fixed_nodes=None):

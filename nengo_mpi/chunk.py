@@ -122,12 +122,18 @@ class MpiWait(builder.operator.Operator):
 
 class SimulatorChunk(object):
 
-    def __init__(self, mpi_chunk, model=None, dt=0.001):
+    def __init__(self, mpi_chunk, model=None, dt=0.001, probe_keys=None, probe_outputs=None):
 
         self.model = model
 
         # C++ key (int) -> ndarray
         self.sig_dict = {}
+
+        # probe -> C++ key (int)
+        self.probe_keys = probe_keys
+
+        # probe -> python list
+        self.probe_outputs = probe_outputs
 
         # Interface to the C++ MpiSimulatorChunk
         self.mpi_chunk = mpi_chunk
@@ -332,6 +338,9 @@ class SimulatorChunk(object):
 
         self._probe_outputs = self.model.params
 
+        print "PROBES!"
+        print self.model.probes
+
         for probe in self.model.probes:
             self.add_probe(
                 probe, make_key(self.model.sig[probe]['in']),
@@ -384,5 +393,8 @@ class SimulatorChunk(object):
         self.probe_keys[probe] = (make_key(probe)
                                   if probe_key is None
                                   else probe_key)
+
+        print "Python adding probe with key ", self.probe_keys[probe]
+        print "Python adding probe with key ", type(self.probe_keys[probe])
 
         self.mpi_chunk.create_Probe(self.probe_keys[probe], signal_key, period)

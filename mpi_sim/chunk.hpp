@@ -78,6 +78,8 @@ public:
     MPIWait* find_wait(int tag);
 
     double* get_time_pointer(){return &time;}
+    int get_num_probes(){return probe_map.size();}
+
 
     string to_string() const;
     string print_maps();
@@ -90,12 +92,12 @@ public:
     map<int, MPISend*> mpi_sends;
     map<int, MPIRecv*> mpi_recvs;
     map<int, MPIWait*> mpi_waits;
+    map<key_type, Probe<Matrix>*> probe_map;
 
 private:
     double time;
     double dt;
     int n_steps;
-    map<key_type, Probe<Matrix>*> probe_map;
     map<key_type, Matrix*> matrix_signal_map;
     map<key_type, Vector*> vector_signal_map;
     list<Operator*> operator_list;

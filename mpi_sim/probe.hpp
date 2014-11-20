@@ -2,7 +2,7 @@
 #ifndef NENGO_MPI_PROBE_HPP
 #define NENGO_MPI_PROBE_HPP
 
-#include <list>
+#include <vector>
 
 #include "operator.hpp"
 
@@ -16,12 +16,14 @@ class Probe {
 public:
     Probe(){};
     Probe(T* signal, int period);
+    void init_for_simulation(int n_steps);
     void gather(int n_steps);
-    list<T*> get_data();
+    vector<T*>* get_data();
+    void clear();
     friend ostream& operator << <> (ostream &out, const Probe<T> &probe);
 
 protected:
-    list<T*> data;
+    vector<T*>* data;
     T* signal;
     int period;
 
@@ -38,21 +40,45 @@ private:
 
 template<class T>
 Probe<T>::Probe(T* signal, int period)
-    :signal(signal), period(period){
+:signal(signal), period(period){
+    data = new vector<T*>();
 }
 
 template<class T>
-void Probe<T>::gather(int n_steps){
-    if(n_steps % period == 0){
-        T* new_signal = new T();
-        *new_signal = *signal;
-        data.push_back(new_signal);
+void Probe<T>::init_for_simulation(int n_steps){
+
+    // Initialize the probes storage resources
+    if(!data->empty()){
+        stringstream error;
+        error << "Probe must be empty before it can be initialized. "
+              << "Call Probe.clear first";
+
+        throw logic_error(error.str());
+    }
+
+    int num_samples = n_steps / period;
+    data->resize(num_samples, NULL);
+
+    for(unsigned i = 0; i < n_steps / period; i++){
+        (*data)[i] = new T(*signal);
     }
 }
 
 template<class T>
-list<T*> Probe<T>::get_data(){
+void Probe<T>::gather(int step){
+    if(step % period == 0){
+        *((*data)[step / period]) = *signal;
+    }
+}
+
+template<class T>
+vector<T*>* Probe<T>::get_data(){
     return data;
+}
+
+template<class T>
+void Probe<T>::clear(){
+    data->clear();
 }
 
 template<class T>
@@ -60,8 +86,9 @@ ostream& operator << (ostream &out, const Probe<T> &probe){
     out << "Probe:" << endl;
     out << "Signal: " << endl;
     out << *(probe.signal) << endl;
+    out << "Period: " << probe.period << endl;
     out << "Points collected: " << endl;
-    out << probe.data.size() << endl;
+    out << (probe.data)->size() << endl;
     return out;
 }
 

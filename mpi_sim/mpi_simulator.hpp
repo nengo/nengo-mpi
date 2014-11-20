@@ -18,7 +18,10 @@ using namespace std;
 class MpiInterface{
 public:
     void initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulatorChunk*> remote_chunks);
-    void start_simulation(int steps);
+    void run_n_steps(int steps);
+    void gather_probe_data(map<key_type, vector<Matrix*>* >& probe_data, map<int, int>& probe_counts);
+    void finish_simulation();
+
 private:
     mpi::communicator comm;
     MpiSimulatorChunk* master_chunk;

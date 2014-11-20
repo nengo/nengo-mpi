@@ -6,6 +6,8 @@
 #include <boost/archive/text_iarchive.hpp>
 
 #include <list>
+#include <map>
+#include <vector>
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -29,6 +31,7 @@ public:
     void finalize();
 
     void run_n_steps(int steps);
+    vector<Matrix*>* get_probe_data(key_type probe_key);
 
     void write_to_file(string filename);
     void read_from_file(string filename);
@@ -44,6 +47,11 @@ private:
     MpiSimulatorChunk* master_chunk;
     list<MpiSimulatorChunk*> remote_chunks;
     MpiInterface mpi_interface;
+
+    map<key_type, vector<Matrix*>* > probe_data;
+
+    // Map from a source index to number of probes
+    map<int, int> probe_counts;
 
     friend class boost::serialization::access;
 

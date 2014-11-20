@@ -10,6 +10,11 @@ MpiSimulatorChunk::MpiSimulatorChunk(double dt)
 
 void MpiSimulatorChunk::run_n_steps(int steps){
 
+    map<key_type, Probe<Matrix>*>::iterator probe_it;
+    for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
+        probe_it->second->init_for_simulation(steps);
+    }
+
     for(unsigned step = 0; step < steps; ++step){
         if(step % 100 == 0){
             cout << "Starting step: " << step << endl;
@@ -28,7 +33,7 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         map<key_type, Probe<Matrix>*>::iterator probe_it;
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
-            probe_it->second->gather(n_steps);
+            probe_it->second->gather(step);
         }
 
         time += dt;

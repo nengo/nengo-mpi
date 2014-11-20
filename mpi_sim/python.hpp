@@ -3,6 +3,9 @@
 
 #include <boost/python.hpp>
 #include <string>
+#include <list>
+#include <vector>
+#include <iostream>
 
 #include "simulator.hpp"
 #include "chunk.hpp"
@@ -35,6 +38,7 @@ public:
     void finalize();
 
     void run_n_steps(bpy::object steps);
+    bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
 
     void write_to_file(string filename);
     void read_from_file(string filename);
