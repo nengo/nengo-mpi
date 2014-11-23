@@ -76,7 +76,7 @@ class MpiModel(builder.Model):
 
         super(MpiModel, self).add_op(op)
 
-    def partition_ops(self, num_partitions, partition, network):
+    def partition_ops(self, network, num_partitions, partition):
         """
         Returns a list of (non-mpi) models, one for each partition,
         containing the operators designated for that partition.
@@ -196,15 +196,119 @@ class MpiModel(builder.Model):
         return models
 
 
+def default_partition_func(network, num_partitions, fixed_nodes=None):
+    """
+    Puts all nengo Nodes on partition 0.
+
+    Pseudo-randomly assigns nengo Ensembles to remaining partitions, unless
+    those an Ensemble appears as a key in fixed_nodes, in which case the
+    integer that it maps to will be used as the partition for that Ensemble.
+
+    Probably a good idea to supply your own partition in fixed_nodes.
+
+    Parameters
+    ----------
+    network: the nengo network to partition
+    num_partitions: number of hardware nodes to use for the simulation, and
+        hence the number of partitions created by the partition function.
+        If None, appropriate value chosen automatically.
+    fixed_nodes: a dictionary mapping from nengo objects to indices of
+        partitions/hardware nodes. Used to hard-assign nengo objects
+        to specific partitions/hardware nodes.
+    """
+
+    if fixed_nodes is None:
+        fixed_nodes = {}
+
+    partition = {}
+    partition.update(fixed_nodes)
+
+    for ensemble in network.ensembles:
+
+        if ensemble not in partition:
+            if num_partitions == 1:
+                partition[ensemble] = 0
+            else:
+                partition[ensemble] = random.choice(xrange(1, num_partitions))
+
+    for node in network.nodes:
+        if node not in partition:
+            partition[node] = 0
+
+    return partition
+
+
+class PartitionInfo(object):
+    """
+    Stores info for creating MPI processes and assigns Nengo nodes to
+    those processes.
+
+    num_partitions: number of hardware nodes to use for the simulation, and
+        hence the number of partitions created by the partition function.
+        If None, appropriate value chosen automatically.
+
+    fixed_nodes: a dictionary mapping from nengo objects to indices of
+        partitions/hardware nodes. Used to hard-assign nengo objects
+        to specific partitions/hardware nodes.
+
+    func: a function to partition the nengo graph, assigning nengo objects
+        to hardware nodes.
+
+        Arguments:
+            network
+            num_partitions
+            fixed_nodes
+
+    args: extra positional args passed to func
+
+    kwargs: extra keyword args passed to func
+    """
+
+    def __init__(self, num_partitions=None, func=None,
+                 fixed_nodes=None, *args, **kwargs):
+
+        if num_partitions is None:
+            self.num_partitions = 1
+
+            if func is not None:
+                # issue a warning that its being ignored
+                pass
+
+            if fixed_nodes is not None:
+                # issue a warning that its being ignored
+                pass
+
+            self.func = default_partition_func
+            self.fixed_nodes = {}
+
+        else:
+            self.num_partitions = num_partitions
+
+            if func is None:
+                func = default_partition_func
+
+            self.func = func
+
+            if fixed_nodes is None:
+                fixed_nodes = {}
+
+            self.fixed_nodes = fixed_nodes
+
+        self.args = args
+        self.kwargs = kwargs
+
+    def partition(self, network):
+        return self.func(
+            network, self.num_partitions, self.fixed_nodes,
+            *self.args, **self.kwargs)
+
+
 class Simulator(object):
     """MPI simulator for nengo 2.0."""
 
-    def __init__(self, network=None, dt=0.001, seed=None, model=None,
-                 init_func=None, num_partitions=None, partition_func=None,
-                 fixed_nodes=None):
+    def __init__(self, network, dt=0.001, seed=None, model=None,
+                 partition_info=None):
         """
-        (Mostly copied from docstring for nengo.Simulator)
-
         Initialize the simulator with a network and (optionally) a model.
 
         Most of the time, you will pass in a network and sometimes a dt::
@@ -242,18 +346,9 @@ class Simulator(object):
             if you want to build the network manually, or to inject some
             build artifacts in the Model before building the network,
             then you can pass in a ``nengo.builder.Model`` instance.
-        init_func : function that accepts a Simulator, or None
-            This function permits the user to call functions like add_signals,
-            add_probes. This is useful for testing individual peices of them
-            simulator.
-        num_partitions: number of hardware nodes to use for the simulation, and
-            hence the number of partitions created by the partition function.
-            If None, appropriate value chosen automatically.
-        partition_func: a function to partition the nengo graph, assigning
-            nengo objects to hardware nodes
-        fixed_nodes: a dictionary mapping from nengo objects to indices of
-            partitions/hardware nodes. Used to hard-assign nengo objects
-            to specific partitions/hardware nodes.
+        partition_info:
+            An instance of PartitionInfo storing information for specifying
+            how nodes are assigned to MPI processes.
         """
 
         # Note: seed is not used right now, but one day...
@@ -275,28 +370,21 @@ class Simulator(object):
 
         builder.Builder.build(self.model, network)
 
-        if partition_func is None:
-            partition_func = default_partition_func
+        if partition_info is None:
+            partition_info = PartitionInfo()
 
-        if fixed_nodes is None:
-            fixed_nodes = {}
+        num_partitions = partition_info.num_partitions
+        partition = partition_info.partition(network)
 
-        partition, num_partitions = partition_func(
-            network, num_partitions, fixed_nodes)
-
-        # now mpi model is populated
-        models = self.model.partition_ops(
-            num_partitions, partition, network)
+        models = self.model.partition_ops(network, num_partitions, partition)
 
         for model in models:
             mpi_chunk = self.mpi_sim.add_chunk()
+
             simulator_chunk = chunk.SimulatorChunk(
                 mpi_chunk, model, dt, self.probe_keys, self._probe_outputs)
 
         self.mpi_sim.finalize()
-
-        if init_func is not None:
-            init_func(self)
 
         self.data = ProbeDict(self._probe_outputs)
 
@@ -332,44 +420,5 @@ class Simulator(object):
         return dt * np.arange(0, n_steps)
 
     def reset(self):
-        #TODO: clear probes in _probe_outputs
+        # TODO: clear probes in _probe_outputs
         pass
-
-
-
-def default_partition_func(network, num_partitions=None, fixed_nodes=None):
-    """
-    Puts all nengo nodes on partition 0.
-    Pseudo-randomly assigns nengo ensembles to partitions.
-
-    So its a good idea to supply your own partition in fixed_nodes.
-
-    Parameters
-    ----------
-    network: the nengo network to partition
-    num_partitions: number of hardware nodes to use for the simulation, and
-        hence the number of partitions created by the partition function.
-        If None, appropriate value chosen automatically.
-    fixed_nodes: a dictionary mapping from nengo objects to indices of
-        partitions/hardware nodes. Used to hard-assign nengo objects
-        to specific partitions/hardware nodes.
-    """
-
-    partition = {}
-    partition.update(fixed_nodes)
-
-    if num_partitions is None:
-        if fixed_nodes is not None:
-            num_partitions = len(set(fixed_nodes.values()))
-        else:
-            num_partitions = 1
-
-    for ensemble in network.ensembles:
-        if ensemble not in partition:
-            partition[ensemble] = random.choice(xrange(num_partitions))
-
-    for node in network.nodes:
-        if node not in partition:
-            partition[node] = 0
-
-    return partition, num_partitions
