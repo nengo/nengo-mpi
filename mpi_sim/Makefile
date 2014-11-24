@@ -24,6 +24,7 @@ OBJS=simulator.o operator.o mpi_operator.o probe.o chunk.o mpi_simulator.o
 DEFS=
 
 SO_LOC=../nengo_mpi
+
 #WORKER_LOC=../nengo_mpi
 WORKER_LOC=../scripts
 

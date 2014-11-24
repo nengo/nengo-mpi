@@ -80,12 +80,12 @@ string MpiSimulator::to_string() const{
     out << "<MpiSimulator" << endl;
 
     out << "**master chunk**" << endl;
-    out << master_chunk << endl;
+    out << *master_chunk << endl;
 
     out << "**remote chunks**" << endl;
     list<MpiSimulatorChunk*>::const_iterator it;
     for(it = remote_chunks.begin(); it != remote_chunks.end(); ++it){
-        out << (**it) << endl;
+        out << **it << endl;
     }
 
     return out.str();

@@ -6,7 +6,6 @@ from nengo.utils.graphs import toposort
 from nengo.utils.simulator import operator_depencency_graph
 
 import numpy as np
-import mpi_sim
 
 import logging
 logger = logging.getLogger(__name__)
@@ -133,7 +132,7 @@ class SimulatorChunk(object):
         self.probe_keys = probe_keys
 
         # probe -> python list
-        self.probe_outputs = probe_outputs
+        self._probe_outputs = probe_outputs
 
         # Interface to the C++ MpiSimulatorChunk
         self.mpi_chunk = mpi_chunk
@@ -190,190 +189,162 @@ class SimulatorChunk(object):
             for sig, numpy_array in self.signals.items():
                 self.add_signal(make_key(sig), numpy_array, str(sig))
 
-        print "ALL SIGNALS ADDED"
-        print self._step_order
+            print "ALL SIGNALS ADDED"
+            print self._step_order
 
-        for op in self._step_order:
-            op_type = type(op)
+            for op in self._step_order:
+                op_type = type(op)
 
-            if op_type == builder.operator.Reset:
-                logger.debug(
-                    "Creating Reset, dst:%d, Val:%f",
-                    make_key(op.dst), op.value)
+                if op_type == builder.operator.Reset:
+                    logger.debug(
+                        "Creating Reset, dst:%d, Val:%f",
+                        make_key(op.dst), op.value)
 
-                self.mpi_chunk.create_Reset(make_key(op.dst), op.value)
+                    self.mpi_chunk.create_Reset(make_key(op.dst), op.value)
 
-            elif op_type == builder.operator.Copy:
-                logger.debug(
-                    "Creating Copy, dst:%d, src:%d",
-                    make_key(op.dst), make_key(op.src))
+                elif op_type == builder.operator.Copy:
+                    logger.debug(
+                        "Creating Copy, dst:%d, src:%d",
+                        make_key(op.dst), make_key(op.src))
 
-                self.mpi_chunk.create_Copy(make_key(op.dst), make_key(op.src))
+                    self.mpi_chunk.create_Copy(
+                        make_key(op.dst), make_key(op.src))
 
-            elif op_type == builder.operator.DotInc:
-
-                logger.debug(
-                    "Creating DotInc, A:%d, X:%d, Y:%d",
-                    make_key(op.A), make_key(op.X), make_key(op.Y))
-
-                self.mpi_chunk.create_DotInc(
-                    make_key(op.A), make_key(op.X), make_key(op.Y))
-
-                # self.add_dot_inc(
-                #     make_key(op.A), make_key(op.X), make_key(op.Y))
-
-            elif op_type == builder.operator.ElementwiseInc:
-                logger.debug(
-                    "Creating ElementwiseInc, A: %d, X: %d, Y:%d",
-                    make_key(op.A), make_key(op.X), make_key(op.Y))
-
-                self.mpi_chunk.create_ElementwiseInc(
-                    make_key(op.A), make_key(op.X), make_key(op.Y))
-
-            elif op_type == builder.synapses.SimFilterSynapse:
-                logger.debug(
-                    "Creating Filter, input:%d, output:%d, numer:%s, denom:%s",
-                    make_key(op.input), make_key(op.output), str(op.num),
-                    str(op.den))
-
-                self.mpi_chunk.create_Filter(
-                    make_key(op.input), make_key(op.output), op.num, op.den)
-
-            elif op_type == builder.neurons.SimNeurons:
-                n_neurons = op.J.size
-
-                if type(op.neurons) is LIF:
-                    tau_ref = op.neurons.tau_ref
-                    tau_rc = op.neurons.tau_rc
+                elif op_type == builder.operator.DotInc:
 
                     logger.debug(
-                        "Creating LIF, N: %d, J:%d, output:%d",
-                        n_neurons, make_key(op.J), make_key(op.output))
+                        "Creating DotInc, A:%d, X:%d, Y:%d",
+                        make_key(op.A), make_key(op.X), make_key(op.Y))
 
-                    self.mpi_chunk.create_SimLIF(
-                        n_neurons, tau_rc, tau_ref, self.dt,
-                        make_key(op.J), make_key(op.output))
+                    self.mpi_chunk.create_DotInc(
+                        make_key(op.A), make_key(op.X), make_key(op.Y))
 
-                elif type(op.neurons) is LIFRate:
-                    tau_ref = op.neurons.tau_ref
-                    tau_rc = op.neurons.tau_rc
-
+                elif op_type == builder.operator.ElementwiseInc:
                     logger.debug(
-                        "Creating LIFRate, N: %d, J:%d, output:%d",
-                        n_neurons, make_key(op.J), make_key(op.output))
+                        "Creating ElementwiseInc, A: %d, X: %d, Y:%d",
+                        make_key(op.A), make_key(op.X), make_key(op.Y))
 
-                    self.mpi_chunk.create_SimLIFRate(
-                        n_neurons, tau_rc, tau_ref, self.dt,
-                        make_key(op.J), make_key(op.output))
+                    self.mpi_chunk.create_ElementwiseInc(
+                        make_key(op.A), make_key(op.X), make_key(op.Y))
+
+                elif op_type == builder.synapses.SimFilterSynapse:
+                    logger.debug(
+                        "Creating Filter, input:%d, output:%d, numer:%s, denom:%s",
+                        make_key(op.input), make_key(op.output), str(op.num),
+                        str(op.den))
+
+                    self.mpi_chunk.create_Filter(
+                        make_key(op.input), make_key(op.output),
+                        op.num, op.den)
+
+                elif op_type == builder.neurons.SimNeurons:
+                    n_neurons = op.J.size
+
+                    if type(op.neurons) is LIF:
+                        tau_ref = op.neurons.tau_ref
+                        tau_rc = op.neurons.tau_rc
+
+                        logger.debug(
+                            "Creating LIF, N: %d, J:%d, output:%d",
+                            n_neurons, make_key(op.J), make_key(op.output))
+
+                        self.mpi_chunk.create_SimLIF(
+                            n_neurons, tau_rc, tau_ref, self.dt,
+                            make_key(op.J), make_key(op.output))
+
+                    elif type(op.neurons) is LIFRate:
+                        tau_ref = op.neurons.tau_ref
+                        tau_rc = op.neurons.tau_rc
+
+                        logger.debug(
+                            "Creating LIFRate, N: %d, J:%d, output:%d",
+                            n_neurons, make_key(op.J), make_key(op.output))
+
+                        self.mpi_chunk.create_SimLIFRate(
+                            n_neurons, tau_rc, tau_ref, self.dt,
+                            make_key(op.J), make_key(op.output))
+                    else:
+                        raise NotImplementedError(
+                            'nengo_mpi cannot handle neurons of type ' +
+                            str(type(op.neurons)))
+
+                elif op_type == builder.node.SimPyFunc:
+                    t_in = op.t_in
+                    fn = op.fn
+                    x = op.x
+
+                    output_id = (make_key(op.output)
+                                 if op.output is not None
+                                 else -1)
+
+                    if x is None:
+                        logger.debug(
+                            "Creating PyFunc, output:%d", make_key(op.output))
+
+                        if op.output is None:
+                            self.mpi_chunk.create_PyFunc(fn, t_in)
+                        else:
+                            self.mpi_chunk.create_PyFuncO(
+                                output_id, make_checked_func(fn, t_in, False),
+                                t_in)
+
+                    else:
+                        logger.debug(
+                            "Creating PyFuncWithInput, output:%d",
+                            make_key(op.output))
+
+                        if op.output is None:
+
+                            self.mpi_chunk.create_PyFuncI(
+                                fn, t_in, make_key(x), x.value)
+
+                        else:
+                            self.mpi_chunk.create_PyFuncIO(
+                                output_id, make_checked_func(fn, t_in, True),
+                                t_in, make_key(x), x.value)
+
+                elif op_type == MpiSend:
+                    signal_key = make_key(op.signal)
+                    logger.debug(
+                        "Creating MpiSend, dst: %d, signal: %s, signal_key: %d",
+                        op.dst, str(op.signal), signal_key)
+
+                    self.mpi_chunk.create_MPISend(
+                        op.dst, signal_key, signal_key)
+
+                elif op_type == MpiRecv:
+                    signal_key = make_key(op.signal)
+                    logger.debug(
+                        "Creating MpiRecv, src: %d, signal: %s, signal_key: %d",
+                        op.src, str(op.signal), signal_key)
+
+                    self.mpi_chunk.create_MPIRecv(
+                        op.src, signal_key, signal_key)
+
+                elif op_type == MpiWait:
+                    signal_key = make_key(op.signal)
+                    logger.debug(
+                        "Creating MpiWait, signal: %s, signal_key: %d",
+                        str(op.signal), signal_key)
+
+                    self.mpi_chunk.create_MPIWait(signal_key)
+
                 else:
                     raise NotImplementedError(
-                        'nengo_mpi cannot handle neurons of type ' +
-                        str(type(op.neurons)))
+                        'nengo_mpi cannot handle operator of type ' + str(op_type))
 
-            elif op_type == builder.node.SimPyFunc:
-                t_in = op.t_in
-                fn = op.fn
-                x = op.x
+                if hasattr(op, 'tag'):
+                    logger.debug("op.tag: %s", op.tag)
 
-                output_id = (make_key(op.output)
-                             if op.output is not None
-                             else -1)
+            self._probe_outputs = self.model.params
 
-                if x is None:
-                    logger.debug(
-                        "Creating PyFunc, output:%d", make_key(op.output))
+            print "PROBES!"
+            print self.model.probes
 
-                    if op.output is None:
-                        self.mpi_chunk.create_PyFunc(fn, t_in)
-                    else:
-                        self.mpi_chunk.create_PyFuncO(
-                            output_id, make_checked_func(fn, t_in, False),
-                            t_in)
-
-                else:
-                    logger.debug(
-                        "Creating PyFuncWithInput, output:%d",
-                        make_key(op.output))
-
-                    if op.output is None:
-
-                        self.mpi_chunk.create_PyFuncI(
-                            fn, t_in, make_key(x), x.value)
-
-                    else:
-                        self.mpi_chunk.create_PyFuncIO(
-                            output_id, make_checked_func(fn, t_in, True),
-                            t_in, make_key(x), x.value)
-
-            elif op_type == MpiSend:
-                signal_key = make_key(op.signal)
-                logger.debug(
-                    "Creating MpiSend, dst: %d, signal: %s, signal_key: %d",
-                    op.dst, str(op.signal), signal_key)
-
-                self.mpi_chunk.create_MPISend(op.dst, signal_key, signal_key)
-
-            elif op_type == MpiRecv:
-                signal_key = make_key(op.signal)
-                logger.debug(
-                    "Creating MpiRecv, src: %d, signal: %s, signal_key: %d",
-                    op.src, str(op.signal), signal_key)
-
-                self.mpi_chunk.create_MPIRecv(op.src, signal_key, signal_key)
-
-            elif op_type == MpiWait:
-                signal_key = make_key(op.signal)
-                logger.debug(
-                    "Creating MpiWait, signal: %s, signal_key: %d",
-                    str(op.signal), signal_key)
-
-                self.mpi_chunk.create_MPIWait(signal_key)
-
-            else:
-                raise NotImplementedError(
-                    'nengo_mpi cannot handle operator of type ' + str(op_type))
-
-            if hasattr(op, 'tag'):
-                logger.debug("op.tag: %s", op.tag)
-
-        self._probe_outputs = self.model.params
-
-        print "PROBES!"
-        print self.model.probes
-
-        for probe in self.model.probes:
-            self.add_probe(
-                probe, make_key(self.model.sig[probe]['in']),
-                sample_every=probe.sample_every)
-
-    def add_dot_inc(self, A_key, X_key, Y_key):
-
-        A = self.sig_dict[A_key]
-        X = self.sig_dict[X_key]
-
-        A_shape = A.shape
-        X_shape = X.shape
-
-        if A.ndim > 1 and A_shape[0] > 1 and A_shape[1] > 1:
-            # check whether A has to be treated as a matrix
-            self.mpi_chunk.create_DotIncMV(A_key, X_key, Y_key)
-            logger.debug(
-                "Creating DotIncMV, A:%d, X:%d, Y:%d", A_key, X_key, Y_key)
-        else:
-            # if it doesn't, treat it as a vector
-            A_scalar = A_shape == () or A_shape == (1,)
-            X_scalar = X_shape == () or X_shape == (1,)
-
-            # if one of them is a scalar and the other isn't, make A the scalar
-            if X_scalar and not A_scalar:
-                self.mpi_chunk.create_DotIncVV(X_key, A_key, Y_key)
-                logger.debug(
-                    "Creating DotIncVV(inv), A:%d, X:%d, Y:%d",
-                    A_key, X_key, Y_key)
-            else:
-                logger.debug(
-                    "Creating DotIncVV, A:%d, X:%d, Y:%d", A_key, X_key, Y_key)
-                self.mpi_chunk.create_DotIncVV(A_key, X_key, Y_key)
+            for probe in self.model.probes:
+                self.add_probe(
+                    probe, make_key(self.model.sig[probe]['in']),
+                    sample_every=probe.sample_every)
 
     def add_signal(self, key, A, label=''):
         if A.ndim == 0:
@@ -383,11 +354,9 @@ class SimulatorChunk(object):
 
         self.sig_dict[key] = A
 
-    def add_probe(self, probe, signal_key, probe_key=None,
-                  sample_every=None, period=1):
+    def add_probe(self, probe, signal_key, probe_key=None, sample_every=None):
 
-        if sample_every is not None:
-            period = 1 if sample_every is None else int(sample_every / self.dt)
+        period = 1 if sample_every is None else int(sample_every / self.dt)
 
         self._probe_outputs[probe] = []
         self.probe_keys[probe] = (make_key(probe)
@@ -395,6 +364,5 @@ class SimulatorChunk(object):
                                   else probe_key)
 
         print "Python adding probe with key ", self.probe_keys[probe]
-        print "Python adding probe with key ", type(self.probe_keys[probe])
 
         self.mpi_chunk.create_Probe(self.probe_keys[probe], signal_key, period)

@@ -8,12 +8,12 @@ logger = logging.getLogger(__name__)
 
 
 def test_serialization():
-    """Test the serialization of MPISimulators"""
+    """Test the serialization of MPISimulator at the C++ level."""
 
     N = 30
     val = 0.5
 
-    network = nengo.Network(label='simple', seed=123)
+    network = nengo.Network(label='test_serialization', seed=123)
     with network:
         input = nengo.Node(output=val, label='input')
         A = nengo.Ensemble(n_neurons=N, dimensions=1, label='A')
@@ -23,10 +23,7 @@ def test_serialization():
         nengo.Connection(A, B)
         nengo.Connection(B, A)
 
-    # Put all objects on same partition
-    partition = {input: 0, A: 0, B: 0}
-
-    sim = nengo_mpi.Simulator(network, dt=0.001, fixed_nodes=partition)
+    sim = nengo_mpi.Simulator(network, dt=0.001)
 
     filename = 'nengo_serialization'
 
@@ -34,11 +31,14 @@ def test_serialization():
 
     sim.mpi_sim.write_to_file(filename)
 
-    sim2 = nengo_mpi.Simulator(dt=0.001, fixed_nodes=partition)
+    print "pre_string:", pre_string
+    sim2 = nengo_mpi.Simulator(nengo.Network(), dt=0.001)
 
     sim2.mpi_sim.read_from_file(filename)
 
     post_string = str(sim2)
+
+    print "post_string:", post_string
 
     assert pre_string == post_string
 
