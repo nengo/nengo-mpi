@@ -1,7 +1,6 @@
 import nengo
 from nengo.connection import Connection
 from nengo.ensemble import Ensemble
-from nengo.neurons import Direct
 from nengo.node import Node
 from nengo.probe import Probe
 from nengo import builder
@@ -20,7 +19,7 @@ import warnings
 import logging
 logger = logging.getLogger(__name__)
 
-nengo.log(debug=True, path=None)
+nengo.log(debug=False, path=None)
 
 
 def make_builder(base):
@@ -77,10 +76,13 @@ class MpiModel(builder.Model):
 
     def add_op(self, op):
         self.object_ops[self._object_context[-1]].append(op)
-        print "Adding op to model"
-        print "OP:", op
-        print "object:", self._object_context[-1]
-        print '\n'
+
+        logger.debug("*************************")
+        logger.debug("Adding operator to model.")
+        logger.debug("Operator: %s", str(op))
+        logger.debug(
+            "As part of nengo object: %s",
+            str(self._object_context[-1]))
 
         super(MpiModel, self).add_op(op)
 
@@ -92,11 +94,19 @@ class MpiModel(builder.Model):
 
         Partition will not contain any information about networks.
         Only ensembles and nodes. It is a map from ensemble/nodes to
-        int giving the partition.
+        integers giving the partition.
         """
 
-        connections = network.connections
-        probes = network.probes
+        nodes = network.all_nodes
+        nodes_in = all([node in partition for node in nodes])
+        assert nodes_in, "Partition incomplete, missing nodes."
+
+        ensembles = network.all_ensembles
+        ensembles_in = all([ensemble in partition for ensemble in ensembles])
+        assert ensembles_in, "Partition incomplete, missing ensembles."
+
+        connections = network.all_connections
+        probes = network.all_probes
 
         models = [builder.Model(label="Partition %d" % i)
                   for i in range(num_partitions)]
@@ -155,33 +165,18 @@ class MpiModel(builder.Model):
                 # This is a connection that spans partitions
                 if conn.modulatory:
                     raise Exception(
-                        "Connections spanning partitions "
-                        "must not be modulatory")
+                        "Connections crossing partition boundaries "
+                        "must not be modulatory.")
 
-                #if (isinstance(conn.pre_obj, Node) or
-                #        (isinstance(conn.pre_obj, Ensemble) and
-                #         isinstance(conn.pre_obj.neuron_type, Direct))):
+                #if (isinstance(conn.pre_obj, Ensemble) and
+                #        'synapse_out' in self.sig[conn]):
 
-                #    if conn.function is None:
-                #        signal = self.sig[conn]['in']
-                #    else:
-                #        signal = [sig for sig in self.sig[conn]
-                #                  if hasattr(sig, 'name') and
-                #                  sig.name == "%s.output" % conn.label][0]
-
-                if (isinstance(conn.pre_obj, Ensemble) and
-                        'synapse_out' in self.sig[conn]):
-
-                    # Formaly broke the graph up at decoded signal
-                    # signal = self.sig[conn]['decoded']
-
-                    # Currently break the graph up at the output
-                    # of the synapses
+                if 'synapse_out' in self.sig[conn]:
                     signal = self.sig[conn]['synapse_out']
-
                 else:
                     raise Exception(
-                        "Connections of this type cannot span partitions")
+                        "Connections crossing partition boundaries must "
+                        "be filtered.")
 
                 models[pre_partition].send_signals.append(
                     (signal, post_partition))
@@ -206,6 +201,9 @@ class MpiModel(builder.Model):
 
 def default_partition_func(network, num_partitions, fixed_nodes=None):
     """
+    Partition functions must return a dictionary which contains every
+    ensemble and every node in the entire network, including subnetworks.
+
     Puts all nengo Nodes on partition 0.
 
     Pseudo-randomly assigns nengo Ensembles to remaining partitions, unless
@@ -217,9 +215,11 @@ def default_partition_func(network, num_partitions, fixed_nodes=None):
     Parameters
     ----------
     network: the nengo network to partition
+
     num_partitions: number of hardware nodes to use for the simulation, and
         hence the number of partitions created by the partition function.
         If None, appropriate value chosen automatically.
+
     fixed_nodes: a dictionary mapping from nengo objects to indices of
         partitions/hardware nodes. Used to hard-assign nengo objects
         to specific partitions/hardware nodes.
@@ -232,7 +232,6 @@ def default_partition_func(network, num_partitions, fixed_nodes=None):
     partition.update(fixed_nodes)
 
     for ensemble in network.ensembles:
-
         if ensemble not in partition:
             if num_partitions == 1:
                 partition[ensemble] = 0
@@ -240,8 +239,28 @@ def default_partition_func(network, num_partitions, fixed_nodes=None):
                 partition[ensemble] = random.choice(xrange(1, num_partitions))
 
     for node in network.nodes:
-        if node not in partition:
+        if node.output is None:
+            if node not in partition:
+                if num_partitions == 1:
+                    partition[node] = 0
+                else:
+                    partition[node] = random.choice(xrange(1, num_partitions))
+        else:
             partition[node] = 0
+
+    for n in network.networks:
+        if n in partition:
+            for ensemble in n.all_ensembles:
+                partition[ensemble] = partition[n]
+
+            for node in n.all_nodes:
+                if node.output is None:
+                    partition[node] = partition[n]
+                else:
+                    partition[node] = 0
+        else:
+            subnet_partition = default_partition_func(n, num_partitions)
+            partition.update(subnet_partition)
 
     return partition
 
@@ -325,12 +344,15 @@ class Simulator(object):
         ----------
         network : nengo.Network instance
             A network object to be built and then simulated.
+
         dt : float
             The length of a simulator timestep, in seconds.
+
         seed : int
             A seed for all stochastic operators used in this simulator.
             Note that there are not stochastic operators implemented
             currently, so this parameters does nothing.
+
         partition_info:
             An instance of PartitionInfo storing information specifying
             how nodes are assigned to MPI processes.
@@ -366,7 +388,7 @@ class Simulator(object):
         for model in models:
             mpi_chunk = self.mpi_sim.add_chunk()
 
-            simulator_chunk = chunk.SimulatorChunk(
+            chunk.SimulatorChunk(
                 mpi_chunk, model, dt, self.probe_keys, self._probe_outputs)
 
         self.mpi_sim.finalize()
