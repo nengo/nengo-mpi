@@ -1,1 +1,1 @@
-mpirun -np 1 python ~/.local/bin/py.test -x --capture=no -k operator
+mpirun -np 1 python ~/.local/bin/py.test -x

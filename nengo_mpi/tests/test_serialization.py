@@ -7,6 +7,7 @@ import nengo_mpi
 logger = logging.getLogger(__name__)
 
 
+@pytest.mark.xfail
 def test_serialization():
     """Test the serialization of MPISimulator at the C++ level."""
 
