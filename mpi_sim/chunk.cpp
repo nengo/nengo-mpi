@@ -34,6 +34,7 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
             probe_it->second->gather(step);
+            run_dbg("After gathering: " << *(probe_it->second) << endl);
         }
 
         time += dt;
@@ -203,4 +204,17 @@ string MpiSimulatorChunk::print_maps(){
     return out.str();
 }
 
+string MpiSimulatorChunk::print_signal_pointers(){
+    stringstream out;
 
+    out << "Printing signal pointers: " << endl;
+    map<key_type, Matrix*>::iterator mat_it;
+    int count = 0;
+    for(mat_it = matrix_signal_map.begin(); mat_it != matrix_signal_map.end(); ++mat_it){
+        out << "Count: " << count << ", pointer: " << mat_it->second << endl;
+        out << "Value: " << *(mat_it->second) << endl;
+        count++;
+    }
+
+    return out.str();
+}

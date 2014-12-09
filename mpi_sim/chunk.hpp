@@ -80,9 +80,9 @@ public:
     double* get_time_pointer(){return &time;}
     int get_num_probes(){return probe_map.size();}
 
-
     string to_string() const;
     string print_maps();
+    string print_signal_pointers();
 
     friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
         out << chunk.to_string();
