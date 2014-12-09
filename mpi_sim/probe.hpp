@@ -84,11 +84,23 @@ void Probe<T>::clear(){
 template<class T>
 ostream& operator << (ostream &out, const Probe<T> &probe){
     out << "Probe:" << endl;
-    out << "Signal: " << endl;
+
+    out << "Probed signal: " << endl;
     out << *(probe.signal) << endl;
+
+    out << "Signal pointer: " << endl;
+    out << probe.signal << endl;
+
     out << "Period: " << probe.period << endl;
-    out << "Points collected: " << endl;
+
+    out << "Size: " << endl;
     out << (probe.data)->size() << endl;
+
+    out << "Data: " << endl;
+    for(unsigned i = 0; i < (probe.data)->size(); i++){
+         out << "index: " << i << ", signal: " << *((*(probe.data))[i]) << endl;
+    }
+
     return out;
 }
 
