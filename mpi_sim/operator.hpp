@@ -153,8 +153,15 @@ protected:
     Matrix* A;
     Matrix* X;
     Matrix* Y;
-    int size;
-    bool scalar;
+
+    bool broadcast;
+
+    // Strides are 0 or 1, to support broadcasting
+    int A_row_stride;
+    int A_col_stride;
+
+    int X_row_stride;
+    int X_col_stride;
 
 private:
     friend class boost::serialization::access;
@@ -168,8 +175,14 @@ private:
         ar & A;
         ar & X;
         ar & Y;
-        ar & size;
-        ar & scalar;
+
+        ar & broadcast;
+
+        ar & A_row_stride;
+        ar & A_col_stride;
+
+        ar & X_row_stride;
+        ar & X_col_stride;
     }
 };
 

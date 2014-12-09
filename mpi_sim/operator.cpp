@@ -18,7 +18,18 @@ DotInc::DotInc(Matrix* A, Matrix* X, Matrix* Y)
     :A(A), X(X), Y(Y){}
 
 ElementwiseInc::ElementwiseInc(Matrix* A, Matrix* X, Matrix* Y)
-    :A(A), X(X), Y(Y){}
+    :A(A), X(X), Y(Y){
+
+    if(A->size1() != Y->size1() || A->size2() != Y->size2() ||
+       X->size1() != Y->size1() || X->size2() != Y->size2()){
+        broadcast = true;
+        A_row_stride = A->size1() > 1 ? 1 : 0;
+        A_col_stride = A->size2() > 1 ? 1 : 0;
+
+        X_row_stride = X->size1() > 1 ? 1 : 0;
+        X_col_stride = X->size2() > 1 ? 1 : 0;
+    }
+}
 
 Filter::Filter(Matrix* input, Matrix* output,
                Matrix* numer, Matrix* denom)
@@ -73,7 +84,24 @@ void DotInc::operator() (){
 }
 
 void ElementwiseInc::operator() (){
-    *Y += element_prod(*A, *X);
+    if(broadcast){
+        int Y_i = 0, Y_j = 0;
+        int A_i = 0, A_j = 0, X_i = 0, X_j = 0;
+
+        for(;Y_i < Y->size1(); Y_i++){
+            for(;Y_j < Y->size2(); Y_j++){
+                (*Y)(Y_i, Y_j) += (*A)(A_i, A_j) * (*X)(X_i, X_j);
+                A_j += A_col_stride;
+                X_j += X_col_stride;
+            }
+
+            A_i += A_row_stride;
+            X_i += X_row_stride;
+        }
+
+    }else{
+        *Y += element_prod(*A, *X);
+    }
 
     run_dbg(*this);
 }
