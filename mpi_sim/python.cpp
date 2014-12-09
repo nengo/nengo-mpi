@@ -112,15 +112,28 @@ bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::objec
     vector<Matrix*>::const_iterator it;
     for(it = data->begin(); it != data->end(); ++it){
 
-        bpy::object a = make_array(bpy::make_tuple((*it)->size1(), (*it)->size2()));
-
-        for(unsigned i=0; i < (*it)->size1(); ++i){
-            for(unsigned j=0; j < (*it)->size2(); ++j){
-                // TODO: make sure this goes in the right direction wrt to storage format
-                // (col major vs row major)
-                a[i][j] = (**it)(i, j);
+        bpy::object a;
+        if((*it)->size1() == 1){
+            a = make_array((*it)->size2());
+            for(unsigned i=0; i < (*it)->size2(); ++i){
+                a[i] = (**it)(0, i);
+            }
+        }else if((*it)->size2() == 1){
+            a = make_array((*it)->size1());
+            for(unsigned i=0; i < (*it)->size1(); ++i){
+                a[i] = (**it)(i, 0);
+            }
+        }else{
+            a = make_array(bpy::make_tuple((*it)->size1(), (*it)->size2()));
+            for(unsigned i=0; i < (*it)->size1(); ++i){
+                for(unsigned j=0; j < (*it)->size2(); ++j){
+                    // TODO: make sure this goes in the right direction wrt to storage format
+                    // (col major vs row major)
+                    a[i][j] = (**it)(i, j);
+                }
             }
         }
+
 
         py_list.append(a);
     }
@@ -173,7 +186,6 @@ void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, 
     key_type c_key = bpy::extract<key_type>(key);
     cout << "Adding probe with key:" << c_key << endl;
     mpi_sim_chunk->add_probe(c_key, probe);
-
 }
 
 void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){
