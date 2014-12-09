@@ -6,6 +6,7 @@ from nengo.probe import Probe
 from nengo import builder
 from nengo.simulator import ProbeDict
 import nengo.utils.numpy as npext
+from nengo.cache import NoDecoderCache, get_default_decoder_cache
 
 import chunk
 import mpi_sim
@@ -23,6 +24,12 @@ nengo.log(debug=False, path=None)
 
 
 def make_builder(base):
+    """
+    Create a version of an existing builder function whose only difference
+    is that it uses the MpiModel to record which ops are built as part of
+    building which high-level objects.
+    """
+
     def build_object(model, obj):
         try:
             model.push_object(obj)
@@ -59,11 +66,24 @@ with warnings.catch_warnings():
 
 
 class MpiModel(builder.Model):
+    """
+    Output of the Builder, used by the Simulator.
 
-    def __init__(self, dt=0.001, label=None):
+    Differs from the Model in the reference implementation in that
+    as the model is built, it keeps track of the object being built.
+    This permits us to keep track of which operators are added as part
+    of which high-level objects, so that those objects can be added
+    to the correct MPI partition (recalling that the MPI partitions
+    are specified in terms of the high-level nengo objects like nodes,
+    networks and ensembles).
+    """
+
+    def __init__(
+            self, dt=0.001, label=None, decoder_cache=NoDecoderCache()):
+
         self._object_context = [None]
         self.object_ops = defaultdict(list)
-        super(MpiModel, self).__init__(dt, label)
+        super(MpiModel, self).__init__(dt, label, decoder_cache)
 
     def __str__(self):
         return "MpiModel: %s" % self.label
@@ -75,6 +95,11 @@ class MpiModel(builder.Model):
         self._object_context.pop()
 
     def add_op(self, op):
+        """
+        Records that the operator was added as part of building
+        the object that is on the top of _object_context stack,
+        and then uses refimpl add_op to finish adding the op.
+        """
         self.object_ops[self._object_context[-1]].append(op)
 
         logger.debug("*************************")
@@ -85,6 +110,27 @@ class MpiModel(builder.Model):
             str(self._object_context[-1]))
 
         super(MpiModel, self).add_op(op)
+
+    def from_refimpl_model(self, model):
+        """Create an MpiModel from an instance of a refimpl Model."""
+
+        if not isinstance(model, builder.Model):
+            raise TypeError(
+                "Model must be an instance of "
+                "%s." % builder.model.__name__)
+
+        self.dt = model.dt
+        self.label = model.label
+        self.decoder_cache = model.decoder_cache
+
+        self.toplevel = model.toplevel
+        self.config = model.config
+
+        self.operators = model.operators
+        self.params = model.params
+        self.seeds = model.seeds
+        self.probes = model.probes
+        self.sig = model.sig
 
     def partition_ops(self, network, num_partitions, partition):
         """
@@ -105,9 +151,6 @@ class MpiModel(builder.Model):
         ensembles_in = all([ensemble in partition for ensemble in ensembles])
         assert ensembles_in, "Partition incomplete, missing ensembles."
 
-        connections = network.all_connections
-        probes = network.all_probes
-
         models = [builder.Model(label="Partition %d" % i)
                   for i in range(num_partitions)]
 
@@ -117,8 +160,8 @@ class MpiModel(builder.Model):
             model.send_signals = []
             model.recv_signals = []
 
-        print "PARTITION"
-        print partition
+        logger.debug("PARTITION")
+        logger.debug(partition)
 
         for obj, p in partition.iteritems():
 
@@ -126,33 +169,45 @@ class MpiModel(builder.Model):
 
             model = models[p]
 
-            print "OBJECT_OPS"
-            print obj
-            print self.object_ops[obj]
+            logger.debug("OBJECT_OPS")
+            logger.debug(obj)
+            logger.debug(self.object_ops[obj])
 
             for op in self.object_ops[obj]:
                 model.add_op(op)
 
         for i, model in enumerate(models):
-            print "MODEL: ", i, " ", model.operators
+            logger.debug("MODEL: ", i, " ", model.operators)
 
-        for probe in probes:
-            print "PROBE", probe
+        for probe in network.all_probes:
+            logger.debug("PROBE", probe)
 
             p = partition[probe.target]
-            print "partition: ", p
-            print "probe ops: ", self.object_ops[probe]
+            logger.debug("partition: ", p)
+            logger.debug("probe ops: ", self.object_ops[probe])
 
             for op in self.object_ops[probe]:
                 models[p].add_op(op)
 
             models[p].probes.append(probe)
+            partition[probe] = p
+
+        connections = set(
+            obj for obj in self.object_ops
+            if isinstance(obj, Connection))
+
+        connections = connections | set(network.all_connections)
 
         for conn in connections:
-            print "CONNECTION", conn
+            logger.debug("CONNECTION", conn)
+            logger.debug("CONNECTION PRE", conn.pre_obj)
+            logger.debug("CONNECTION PRE TYPE", type(conn.pre))
+            logger.debug("CONNECTION POST", conn.post_obj)
+            logger.debug("CONNECTION POST TYPE", type(conn.post))
+            logger.debug("CONNECTION OPS", self.object_ops[conn])
 
-            pre_partition = partition[conn.pre]
-            post_partition = partition[conn.post]
+            pre_partition = partition[conn.pre_obj]
+            post_partition = partition[conn.post_obj]
 
             if pre_partition == post_partition:
 
@@ -333,7 +388,9 @@ class PartitionInfo(object):
 class Simulator(object):
     """MPI simulator for nengo 2.0."""
 
-    def __init__(self, network, dt=0.001, seed=None, partition_info=None):
+    def __init__(
+            self, network, dt=0.001, seed=None, model=None,
+            partition_info=None):
         """
         Most of the time, you will pass in a network and sometimes a dt::
 
@@ -353,6 +410,15 @@ class Simulator(object):
             Note that there are not stochastic operators implemented
             currently, so this parameters does nothing.
 
+        model : nengo.builder.Model instance or None
+            A model object that contains build artifacts to be simulated.
+            Usually the simulator will build this model for you; however,
+            if you want to build the network manually, or to inject some
+            build artifacts in the Model before building the network,
+            then you can pass in an instance of ``MpiModel'' instance
+            or a ``nengo.builder.Model`` instance. If the latter, it
+            will be converted into an ``MpiModel''.
+
         partition_info:
             An instance of PartitionInfo storing information specifying
             how nodes are assigned to MPI processes.
@@ -365,7 +431,14 @@ class Simulator(object):
         self.n_steps = 0
         self.dt = dt
 
-        self.model = MpiModel()
+        if model is None:
+            self.model = MpiModel(
+                dt=dt, label="%s, dt=%f" % (network, dt),
+                decoder_cache=get_default_decoder_cache())
+
+        elif not isinstance(model, MpiModel):
+            self.model = MpiModel()
+            self.model.from_refimpl_model(model)
 
         # probe -> C++ key (int)
         self.probe_keys = {}
@@ -383,7 +456,8 @@ class Simulator(object):
         num_partitions = partition_info.num_partitions
         partition = partition_info.partition(network)
 
-        models = self.model.partition_ops(network, num_partitions, partition)
+        models = self.model.partition_ops(
+            network, num_partitions, partition)
 
         for model in models:
             mpi_chunk = self.mpi_sim.add_chunk()
@@ -404,6 +478,11 @@ class Simulator(object):
 
         for probe, probe_key in self.probe_keys.items():
             data = self.mpi_sim.get_probe_data(probe_key, np.empty)
+
+            logger.debug("******** PROBE DATA *********")
+            logger.debug("KEY: ", probe_key)
+            logger.debug("PROBE: ", probe)
+            logger.debug("DATA SHAPE: ", np.array(data).shape)
 
             if probe not in self._probe_outputs:
                 self._probe_outputs[probe] = data

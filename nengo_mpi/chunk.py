@@ -143,9 +143,9 @@ class SimulatorChunk(object):
             __time__=np.asarray(0.0, dtype=np.float64))
 
         if model is not None:
-            print "MODEL", model
-            print "SEND SIGNALS", model.send_signals
-            print "RECV SIGNALS", model.recv_signals
+            logger.debug("MODEL", model)
+            logger.debug("SEND SIGNALS", model.send_signals)
+            logger.debug("RECV SIGNALS", model.recv_signals)
 
             for op in model.operators:
                 op.init_signals(self.signals)
@@ -187,10 +187,11 @@ class SimulatorChunk(object):
                 self._step_order.insert(read_index_last+1, mpi_recv)
 
             for sig, numpy_array in self.signals.items():
+                logger.debug("Adding signal ", sig, ", with key: ", make_key(sig))
                 self.add_signal(make_key(sig), numpy_array, str(sig))
 
-            print "ALL SIGNALS ADDED"
-            print self._step_order
+            logger.debug("ALL SIGNALS ADDED")
+            logger.debug(self._step_order)
 
             for op in self._step_order:
                 op_type = type(op)
@@ -338,8 +339,8 @@ class SimulatorChunk(object):
 
             self._probe_outputs = self.model.params
 
-            print "PROBES!"
-            print self.model.probes
+            logger.debug("PROBES!")
+            logger.debug(self.model.probes)
 
             for probe in self.model.probes:
                 self.add_probe(
@@ -363,6 +364,7 @@ class SimulatorChunk(object):
                                   if probe_key is None
                                   else probe_key)
 
-        print "Python adding probe with key ", self.probe_keys[probe]
+        logger.debug(
+            "Python adding probe with key ", self.probe_keys[probe])
 
         self.mpi_chunk.create_Probe(self.probe_keys[probe], signal_key, period)
