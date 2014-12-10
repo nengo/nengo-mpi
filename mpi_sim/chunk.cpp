@@ -37,39 +37,27 @@ void MpiSimulatorChunk::run_n_steps(int steps){
             run_dbg("After gathering: " << *(probe_it->second) << endl);
         }
 
+        run_dbg(print_signal_pointers());
         time += dt;
         n_steps++;
     }
 }
 
-void MpiSimulatorChunk::add_vector_signal(key_type key, Vector* sig){
-    vector_signal_map[key] = sig;
-}
-
-void MpiSimulatorChunk::add_matrix_signal(key_type key, Matrix* sig){
-    matrix_signal_map[key] = sig;
+void MpiSimulatorChunk::add_signal(key_type key, string label, Matrix* sig){
+    signal_map[key] = sig;
+    signal_labels[key] = label;
 }
 
 void MpiSimulatorChunk::add_probe(key_type key, Probe<Matrix>* probe){
     probe_map[key] = probe;
 }
 
-Vector* MpiSimulatorChunk::get_vector_signal(key_type key){
+Matrix* MpiSimulatorChunk::get_signal(key_type key){
     try{
-        Vector* vec = vector_signal_map.at(key);
-        return vec;
-    }catch(const out_of_range& e){
-        cerr << "Error accessing MpiSimulatorChunk :: vector signal with key " << key << endl;
-        throw e;
-    }
-}
-
-Matrix* MpiSimulatorChunk::get_matrix_signal(key_type key){
-    try{
-        Matrix* mat = matrix_signal_map.at(key);
+        Matrix* mat = signal_map.at(key);
         return mat;
     }catch(const out_of_range& e){
-        cerr << "Error accessing MpiSimulatorChunk :: matrix signal with key " << key << endl;
+        cerr << "Error accessing MpiSimulatorChunk :: signal with key " << key << endl;
         throw e;
     }
 }
@@ -147,22 +135,13 @@ string MpiSimulatorChunk::to_string() const{
 
     out << "<MpiSimulatorChunk" << endl;
 
-    map<key_type, Vector*>::const_iterator vector_it = vector_signal_map.begin();
-
-    out << "** Vectors: **" << endl;
-    for(; vector_it != vector_signal_map.end(); vector_it++){
-        out << "Key: " << vector_it->first << endl;
-        out << "Vector: " << *(vector_it->second) << endl;
-    }
-
-    out << endl;
-
-    map<key_type, Matrix*>::const_iterator matrix_it = matrix_signal_map.begin();
+    map<key_type, Matrix*>::const_iterator signal_it = signal_map.begin();
 
     out << "** Matrices: **" << endl;
-    for(; matrix_it != matrix_signal_map.end(); matrix_it++){
-        out << "Key: " << matrix_it->first << endl;
-        out << "Matrix: " << *(matrix_it->second) << endl;
+    for(; signal_it != signal_map.end(); signal_it++){
+        out << "Key: " << signal_it->first << endl;
+        out << "Label: " << signal_labels.at(signal_it->first);
+        out << "Matrix: " << *(signal_it->second) << endl;
     }
     out << endl;
 
@@ -208,12 +187,29 @@ string MpiSimulatorChunk::print_signal_pointers(){
     stringstream out;
 
     out << "Printing signal pointers: " << endl;
-    map<key_type, Matrix*>::iterator mat_it;
+    map<key_type, Matrix*>::iterator signal_it;
     int count = 0;
-    for(mat_it = matrix_signal_map.begin(); mat_it != matrix_signal_map.end(); ++mat_it){
-        out << "Count: " << count << ", pointer: " << mat_it->second << endl;
-        out << "Value: " << *(mat_it->second) << endl;
+    for(signal_it = signal_map.begin(); signal_it != signal_map.end(); ++signal_it){
+        out << "Count: " << count << ", pointer: " << signal_it->second << endl;
+        out << "Label: " << signal_labels.at(signal_it->first) << endl;
+        out << "Value: " << *(signal_it->second) << endl << endl;
         count++;
+    }
+
+    return out.str();
+}
+
+string MpiSimulatorChunk::print_signals(){
+    stringstream out;
+
+    out << "Printing signals: " << endl;
+    map<key_type, Matrix*>::iterator signal_it;
+    int index = 0;
+    for(signal_it = signal_map.begin(); signal_it != signal_map.end(); ++signal_it){
+        out << "Index: " << index << endl;
+        out << "Label: " << signal_labels.at(signal_it->first) << endl;
+        out << "Value: " << *(signal_it->second) << endl << endl;
+        index++;
     }
 
     return out.str();

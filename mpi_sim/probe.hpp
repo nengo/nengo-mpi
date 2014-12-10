@@ -85,16 +85,13 @@ template<class T>
 ostream& operator << (ostream &out, const Probe<T> &probe){
     out << "Probe:" << endl;
 
-    out << "Probed signal: " << endl;
-    out << *(probe.signal) << endl;
-
-    out << "Signal pointer: " << endl;
-    out << probe.signal << endl;
-
     out << "Period: " << probe.period << endl;
 
-    out << "Size: " << endl;
-    out << (probe.data)->size() << endl;
+    out << "Size: " << (probe.data)->size() << endl;
+
+    out << "Probed signal: " << *(probe.signal) << endl;
+
+    out << "Signal pointer: " << probe.signal << endl;
 
     out << "Data: " << endl;
     for(unsigned i = 0; i < (probe.data)->size(); i++){

@@ -40,16 +40,14 @@ public:
     // required by the simulation, as well as current simulation
     // state. The key must be unique, as its purpose is to allow
     // operators to reference the key.
-    void add_vector_signal(key_type key, Vector* sig);
-    void add_matrix_signal(key_type key, Matrix* sig);
+    void add_signal(key_type key, string label, Matrix* sig);
 
     // Probe the signal corresponding to key. A signal with this
     // key must already be in the chunk when this function is called
     void add_probe(key_type key, Probe<Matrix>* probe);
 
     // Look up internal object by key
-    Vector* get_vector_signal(key_type key);
-    Matrix* get_matrix_signal(key_type key);
+    Matrix* get_signal(key_type key);
     Probe<Matrix>* get_probe(key_type key);
 
     // Functions used to add operators to the chunk. These
@@ -83,6 +81,7 @@ public:
     string to_string() const;
     string print_maps();
     string print_signal_pointers();
+    string print_signals();
 
     friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
         out << chunk.to_string();
@@ -98,8 +97,8 @@ private:
     double time;
     double dt;
     int n_steps;
-    map<key_type, Matrix*> matrix_signal_map;
-    map<key_type, Vector*> vector_signal_map;
+    map<key_type, Matrix*> signal_map;
+    map<key_type, string> signal_labels;
     list<Operator*> operator_list;
     Operator* operators;
     int num_operators;
@@ -127,8 +126,8 @@ private:
         ar.template register_type<MPIWait>();
 
         ar & probe_map;
-        ar & matrix_signal_map;
-        ar & vector_signal_map;
+        ar & signal_map;
+        ar & signal_labels;
         ar & operator_list;
         ar & time;
         ar & dt;

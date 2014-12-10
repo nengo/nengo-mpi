@@ -23,7 +23,6 @@ bool hasattr(bpy::object obj, string const &attrName);
 
 Matrix* ndarray_to_matrix(bpyn::array a);
 Matrix* list_to_matrix(bpy::list l);
-Vector* list_to_vector(bpy::list l);
 
 class PythonMpiSimulatorChunk;
 

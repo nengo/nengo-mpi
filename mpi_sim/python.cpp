@@ -63,23 +63,6 @@ Matrix* list_to_matrix(bpy::list l){
     return ret;
 }
 
-Vector* list_to_mattor(bpy::list l){
-
-    dbg("Extracting vector from python list:");
-
-    int length = bpy::len(l);
-    Vector* ret = new Vector(length);
-    for(unsigned i = 0; i < length; i++){
-        (*ret)(i) = bpy::extract<floattype>(l[i]);
-    }
-
-    dbg("Length:" << length);
-    dbg("Value:");
-    dbg(*ret << endl);
-
-    return ret;
-}
-
 PythonMpiSimulator::PythonMpiSimulator(){
 }
 
@@ -164,7 +147,7 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig, bpy::
 
     Matrix* mat = ndarray_to_matrix(sig);
     key_type c_key = bpy::extract<key_type>(key);
-    char const* c_label = bpy::extract<char const*>(label);
+    string c_label = bpy::extract<string>(label);
 
     dbg("Adding signal in C++ simulator");
     dbg("Label: "<< c_label);
@@ -173,12 +156,12 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig, bpy::
     dbg("Value:");
     dbg(*mat << endl);
 
-    mpi_sim_chunk->add_matrix_signal(c_key, mat);
+    mpi_sim_chunk->add_signal(c_key, c_label, mat);
 }
 
 void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, bpy::object period){
     key_type signal_key = bpy::extract<key_type>(signal);
-    Matrix* signal_mat = mpi_sim_chunk->get_matrix_signal(signal_key);
+    Matrix* signal_mat = mpi_sim_chunk->get_signal(signal_key);
     int c_period = bpy::extract<int>(period);
 
     Probe<Matrix>* probe = new Probe<Matrix>(signal_mat, c_period);
@@ -192,7 +175,7 @@ void PythonMpiSimulatorChunk::create_Reset(bpy::object dst, bpy::object value){
     key_type dst_key = bpy::extract<key_type>(dst);
     floattype c_value = bpy::extract<floattype>(value);
 
-    Matrix* dst_mat = mpi_sim_chunk->get_matrix_signal(dst_key);
+    Matrix* dst_mat = mpi_sim_chunk->get_signal(dst_key);
 
     Operator* reset = new Reset(dst_mat, c_value);
     mpi_sim_chunk->add_operator(reset);
@@ -202,8 +185,8 @@ void PythonMpiSimulatorChunk::create_Copy(bpy::object dst, bpy::object src){
     key_type dst_key = bpy::extract<key_type>(dst);
     key_type src_key = bpy::extract<key_type>(src);
 
-    Matrix* dst_mat = mpi_sim_chunk->get_matrix_signal(dst_key);
-    Matrix* src_mat = mpi_sim_chunk->get_matrix_signal(src_key);
+    Matrix* dst_mat = mpi_sim_chunk->get_signal(dst_key);
+    Matrix* src_mat = mpi_sim_chunk->get_signal(src_key);
 
     Operator* copy = new Copy(dst_mat, src_mat);
     mpi_sim_chunk->add_operator(copy);
@@ -214,9 +197,9 @@ void PythonMpiSimulatorChunk::create_DotInc(bpy::object A, bpy::object X, bpy::o
     key_type X_key = bpy::extract<key_type>(X);
     key_type Y_key = bpy::extract<key_type>(Y);
 
-    Matrix* A_mat = mpi_sim_chunk->get_matrix_signal(A_key);
-    Matrix* X_mat = mpi_sim_chunk->get_matrix_signal(X_key);
-    Matrix* Y_mat = mpi_sim_chunk->get_matrix_signal(Y_key);
+    Matrix* A_mat = mpi_sim_chunk->get_signal(A_key);
+    Matrix* X_mat = mpi_sim_chunk->get_signal(X_key);
+    Matrix* Y_mat = mpi_sim_chunk->get_signal(Y_key);
 
     Operator* dot_inc = new DotInc(A_mat, X_mat, Y_mat);
     mpi_sim_chunk->add_operator(dot_inc);
@@ -227,9 +210,9 @@ void PythonMpiSimulatorChunk::create_ElementwiseInc(bpy::object A, bpy::object X
     key_type X_key = bpy::extract<key_type>(X);
     key_type Y_key = bpy::extract<key_type>(Y);
 
-    Matrix* A_mat = mpi_sim_chunk->get_matrix_signal(A_key);
-    Matrix* X_mat = mpi_sim_chunk->get_matrix_signal(X_key);
-    Matrix* Y_mat = mpi_sim_chunk->get_matrix_signal(Y_key);
+    Matrix* A_mat = mpi_sim_chunk->get_signal(A_key);
+    Matrix* X_mat = mpi_sim_chunk->get_signal(X_key);
+    Matrix* Y_mat = mpi_sim_chunk->get_signal(Y_key);
 
     Operator* dot_inc = new ElementwiseInc(A_mat, X_mat, Y_mat);
     mpi_sim_chunk->add_operator(dot_inc);
@@ -241,8 +224,8 @@ void PythonMpiSimulatorChunk::create_Filter(bpy::object input, bpy::object outpu
     key_type input_key = bpy::extract<key_type>(input);
     key_type output_key = bpy::extract<key_type>(output);
 
-    Matrix* input_mat = mpi_sim_chunk->get_matrix_signal(input_key);
-    Matrix* output_mat = mpi_sim_chunk->get_matrix_signal(output_key);
+    Matrix* input_mat = mpi_sim_chunk->get_signal(input_key);
+    Matrix* output_mat = mpi_sim_chunk->get_signal(output_key);
 
     Matrix* numer_mat = list_to_matrix(numer);
     Matrix* denom_mat = list_to_matrix(denom);
@@ -262,8 +245,8 @@ void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object t
     key_type J_key = bpy::extract<key_type>(J);
     key_type output_key = bpy::extract<key_type>(output);
 
-    Matrix* J_mat = mpi_sim_chunk->get_matrix_signal(J_key);
-    Matrix* output_mat = mpi_sim_chunk->get_matrix_signal(output_key);
+    Matrix* J_mat = mpi_sim_chunk->get_signal(J_key);
+    Matrix* output_mat = mpi_sim_chunk->get_signal(output_key);
 
     Operator* sim_lif = new SimLIF(c_n_neurons, c_tau_rc, c_tau_ref, c_dt, J_mat, output_mat);
     mpi_sim_chunk->add_operator(sim_lif);
@@ -280,8 +263,8 @@ void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::obje
     key_type J_key = bpy::extract<key_type>(J);
     key_type output_key = bpy::extract<key_type>(output);
 
-    Matrix* J_mat = mpi_sim_chunk->get_matrix_signal(J_key);
-    Matrix* output_mat = mpi_sim_chunk->get_matrix_signal(output_key);
+    Matrix* J_mat = mpi_sim_chunk->get_signal(J_key);
+    Matrix* output_mat = mpi_sim_chunk->get_signal(output_key);
 
     Operator* sim_lif_rate = new SimLIFRate(c_n_neurons, c_tau_rc, c_tau_ref, c_dt, J_mat, output_mat);
     mpi_sim_chunk->add_operator(sim_lif_rate);
@@ -291,7 +274,7 @@ void PythonMpiSimulatorChunk::create_MPISend(bpy::object dst, bpy::object tag, b
     int c_dst = bpy::extract<int>(dst);
     int c_tag = bpy::extract<int>(tag);
     key_type content_key = bpy::extract<key_type>(content);
-    Matrix* content_matrix = mpi_sim_chunk->get_matrix_signal(content_key);
+    Matrix* content_matrix = mpi_sim_chunk->get_signal(content_key);
 
     MPISend* mpi_send = new MPISend(c_dst, c_tag, content_matrix);
     mpi_sim_chunk->add_mpi_send(mpi_send);
@@ -301,7 +284,7 @@ void PythonMpiSimulatorChunk::create_MPIRecv(bpy::object src, bpy::object tag, b
     int c_src = bpy::extract<int>(src);
     int c_tag = bpy::extract<int>(tag);
     key_type content_key = bpy::extract<key_type>(content);
-    Matrix* content_matrix = mpi_sim_chunk->get_matrix_signal(content_key);
+    Matrix* content_matrix = mpi_sim_chunk->get_signal(content_key);
 
     MPIRecv* mpi_recv = new MPIRecv(c_src, c_tag, content_matrix);
     mpi_sim_chunk->add_mpi_recv(mpi_recv);
@@ -327,7 +310,7 @@ void PythonMpiSimulatorChunk::create_PyFunc(bpy::object py_fn, bpy::object t_in)
 void PythonMpiSimulatorChunk::create_PyFuncO(bpy::object output, bpy::object py_fn, bpy::object t_in){
 
     key_type output_key = bpy::extract<key_type>(output);
-    Matrix* output_mat = mpi_sim_chunk->get_matrix_signal(output_key);
+    Matrix* output_mat = mpi_sim_chunk->get_signal(output_key);
 
     bool c_t_in = bpy::extract<bool>(t_in);
     double* time_pointer = c_t_in ? mpi_sim_chunk->get_time_pointer() : NULL;
@@ -341,7 +324,7 @@ void PythonMpiSimulatorChunk::create_PyFuncI(
         bpy::object py_fn, bpy::object t_in, bpy::object input, bpyn::array py_input){
 
     key_type input_key = bpy::extract<key_type>(input);
-    Matrix* input_mat = mpi_sim_chunk->get_matrix_signal(input_key);
+    Matrix* input_mat = mpi_sim_chunk->get_signal(input_key);
 
     bool c_t_in = bpy::extract<bool>(t_in);
     double* time_pointer = c_t_in ? mpi_sim_chunk->get_time_pointer() : NULL;
@@ -356,10 +339,10 @@ void PythonMpiSimulatorChunk::create_PyFuncIO(
         bpy::object input, bpyn::array py_input){
 
     key_type output_key = bpy::extract<key_type>(output);
-    Matrix* output_mat = mpi_sim_chunk->get_matrix_signal(output_key);
+    Matrix* output_mat = mpi_sim_chunk->get_signal(output_key);
 
     key_type input_key = bpy::extract<key_type>(input);
-    Matrix* input_mat = mpi_sim_chunk->get_matrix_signal(input_key);
+    Matrix* input_mat = mpi_sim_chunk->get_signal(input_key);
 
     bool c_t_in = bpy::extract<bool>(t_in);
     double* time_pointer = c_t_in ? mpi_sim_chunk->get_time_pointer() : NULL;
