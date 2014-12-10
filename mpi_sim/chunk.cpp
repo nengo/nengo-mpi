@@ -26,8 +26,6 @@ void MpiSimulatorChunk::run_n_steps(int steps){
 
             //Call the operator
             (**it)();
-
-            run_dbg("After calling: " << **it << endl);
         }
 
         map<key_type, Probe<Matrix>*>::iterator probe_it;

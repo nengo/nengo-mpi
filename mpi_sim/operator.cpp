@@ -28,6 +28,13 @@ ElementwiseInc::ElementwiseInc(Matrix* A, Matrix* X, Matrix* Y)
 
         X_row_stride = X->size1() > 1 ? 1 : 0;
         X_col_stride = X->size2() > 1 ? 1 : 0;
+    }else{
+        A_row_stride = 1;
+        A_col_stride = 1;
+
+        X_row_stride = 1;
+        X_col_stride = 1;
+
     }
 }
 
@@ -85,11 +92,10 @@ void DotInc::operator() (){
 
 void ElementwiseInc::operator() (){
     if(broadcast){
-        int Y_i = 0, Y_j = 0;
         int A_i = 0, A_j = 0, X_i = 0, X_j = 0;
 
-        for(;Y_i < Y->size1(); Y_i++){
-            for(;Y_j < Y->size2(); Y_j++){
+        for(int Y_i = 0;Y_i < Y->size1(); Y_i++){
+            for(int Y_j = 0;Y_j < Y->size2(); Y_j++){
                 (*Y)(Y_i, Y_j) += (*A)(A_i, A_j) * (*X)(X_i, X_j);
                 A_j += A_col_stride;
                 X_j += X_col_stride;
@@ -223,6 +229,13 @@ string ElementwiseInc::to_string() const{
     out << *X << endl;
     out << "Y:" << endl;
     out << *Y << endl;
+
+    out << "Broadcast: " << broadcast << endl;
+    out << "A_row_stride: " << A_row_stride << endl;
+    out << "A_col_stride: " << A_col_stride << endl;
+
+    out << "X_row_stride: " << X_row_stride << endl;
+    out << "X_col_stride: " << X_col_stride << endl;
 
     return out.str();
 }
