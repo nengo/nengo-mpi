@@ -160,12 +160,17 @@ class MpiModel(builder.Model):
             model.send_signals = []
             model.recv_signals = []
 
-        logger.debug("PARTITION")
+        logger.debug("PARTITION:")
         logger.debug(partition)
+
+        neuron_partition = {}
 
         for obj, p in partition.iteritems():
 
             assert isinstance(obj, Ensemble) or isinstance(obj, Node)
+
+            if isinstance(obj, Ensemble):
+                neuron_partition[obj.neurons] = p
 
             model = models[p]
 
@@ -176,15 +181,17 @@ class MpiModel(builder.Model):
             for op in self.object_ops[obj]:
                 model.add_op(op)
 
+        partition.update(neuron_partition)
+
         for i, model in enumerate(models):
-            logger.debug("MODEL: ", i, " ", model.operators)
+            logger.debug("MODEL: %g, %s", i, model.operators)
 
         for probe in network.all_probes:
-            logger.debug("PROBE", probe)
+            logger.debug("PROBE: %s", probe)
 
             p = partition[probe.target]
-            logger.debug("partition: ", p)
-            logger.debug("probe ops: ", self.object_ops[probe])
+            logger.debug("partition: %s", p)
+            logger.debug("probe ops: %s", self.object_ops[probe])
 
             for op in self.object_ops[probe]:
                 models[p].add_op(op)
@@ -199,12 +206,12 @@ class MpiModel(builder.Model):
         connections = connections | set(network.all_connections)
 
         for conn in connections:
-            logger.debug("CONNECTION", conn)
-            logger.debug("CONNECTION PRE", conn.pre_obj)
-            logger.debug("CONNECTION PRE TYPE", type(conn.pre))
-            logger.debug("CONNECTION POST", conn.post_obj)
-            logger.debug("CONNECTION POST TYPE", type(conn.post))
-            logger.debug("CONNECTION OPS", self.object_ops[conn])
+            logger.debug("CONNECTION: %s", conn)
+            logger.debug("CONNECTION PRE: %s", conn.pre_obj)
+            logger.debug("CONNECTION PRE TYPE: %s", type(conn.pre))
+            logger.debug("CONNECTION POST: %s", conn.post_obj)
+            logger.debug("CONNECTION POST TYPE: %s", type(conn.post))
+            logger.debug("CONNECTION OPS: %s", self.object_ops[conn])
 
             pre_partition = partition[conn.pre_obj]
             post_partition = partition[conn.post_obj]
@@ -480,9 +487,9 @@ class Simulator(object):
             data = self.mpi_sim.get_probe_data(probe_key, np.empty)
 
             logger.debug("******** PROBE DATA *********")
-            logger.debug("KEY: ", probe_key)
-            logger.debug("PROBE: ", probe)
-            logger.debug("DATA SHAPE: ", np.array(data).shape)
+            logger.debug("KEY: %s", probe_key)
+            logger.debug("PROBE: %s", probe)
+            logger.debug("DATA SHAPE: %s", str(np.array(data).shape))
 
             if probe not in self._probe_outputs:
                 self._probe_outputs[probe] = data

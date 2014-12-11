@@ -20,14 +20,6 @@ def pyfunc_checks(val):
     if isinstance(val, list):
         val = np.array(val, dtype=np.float64)
 
-    elif isinstance(val, np.ndarray):
-
-        if getattr(val, 'shape', None) == ():
-            val = float(val)
-
-        elif getattr(val, 'dtype', None) != np.float64:
-            val = np.asarray(val, dtype=np.float64)
-
     elif isinstance(val, int):
         val = float(val)
 
@@ -35,9 +27,17 @@ def pyfunc_checks(val):
         if isinstance(val, np.float64):
             val = float(val)
 
-    else:
+    elif not isinstance(val, np.ndarray):
         raise ValueError(
             "python function returning unexpected value, %s" % str(val))
+
+    if isinstance(val, np.ndarray):
+        val = np.squeeze(val)
+
+        if val.size == 1:
+            val = float(val)
+        elif getattr(val, 'dtype', None) != np.float64:
+            val = np.asarray(val, dtype=np.float64)
 
     return val
 
@@ -143,9 +143,9 @@ class SimulatorChunk(object):
             __time__=np.asarray(0.0, dtype=np.float64))
 
         if model is not None:
-            logger.debug("MODEL", model)
-            logger.debug("SEND SIGNALS", model.send_signals)
-            logger.debug("RECV SIGNALS", model.recv_signals)
+            logger.debug("MODEL: %s", model)
+            logger.debug("SEND SIGNALS: %s", model.send_signals)
+            logger.debug("RECV SIGNALS: %s", model.recv_signals)
 
             for op in model.operators:
                 op.init_signals(self.signals)
@@ -187,7 +187,7 @@ class SimulatorChunk(object):
                 self._step_order.insert(read_index_last+1, mpi_recv)
 
             for sig, numpy_array in self.signals.items():
-                logger.debug("Adding signal ", sig, ", with key: ", make_key(sig))
+                logger.debug("Adding signal %s with key: %s", sig, make_key(sig))
                 self.add_signal(make_key(sig), numpy_array, str(sig))
 
             logger.debug("ALL SIGNALS ADDED")
@@ -278,6 +278,9 @@ class SimulatorChunk(object):
                                  if op.output is not None
                                  else -1)
 
+                    if op.output is not None:
+                        print "OUTPUT: ", op.output
+
                     if x is None:
                         logger.debug(
                             "Creating PyFunc, output:%d", make_key(op.output))
@@ -365,6 +368,6 @@ class SimulatorChunk(object):
                                   else probe_key)
 
         logger.debug(
-            "Python adding probe with key ", self.probe_keys[probe])
+            "Python adding probe with key %s", self.probe_keys[probe])
 
         self.mpi_chunk.create_Probe(self.probe_keys[probe], signal_key, period)
