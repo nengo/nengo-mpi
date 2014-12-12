@@ -307,6 +307,11 @@ class SimulatorChunk(object):
                                 output_id, make_checked_func(fn, t_in, True),
                                 t_in, make_key(x), x.value)
 
+                elif op_type == builder.operator.PreserveValue:
+                    logger.debug(
+                        "Skipping PreserveValue, signal: %d, signal_key: %d",
+                        str(op.dst), make_key(op.dst))
+
                 elif op_type == MpiSend:
                     signal_key = make_key(op.signal)
                     logger.debug(
