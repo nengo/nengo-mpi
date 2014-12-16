@@ -509,8 +509,8 @@ class Simulator(object):
 
     def trange(self, dt=None):
         dt = self.dt if dt is None else dt
-        n_steps = int(np.ceil(self.n_steps * self.dt / dt))
-        return dt * np.arange(0, n_steps)
+        n_steps = int(self.n_steps * (self.dt / dt))
+        return dt * np.arange(1, n_steps + 1)
 
     def reset(self):
         # TODO: clear probes in _probe_outputs

@@ -16,6 +16,11 @@ void MpiSimulatorChunk::run_n_steps(int steps){
     }
 
     for(unsigned step = 0; step < steps; ++step){
+
+        // Update time before calling operators, as refimpl does
+        n_steps++;
+        time = n_steps * dt;
+
         if(step % 100 == 0){
             cout << "Starting step: " << step << endl;
         }
@@ -36,8 +41,6 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         }
 
         run_dbg(print_signal_pointers());
-        time += dt;
-        n_steps++;
     }
 }
 
@@ -203,6 +206,7 @@ string MpiSimulatorChunk::print_signals(){
     out << "Printing signals: " << endl;
     map<key_type, Matrix*>::iterator signal_it;
     int index = 0;
+
     for(signal_it = signal_map.begin(); signal_it != signal_map.end(); ++signal_it){
         out << "Index: " << index << endl;
         out << "Label: " << signal_labels.at(signal_it->first) << endl;

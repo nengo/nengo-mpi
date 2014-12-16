@@ -187,7 +187,9 @@ class SimulatorChunk(object):
                 self._step_order.insert(read_index_last+1, mpi_recv)
 
             for sig, numpy_array in self.signals.items():
-                logger.debug("Adding signal %s with key: %s", sig, make_key(sig))
+                logger.debug(
+                    "Adding signal %s with key: %s", sig, make_key(sig))
+
                 self.add_signal(make_key(sig), numpy_array, str(sig))
 
             logger.debug("ALL SIGNALS ADDED")
@@ -230,7 +232,8 @@ class SimulatorChunk(object):
 
                 elif op_type == builder.synapses.SimFilterSynapse:
                     logger.debug(
-                        "Creating Filter, input:%d, output:%d, numer:%s, denom:%s",
+                        "Creating Filter,"
+                        " input: %d, output: %d, numer:%s, denom:%s",
                         make_key(op.input), make_key(op.output), str(op.num),
                         str(op.den))
 
@@ -315,7 +318,7 @@ class SimulatorChunk(object):
                 elif op_type == MpiSend:
                     signal_key = make_key(op.signal)
                     logger.debug(
-                        "Creating MpiSend, dst: %d, signal: %s, signal_key: %d",
+                        "Creating MpiSend, dst: %d, signal: %s, key: %d",
                         op.dst, str(op.signal), signal_key)
 
                     self.mpi_chunk.create_MPISend(
@@ -324,7 +327,7 @@ class SimulatorChunk(object):
                 elif op_type == MpiRecv:
                     signal_key = make_key(op.signal)
                     logger.debug(
-                        "Creating MpiRecv, src: %d, signal: %s, signal_key: %d",
+                        "Creating MpiRecv, src: %d, signal: %s, key: %d",
                         op.src, str(op.signal), signal_key)
 
                     self.mpi_chunk.create_MPIRecv(
