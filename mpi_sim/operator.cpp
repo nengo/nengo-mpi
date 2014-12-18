@@ -158,7 +158,7 @@ void SimLIF::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         voltage(i, 0) *= mult(i, 0);
         if (voltage(i, 0) > 1.0){
-            (*output)(i, 0) = 1.0;
+            (*output)(i, 0) = 1.0 / dt;
             overshoot = (voltage(i, 0) - 1.0) / dV(i, 0);
             refractory_time(i, 0) = tau_ref + dt * (1.0 - overshoot);
             voltage(i, 0) = 0.0;
@@ -178,7 +178,7 @@ void SimLIFRate::operator() (){
 
     for(unsigned i = 0; i < n_neurons; ++i){
         if(j(i, 0) > 0.0){
-            (*output)(i, 0) = dt / (tau_ref + tau_rc * log1p(1.0 / j(i, 0)));
+            (*output)(i, 0) = 1.0 / (tau_ref + tau_rc * log1p(1.0 / j(i, 0)));
         }else{
             (*output)(i, 0) = 0.0;
         }
