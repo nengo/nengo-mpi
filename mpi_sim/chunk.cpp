@@ -10,6 +10,8 @@ MpiSimulatorChunk::MpiSimulatorChunk(double dt)
 
 void MpiSimulatorChunk::run_n_steps(int steps){
 
+    cout << "In C++ run_n_steps: " << steps << endl;
+
     map<key_type, Probe<Matrix>*>::iterator probe_it;
     for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
         probe_it->second->init_for_simulation(steps);
@@ -36,7 +38,9 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         map<key_type, Probe<Matrix>*>::iterator probe_it;
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
-            probe_it->second->gather(step);
+            // cout << "Before gathering: " << *(probe_it->second) << endl;
+            probe_it->second->gather(n_steps);
+            //cout << "After gathering: " << *(probe_it->second) << endl;
             run_dbg("After gathering: " << *(probe_it->second) << endl);
         }
 

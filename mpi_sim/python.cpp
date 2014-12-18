@@ -162,7 +162,7 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig, bpy::
 void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, bpy::object period){
     key_type signal_key = bpy::extract<key_type>(signal);
     Matrix* signal_mat = mpi_sim_chunk->get_signal(signal_key);
-    int c_period = bpy::extract<int>(period);
+    float c_period = bpy::extract<float>(period);
 
     Probe<Matrix>* probe = new Probe<Matrix>(signal_mat, c_period);
 

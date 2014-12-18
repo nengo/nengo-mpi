@@ -15,7 +15,7 @@ template<class T>
 class Probe {
 public:
     Probe(){};
-    Probe(T* signal, int period);
+    Probe(T* signal, float period);
     void init_for_simulation(int n_steps);
     void gather(int n_steps);
     vector<T*>* get_data();
@@ -25,7 +25,8 @@ public:
 protected:
     vector<T*>* data;
     T* signal;
-    int period;
+    float period;
+    int index;
 
 private:
     friend class boost::serialization::access;
@@ -35,17 +36,20 @@ private:
         ar & data;
         ar & signal;
         ar & period;
+        ar & index;
     }
 };
 
 template<class T>
-Probe<T>::Probe(T* signal, int period)
-:signal(signal), period(period){
+Probe<T>::Probe(T* signal, float period)
+:signal(signal), period(period), index(0){
     data = new vector<T*>();
 }
 
 template<class T>
 void Probe<T>::init_for_simulation(int n_steps){
+
+    index = 0;
 
     // Initialize the probes storage resources
     if(!data->empty()){
@@ -56,18 +60,19 @@ void Probe<T>::init_for_simulation(int n_steps){
         throw logic_error(error.str());
     }
 
-    int num_samples = n_steps / period;
+    int num_samples = (int) floor(n_steps / period);
     data->resize(num_samples, NULL);
 
-    for(unsigned i = 0; i < n_steps / period; i++){
+    for(unsigned i = 0; i < num_samples; i++){
         (*data)[i] = new T(*signal);
     }
 }
 
 template<class T>
 void Probe<T>::gather(int step){
-    if(step % period == 0){
-        *((*data)[step / period]) = *signal;
+    if(fmod(step,  period) < 1){
+        *((*data)[index]) = *signal;
+        index++;
     }
 }
 
@@ -93,10 +98,12 @@ ostream& operator << (ostream &out, const Probe<T> &probe){
 
     out << "Signal pointer: " << probe.signal << endl;
 
+    out << "Index: " << probe.index << endl;
+
     out << "Data: " << endl;
-    for(unsigned i = 0; i < (probe.data)->size(); i++){
-         out << "index: " << i << ", signal: " << *((*(probe.data))[i]) << endl;
-    }
+    //for(unsigned i = 0; i < (probe.data)->size(); i++){
+    //     out << "index: " << i << ", signal: " << *((*(probe.data))[i]) << endl;
+    //}
 
     return out;
 }

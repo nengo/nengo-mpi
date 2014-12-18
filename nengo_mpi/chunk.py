@@ -368,7 +368,7 @@ class SimulatorChunk(object):
 
     def add_probe(self, probe, signal_key, probe_key=None, sample_every=None):
 
-        period = 1 if sample_every is None else int(sample_every / self.dt)
+        period = 1 if sample_every is None else sample_every / self.dt
 
         self._probe_outputs[probe] = []
         self.probe_keys[probe] = (make_key(probe)
