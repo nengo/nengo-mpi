@@ -238,7 +238,7 @@ class SimulatorChunk(object):
 
                     synapse = op.synapse
 
-                    def adjust(num, den, dt, method='zoh'):
+                    def adjust(op, synapse, num, den, dt, method='zoh'):
                         num, den, _ = cont2discrete(
                             (num, den), dt, method=method)
                         num = num.flatten()
@@ -255,16 +255,18 @@ class SimulatorChunk(object):
                             make_key(op.output),
                             str(synapse.num), str(synapse.den))
 
-                        #if ((isinstance(synapse, Alpha) or
-                        #        isinstance(synapse, Lowpass)) and
-                        #        synapse.tau <= .03 * dt):
+                        if ((isinstance(synapse, Alpha) or
+                                isinstance(synapse, Lowpass)) and
+                                synapse.tau <= .03 * dt):
 
-                        #    self.mpi_chunk.create_SimpleSynapse(
-                        #        make_key(synapse.output), 1.0)
+                            self.mpi_chunk.create_Synapse(
+                                make_key(op.input), make_key(op.output),
+                                list(synapse.num), list(synapse.den))
 
-                        #else:
+                            continue
 
-                        num, den = adjust(synapse.num, synapse.den, dt)
+                        num, den = adjust(
+                            op, synapse, synapse.num, synapse.den, dt)
 
                         self.mpi_chunk.create_Synapse(
                             make_key(op.input), make_key(op.output),
@@ -272,8 +274,8 @@ class SimulatorChunk(object):
 
                     else:
                         raise NotImplementedError(
-                            'nengo_mpi cannot handle synapses of type ' +
-                            str(type(synapse)))
+                            'nengo_mpi cannot handle synapses of '
+                            'type %s' % str(type(synapse)))
 
                 elif op_type == builder.neurons.SimNeurons:
                     n_neurons = op.J.size
