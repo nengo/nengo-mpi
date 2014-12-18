@@ -186,12 +186,12 @@ private:
     }
 };
 
-class Filter: public Operator{
+class Synapse: public Operator{
 
 public:
-    Filter(){};
-    Filter(Matrix* input, Matrix* output, Matrix* numer, Matrix* denom);
-    string classname() const { return "Filter"; }
+    Synapse(){};
+    Synapse(Matrix* input, Matrix* output, Matrix* numer, Matrix* denom);
+    string classname() const { return "Synapse"; }
 
     void operator()();
     virtual string to_string() const;

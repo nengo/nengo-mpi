@@ -218,7 +218,7 @@ void PythonMpiSimulatorChunk::create_ElementwiseInc(bpy::object A, bpy::object X
     mpi_sim_chunk->add_operator(dot_inc);
 }
 
-void PythonMpiSimulatorChunk::create_Filter(bpy::object input, bpy::object output,
+void PythonMpiSimulatorChunk::create_Synapse(bpy::object input, bpy::object output,
                                             bpy::list numer, bpy::list denom){
 
     key_type input_key = bpy::extract<key_type>(input);
@@ -230,8 +230,8 @@ void PythonMpiSimulatorChunk::create_Filter(bpy::object input, bpy::object outpu
     Matrix* numer_mat = list_to_matrix(numer);
     Matrix* denom_mat = list_to_matrix(denom);
 
-    Operator* filter = new Filter(input_mat, output_mat, numer_mat, denom_mat);
-    mpi_sim_chunk->add_operator(filter);
+    Operator* synapse = new Synapse(input_mat, output_mat, numer_mat, denom_mat);
+    mpi_sim_chunk->add_operator(synapse);
 }
 
 void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object tau_rc,
@@ -421,7 +421,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("create_Copy", &PythonMpiSimulatorChunk::create_Copy)
         .def("create_DotInc", &PythonMpiSimulatorChunk::create_DotInc)
         .def("create_ElementwiseInc", &PythonMpiSimulatorChunk::create_ElementwiseInc)
-        .def("create_Filter", &PythonMpiSimulatorChunk::create_Filter)
+        .def("create_Synapse", &PythonMpiSimulatorChunk::create_Synapse)
         .def("create_SimLIF", &PythonMpiSimulatorChunk::create_SimLIF)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)

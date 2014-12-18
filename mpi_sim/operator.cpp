@@ -38,7 +38,7 @@ ElementwiseInc::ElementwiseInc(Matrix* A, Matrix* X, Matrix* Y)
     }
 }
 
-Filter::Filter(Matrix* input, Matrix* output,
+Synapse::Synapse(Matrix* input, Matrix* output,
                Matrix* numer, Matrix* denom)
 :input(input), output(output), numer(numer), denom(denom){
 
@@ -112,7 +112,7 @@ void ElementwiseInc::operator() (){
     run_dbg(*this);
 }
 
-void Filter::operator() (){
+void Synapse::operator() (){
     for(int i = 0; i < input->size1(); i++){
 
         x[i].push_front((*input)(i, 0));
@@ -240,10 +240,10 @@ string ElementwiseInc::to_string() const{
     return out.str();
 }
 
-string Filter::to_string() const{
+string Synapse::to_string() const{
     stringstream out;
 
-    out << "Filter:" << endl;
+    out << "Synapse:" << endl;
 
     out << "input:" << endl;
     out << *input << endl;

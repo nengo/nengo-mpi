@@ -120,7 +120,7 @@ private:
         ar.template register_type<ElementwiseInc>();
         ar.template register_type<SimLIF>();
         ar.template register_type<SimLIFRate>();
-        ar.template register_type<Filter>();
+        ar.template register_type<Synapse>();
         ar.template register_type<MPISend>();
         ar.template register_type<MPIRecv>();
         ar.template register_type<MPIWait>();

@@ -2,6 +2,8 @@
 
 from nengo import builder
 from nengo.neurons import LIF, LIFRate
+from nengo.synapses import LinearFilter, Lowpass, Alpha
+from nengo.utils.filter_design import cont2discrete
 from nengo.utils.graphs import toposort
 from nengo.utils.simulator import operator_depencency_graph
 
@@ -121,7 +123,9 @@ class MpiWait(builder.operator.Operator):
 
 class SimulatorChunk(object):
 
-    def __init__(self, mpi_chunk, model=None, dt=0.001, probe_keys=None, probe_outputs=None):
+    def __init__(
+            self, mpi_chunk, model=None, dt=0.001, probe_keys=None,
+            probe_outputs=None):
 
         self.model = model
 
@@ -230,16 +234,46 @@ class SimulatorChunk(object):
                     self.mpi_chunk.create_ElementwiseInc(
                         make_key(op.A), make_key(op.X), make_key(op.Y))
 
-                elif op_type == builder.synapses.SimFilterSynapse:
-                    logger.debug(
-                        "Creating Filter,"
-                        " input: %d, output: %d, numer:%s, denom:%s",
-                        make_key(op.input), make_key(op.output), str(op.num),
-                        str(op.den))
+                elif op_type == builder.synapses.SimSynapse:
 
-                    self.mpi_chunk.create_Filter(
-                        make_key(op.input), make_key(op.output),
-                        op.num, op.den)
+                    synapse = op.synapse
+
+                    def adjust(num, den, dt, method='zoh'):
+                        num, den, _ = cont2discrete(
+                            (num, den), dt, method=method)
+                        num = num.flatten()
+                        num = num[1:] if num[0] == 0 else num
+                        den = den[1:]  # drop first element (equal to 1)
+
+                        return num, den
+
+                    if isinstance(synapse, LinearFilter):
+                        logger.debug(
+                            "Creating %s synapse,"
+                            " input: %d, output: %d, numer:%s, denom:%s",
+                            type(synapse), make_key(op.input),
+                            make_key(op.output),
+                            str(synapse.num), str(synapse.den))
+
+                        #if ((isinstance(synapse, Alpha) or
+                        #        isinstance(synapse, Lowpass)) and
+                        #        synapse.tau <= .03 * dt):
+
+                        #    self.mpi_chunk.create_SimpleSynapse(
+                        #        make_key(synapse.output), 1.0)
+
+                        #else:
+
+                        num, den = adjust(synapse.num, synapse.den, dt)
+
+                        self.mpi_chunk.create_Synapse(
+                            make_key(op.input), make_key(op.output),
+                            list(num), list(den))
+
+                    else:
+                        raise NotImplementedError(
+                            'nengo_mpi cannot handle synapses of type ' +
+                            str(type(synapse)))
 
                 elif op_type == builder.neurons.SimNeurons:
                     n_neurons = op.J.size
@@ -343,7 +377,8 @@ class SimulatorChunk(object):
 
                 else:
                     raise NotImplementedError(
-                        'nengo_mpi cannot handle operator of type ' + str(op_type))
+                        'nengo_mpi cannot handle operator of '
+                        'type %s' % str(op_type))
 
                 if hasattr(op, 'tag'):
                     logger.debug("op.tag: %s", op.tag)

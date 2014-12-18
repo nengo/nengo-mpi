@@ -74,7 +74,7 @@ public:
 
     void create_ElementwiseInc(bpy::object A, bpy::object X, bpy::object Y);
 
-    void create_Filter(bpy::object input, bpy::object output,
+    void create_Synapse(bpy::object input, bpy::object output,
                        bpy::list numer, bpy::list denom);
 
     void create_SimLIF(bpy::object n_neurons, bpy::object tau_rc,
