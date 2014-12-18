@@ -285,6 +285,22 @@ void PythonMpiSimulatorChunk::create_SimRectifiedLinear(bpy::object n_neurons,
     mpi_sim_chunk->add_operator(sim_rectified_linear);
 }
 
+void PythonMpiSimulatorChunk::create_SimSigmoid(bpy::object n_neurons,
+        bpy::object tau_ref, bpy::object J, bpy::object output){
+
+    int c_n_neurons = bpy::extract<int>(n_neurons);
+    float c_tau_ref = bpy::extract<float>(tau_ref);
+
+    key_type J_key = bpy::extract<key_type>(J);
+    key_type output_key = bpy::extract<key_type>(output);
+
+    Matrix* J_mat = mpi_sim_chunk->get_signal(J_key);
+    Matrix* output_mat = mpi_sim_chunk->get_signal(output_key);
+
+    Operator* sim_sigmoid = new SimSigmoid(c_n_neurons, c_tau_ref, J_mat, output_mat);
+    mpi_sim_chunk->add_operator(sim_sigmoid);
+}
+
 void PythonMpiSimulatorChunk::create_MPISend(bpy::object dst, bpy::object tag, bpy::object content){
     int c_dst = bpy::extract<int>(dst);
     int c_tag = bpy::extract<int>(tag);
@@ -440,6 +456,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("create_SimLIF", &PythonMpiSimulatorChunk::create_SimLIF)
         .def("create_SimLIFRate", &PythonMpiSimulatorChunk::create_SimLIFRate)
         .def("create_SimRectifiedLinear", &PythonMpiSimulatorChunk::create_SimRectifiedLinear)
+        .def("create_SimSigmoid", &PythonMpiSimulatorChunk::create_SimSigmoid)
         .def("create_MPISend", &PythonMpiSimulatorChunk::create_MPISend)
         .def("create_MPIRecv", &PythonMpiSimulatorChunk::create_MPIRecv)
         .def("create_MPIWait", &PythonMpiSimulatorChunk::create_MPIWait)

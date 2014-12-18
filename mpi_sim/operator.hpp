@@ -374,6 +374,40 @@ private:
     }
 };
 
+class SimSigmoid: public Operator{
+public:
+    SimSigmoid(){};
+    SimSigmoid(int n_neurons, float tau_ref, Matrix* J, Matrix* output);
+    string classname() const { return "SimSigmoid"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    int n_neurons;
+    float tau_ref;
+    float tau_ref_inv;
+
+    Matrix* J;
+    Matrix* output;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
+        ar & boost::serialization::base_object<Operator>(*this);
+        ar & n_neurons;
+        ar & tau_ref;
+        ar & tau_ref_inv;
+
+        ar & J;
+        ar & output;
+    }
+};
 
 
 #endif

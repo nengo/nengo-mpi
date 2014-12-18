@@ -88,6 +88,9 @@ public:
     void create_SimRectifiedLinear(bpy::object n_neurons, bpy::object J,
                                    bpy::object output);
 
+    void create_SimSigmoid(bpy::object n_neurons, bpy::object tau_ref, bpy::object J,
+                           bpy::object output);
+
     void create_MPISend(bpy::object dst, bpy::object tag, bpy::object content);
     void create_MPIRecv(bpy::object src, bpy::object tag, bpy::object content);
     void create_MPIWait(bpy::object content);

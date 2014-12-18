@@ -121,6 +121,7 @@ private:
         ar.template register_type<SimLIF>();
         ar.template register_type<SimLIFRate>();
         ar.template register_type<SimRectifiedLinear>();
+        ar.template register_type<SimSigmoid>();
         ar.template register_type<Synapse>();
         ar.template register_type<MPISend>();
         ar.template register_type<MPIRecv>();

@@ -71,6 +71,9 @@ tau_ref(tau_ref), J(J), output(output){
 SimRectifiedLinear::SimRectifiedLinear(int n_neurons, Matrix* J, Matrix* output)
 :n_neurons(n_neurons), J(J), output(output){}
 
+SimSigmoid::SimSigmoid(int n_neurons, float tau_ref, Matrix* J, Matrix* output)
+:n_neurons(n_neurons), tau_ref(tau_ref), tau_ref_inv(1.0 / tau_ref), J(J), output(output){}
+
 // Function operator overloads
 void Reset::operator() (){
 
@@ -194,6 +197,14 @@ void SimRectifiedLinear::operator() (){
     run_dbg(*this);
 }
 
+void SimSigmoid::operator() (){
+    for(unsigned i = 0; i < n_neurons; ++i){
+        (*output)(i, 0) = tau_ref_inv / (1.0 + exp(-(*J)(i, 0)));
+    }
+
+    run_dbg(*this);
+}
+
 //to_string
 string Reset::to_string() const {
     stringstream out;
@@ -312,6 +323,7 @@ string SimLIFRate::to_string() const{
     out << *J << endl;
     out << "output:" << endl;
     out << *output << endl;
+
     return out.str();
 }
 
@@ -324,5 +336,20 @@ string SimRectifiedLinear::to_string() const{
     out << *J << endl;
     out << "output:" << endl;
     out << *output << endl;
+
+    return out.str();
+}
+
+string SimSigmoid::to_string() const{
+    stringstream out;
+
+    out << "SimSigmoid:" << endl;
+    out << "n_neurons: " << n_neurons << endl;
+    out << "tau_ref: " << tau_ref << endl;
+    out << "J:" << endl;
+    out << *J << endl;
+    out << "output:" << endl;
+    out << *output << endl;
+
     return out.str();
 }
