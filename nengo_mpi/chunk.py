@@ -1,7 +1,7 @@
 """Build an MpiSimulatorChunk that can be manipulated from Python"""
 
 from nengo import builder
-from nengo.neurons import LIF, LIFRate
+from nengo.neurons import LIF, LIFRate, RectifiedLinear
 from nengo.synapses import LinearFilter, Lowpass, Alpha
 from nengo.utils.filter_design import cont2discrete
 from nengo.utils.graphs import toposort
@@ -301,6 +301,16 @@ class SimulatorChunk(object):
                         self.mpi_chunk.create_SimLIFRate(
                             n_neurons, tau_rc, tau_ref, self.dt,
                             make_key(op.J), make_key(op.output))
+
+                    elif type(op.neurons) is RectifiedLinear:
+                        logger.debug(
+                            "Creating RectifiedLinear, N: %d, J:%d, output:%d",
+                            n_neurons, make_key(op.J), make_key(op.output))
+
+                        print "n_neurons: ", n_neurons
+
+                        self.mpi_chunk.create_SimRectifiedLinear(
+                            n_neurons, make_key(op.J), make_key(op.output))
                     else:
                         raise NotImplementedError(
                             'nengo_mpi cannot handle neurons of type ' +

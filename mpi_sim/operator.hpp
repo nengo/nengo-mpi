@@ -343,4 +343,37 @@ private:
     }
 };
 
+class SimRectifiedLinear: public Operator{
+public:
+    SimRectifiedLinear(){};
+    SimRectifiedLinear(int n_neurons, Matrix* J, Matrix* output);
+    string classname() const { return "SimRectifiedLinear"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    int n_neurons;
+
+    Matrix* J;
+    Matrix* output;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+
+        dbg("Serializing: " << classname());
+
+        ar & boost::serialization::base_object<Operator>(*this);
+        ar & n_neurons;
+
+        ar & J;
+        ar & output;
+    }
+};
+
+
+
 #endif

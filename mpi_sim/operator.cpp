@@ -68,8 +68,10 @@ tau_ref(tau_ref), J(J), output(output){
     one = ScalarMatrix(n_neurons, 1, 1.0);
 }
 
-// Function operator overloads
+SimRectifiedLinear::SimRectifiedLinear(int n_neurons, Matrix* J, Matrix* output)
+:n_neurons(n_neurons), J(J), output(output){}
 
+// Function operator overloads
 void Reset::operator() (){
 
     *dst = dummy;
@@ -177,6 +179,16 @@ void SimLIFRate::operator() (){
         }else{
             (*output)(i, 0) = 0.0;
         }
+    }
+
+    run_dbg(*this);
+}
+
+void SimRectifiedLinear::operator() (){
+    float j = 0;
+    for(unsigned i = 0; i < n_neurons; ++i){
+        j = (*J)(i, 0);
+        (*output)(i, 0) = j > 0.0 ? j : 0.0;
     }
 
     run_dbg(*this);
@@ -303,3 +315,14 @@ string SimLIFRate::to_string() const{
     return out.str();
 }
 
+string SimRectifiedLinear::to_string() const{
+    stringstream out;
+
+    out << "SimRectifiedLinear:" << endl;
+    out << "n_neurons: " << n_neurons << endl;
+    out << "J:" << endl;
+    out << *J << endl;
+    out << "output:" << endl;
+    out << *output << endl;
+    return out.str();
+}
