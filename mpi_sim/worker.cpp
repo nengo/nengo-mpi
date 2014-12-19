@@ -42,13 +42,11 @@ int main(int argc, char *argv[]) {
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
 
-#ifdef DEBUG
     cout << "I'm child process rank "<< my_id << " and we are " << numprocs << endl;
     cout << "The parent process has rank "<< parent_id << " and has size " << parent_size << endl;
 
     cout << "Child " << my_id << " host: " << name << endl;
     cout << "Child " << my_id << " rank in merged communicator: " << comm.rank() << endl;
-#endif
 
     MpiSimulatorChunk chunk;
 
@@ -71,8 +69,6 @@ int main(int argc, char *argv[]) {
     for(recv_it = chunk.mpi_recvs.begin(); recv_it != chunk.mpi_recvs.end(); ++recv_it){
         recv_it->second->comm = &comm;
     }
-
-    dbg("Child " << my_id << " mpi ops: " << endl << chunk.print_maps());
 
     // Wait for the signal to run the simulation
     int steps;

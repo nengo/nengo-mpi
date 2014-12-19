@@ -69,7 +69,17 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulator
         dbg(remote_string << endl);
 
         original_string = (**it).to_string();
-        assert(original_string == remote_string);
+
+        if (original_string != remote_string){
+            cerr << "Error sending chunk " << chunk_index
+                 << ". Master string does not match remote string." << endl;
+            cerr << "Master string: " << endl;
+            cerr << original_string << endl;
+            cerr << "Remote string: " << endl;
+            cerr << remote_string << endl;
+
+            throw exception();
+        }
 
         cout << "Chunk " << chunk_index << " sent successfully." << endl;
 

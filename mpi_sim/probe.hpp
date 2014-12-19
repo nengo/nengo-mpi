@@ -96,8 +96,6 @@ ostream& operator << (ostream &out, const Probe<T> &probe){
 
     out << "Probed signal: " << *(probe.signal) << endl;
 
-    out << "Signal pointer: " << probe.signal << endl;
-
     out << "Index: " << probe.index << endl;
 
     out << "Data: " << endl;
