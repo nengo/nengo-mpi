@@ -150,6 +150,7 @@ class SimulatorChunk(object):
             logger.debug("MODEL: %s", model)
             logger.debug("SEND SIGNALS: %s", model.send_signals)
             logger.debug("RECV SIGNALS: %s", model.recv_signals)
+            logger.debug("OPS: %s", self.model.operators)
 
             for op in model.operators:
                 op.init_signals(self.signals)

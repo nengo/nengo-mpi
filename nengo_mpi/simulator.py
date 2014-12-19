@@ -23,6 +23,53 @@ logger = logging.getLogger(__name__)
 nengo.log(debug=False, path=None)
 
 
+def nice_str(lst):
+    return '[%s]' % '\n '.join(map(str, lst))
+
+
+def split_connection(conn_ops, signal):
+    """
+    Split the operators belonging to a connection into a
+    ``pre'' group and a ``post'' group. The connection is assumed
+    to contain exactly 1 operation performing an update, which
+    is assigned to the pre group. All ops that write to signals
+    which are read by this updating op are assumed to belong to
+    the pre group (as are all ops that write to signals which
+    *those* ops read from, etc.). The remaining ops are assigned
+    to the post group.
+    """
+
+    pre_ops = []
+
+    for op in conn_ops:
+        if signal in op.updates:
+            pre_ops.append(op)
+
+    assert len(pre_ops) == 1
+
+    reads = pre_ops[0].reads
+
+    post_ops = filter(
+        lambda op: op not in pre_ops, conn_ops)
+
+    changed = True
+    while changed:
+        changed = []
+
+        for op in post_ops:
+            writes = set(op.incs) | set(op.sets)
+
+            if writes & set(reads):
+                pre_ops.append(op)
+                reads.extend(op.reads)
+                changed.append(op)
+
+        post_ops = filter(
+            lambda op: op not in changed, post_ops)
+
+    return pre_ops, post_ops
+
+
 def make_builder(base):
     """
     Create a version of an existing builder function whose only difference
@@ -102,12 +149,12 @@ class MpiModel(builder.Model):
         """
         self.object_ops[self._object_context[-1]].append(op)
 
-        logger.debug("*************************")
-        logger.debug("Adding operator to model.")
-        logger.debug("Operator: %s", str(op))
-        logger.debug(
-            "As part of nengo object: %s",
-            str(self._object_context[-1]))
+        #logger.debug("*************************")
+        #logger.debug("Adding operator to model.")
+        #logger.debug("Operator: %s", str(op))
+        #logger.debug(
+        #    "As part of nengo object: %s",
+        #    str(self._object_context[-1]))
 
         super(MpiModel, self).add_op(op)
 
@@ -165,6 +212,8 @@ class MpiModel(builder.Model):
 
         neuron_partition = {}
 
+        logger.debug("OBJECT_OPS: ")
+
         for obj, p in partition.iteritems():
 
             assert isinstance(obj, Ensemble) or isinstance(obj, Node)
@@ -174,24 +223,28 @@ class MpiModel(builder.Model):
 
             model = models[p]
 
-            logger.debug("OBJECT_OPS")
-            logger.debug(obj)
-            logger.debug(self.object_ops[obj])
-
             for op in self.object_ops[obj]:
                 model.add_op(op)
+
+            logger.debug("*" * 40)
+            logger.debug("Object: %s", obj)
+            logger.debug("Ops: ")
+            logger.debug(nice_str(self.object_ops[obj]))
 
         partition.update(neuron_partition)
 
         for i, model in enumerate(models):
-            logger.debug("MODEL: %g, %s", i, model.operators)
+            logger.debug("*" * 40)
+            logger.debug("MODEL: %g", i)
+            logger.debug("OPERATORS:")
+            logger.debug(nice_str(model.operators))
 
         for probe in network.all_probes:
             logger.debug("PROBE: %s", probe)
 
             p = partition[probe.target]
             logger.debug("partition: %s", p)
-            logger.debug("probe ops: %s", self.object_ops[probe])
+            logger.debug("probe ops: %s", nice_str(self.object_ops[probe]))
 
             for op in self.object_ops[probe]:
                 models[p].add_op(op)
@@ -211,7 +264,8 @@ class MpiModel(builder.Model):
             logger.debug("CONNECTION PRE TYPE: %s", type(conn.pre))
             logger.debug("CONNECTION POST: %s", conn.post_obj)
             logger.debug("CONNECTION POST TYPE: %s", type(conn.post))
-            logger.debug("CONNECTION OPS: %s", self.object_ops[conn])
+            logger.debug(
+                "CONNECTION OPS: %s", nice_str(self.object_ops[conn]))
 
             pre_partition = partition[conn.pre_obj]
             post_partition = partition[conn.post_obj]
@@ -223,15 +277,12 @@ class MpiModel(builder.Model):
                 for op in self.object_ops[conn]:
                     model.add_op(op)
             else:
+                # conn crosses partition boundaries
 
-                # This is a connection that spans partitions
                 if conn.modulatory:
                     raise Exception(
                         "Connections crossing partition boundaries "
                         "must not be modulatory.")
-
-                #if (isinstance(conn.pre_obj, Ensemble) and
-                #        'synapse_out' in self.sig[conn]):
 
                 if 'synapse_out' in self.sig[conn]:
                     signal = self.sig[conn]['synapse_out']
@@ -246,11 +297,11 @@ class MpiModel(builder.Model):
                 models[post_partition].recv_signals.append(
                     (signal, pre_partition))
 
-                pre_ops = [op for op in self.object_ops[conn]
-                           if signal in op.updates]
+                pre_ops, post_ops = split_connection(
+                    self.object_ops[conn], signal)
 
-                post_ops = filter(
-                    lambda op: op not in pre_ops, self.object_ops[conn])
+                logger.debug("PRE OPS: %s", nice_str(pre_ops))
+                logger.debug("POST OPS: %s", nice_str(post_ops))
 
                 for op in pre_ops:
                     models[pre_partition].add_op(op)
@@ -353,8 +404,8 @@ class PartitionInfo(object):
     kwargs: extra keyword args passed to func
     """
 
-    def __init__(self, num_partitions=None, func=None,
-                 fixed_nodes=None, *args, **kwargs):
+    def __init__(self, num_partitions=None, fixed_nodes=None,
+                 func=None, *args, **kwargs):
 
         if num_partitions is None:
             self.num_partitions = 1
@@ -442,7 +493,6 @@ class Simulator(object):
             self.model = MpiModel(
                 dt=dt, label="%s, dt=%f" % (network, dt),
                 decoder_cache=get_default_decoder_cache())
-
         elif not isinstance(model, MpiModel):
             self.model = MpiModel()
             self.model.from_refimpl_model(model)
