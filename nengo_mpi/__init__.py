@@ -1,1 +1,2 @@
-from simulator import Simulator, PartitionInfo
+from simulator import Simulator
+from partition import Partitioner
