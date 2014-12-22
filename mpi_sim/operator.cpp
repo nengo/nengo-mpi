@@ -59,9 +59,9 @@ dt_inv(1.0 / dt), J(J), output(output){
     dt_vec = dt * one;
 }
 
-SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref,
-                       floattype dt, Matrix* J, Matrix* output)
-:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc),
+SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc,
+                       floattype tau_ref, Matrix* J, Matrix* output)
+:n_neurons(n_neurons), tau_rc(tau_rc),
 tau_ref(tau_ref), J(J), output(output){
 
     j = Matrix(n_neurons, 1);
@@ -158,7 +158,7 @@ void SimLIF::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         voltage(i, 0) *= mult(i, 0);
         if (voltage(i, 0) > 1.0){
-            (*output)(i, 0) = 1.0 / dt;
+            (*output)(i, 0) = dt_inv;
             overshoot = (voltage(i, 0) - 1.0) / dV(i, 0);
             refractory_time(i, 0) = tau_ref + dt * (1.0 - overshoot);
             voltage(i, 0) = 0.0;

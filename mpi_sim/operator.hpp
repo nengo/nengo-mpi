@@ -303,14 +303,13 @@ class SimLIFRate: public Operator{
 
 public:
     SimLIFRate(){};
-    SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, floattype dt, Matrix* J, Matrix* output);
+    SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, Matrix* J, Matrix* output);
     string classname() const { return "SimLIFRate"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    floattype dt;
     floattype tau_rc;
     floattype tau_ref;
     int n_neurons;
@@ -330,7 +329,6 @@ private:
         dbg("Serializing: " << classname());
 
         ar & boost::serialization::base_object<Operator>(*this);
-        ar & dt;
         ar & tau_rc;
         ar & tau_ref;
         ar & n_neurons;

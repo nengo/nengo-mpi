@@ -1,17 +1,16 @@
 #include "simulator.hpp"
 
-
 MpiSimulator::MpiSimulator():
     master_chunk(NULL), chunk_index(0){
 }
 
 // The first chunk is kept on the master process,
 // subsequent chunks will be sent out to other processes.
-MpiSimulatorChunk* MpiSimulator::add_chunk(){
+MpiSimulatorChunk* MpiSimulator::add_chunk(double dt){
 
     stringstream s;
     s << "Chunk " << chunk_index;
-    MpiSimulatorChunk* chunk = new MpiSimulatorChunk(s.str());
+    MpiSimulatorChunk* chunk = new MpiSimulatorChunk(s.str(), dt);
 
     if(master_chunk == NULL){
         master_chunk = chunk;

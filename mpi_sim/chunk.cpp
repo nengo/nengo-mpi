@@ -1,15 +1,11 @@
 #include "chunk.hpp"
 
 MpiSimulatorChunk::MpiSimulatorChunk()
-    :time(0.0), dt(dt), n_steps(0){
+    :time(0.0), dt(0.001), n_steps(0){
 }
 
-MpiSimulatorChunk::MpiSimulatorChunk(string label)
-    :time(0.0), dt(0.001), n_steps(0), label(label){
-}
-
-MpiSimulatorChunk::MpiSimulatorChunk(double dt)
-    :time(0.0), dt(dt), n_steps(0){
+MpiSimulatorChunk::MpiSimulatorChunk(string label, float dt)
+    :time(0.0), label(label), dt(dt), n_steps(0){
 }
 
 void MpiSimulatorChunk::run_n_steps(int steps){

@@ -25,7 +25,7 @@ public:
 
     const string classname() { return "MpiSimulator"; }
 
-    MpiSimulatorChunk* add_chunk();
+    MpiSimulatorChunk* add_chunk(double dt);
 
     // After this is called, chunks cannot be added.
     // Must be called before run_n_steps

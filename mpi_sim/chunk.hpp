@@ -28,8 +28,7 @@ class MpiSimulatorChunk{
 
 public:
     MpiSimulatorChunk();
-    MpiSimulatorChunk(string label);
-    MpiSimulatorChunk(double dt);
+    MpiSimulatorChunk(string label, float dt);
     const string classname() { return "MpiSimulatorChunk"; }
 
     // Run an integer number of steps. Called by a
@@ -97,7 +96,7 @@ public:
 private:
     string label;
     double time;
-    double dt;
+    float dt;
     int n_steps;
     map<key_type, Matrix*> signal_map;
     map<key_type, string> signal_labels;

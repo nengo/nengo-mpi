@@ -299,7 +299,7 @@ class SimulatorChunk(object):
                             n_neurons, make_key(op.J), make_key(op.output))
 
                         self.mpi_chunk.create_SimLIFRate(
-                            n_neurons, tau_rc, tau_ref, self.dt,
+                            n_neurons, tau_rc, tau_ref,
                             make_key(op.J), make_key(op.output))
 
                     elif type(op.neurons) is RectifiedLinear:

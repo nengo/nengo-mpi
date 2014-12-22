@@ -70,8 +70,9 @@ string PythonMpiSimulator::to_string() const{
     return mpi_sim.to_string();
 }
 
-PythonMpiSimulatorChunk* PythonMpiSimulator::add_chunk(){
-    MpiSimulatorChunk* mpi_sim_chunk = mpi_sim.add_chunk();
+PythonMpiSimulatorChunk* PythonMpiSimulator::add_chunk(bpy::object dt){
+    floattype c_dt = bpy::extract<floattype>(dt);
+    MpiSimulatorChunk* mpi_sim_chunk = mpi_sim.add_chunk(c_dt);
     PythonMpiSimulatorChunk* py_chunk = new PythonMpiSimulatorChunk(mpi_sim_chunk);
     py_chunks.push_back(py_chunk);
     return py_chunk;
@@ -162,7 +163,7 @@ void PythonMpiSimulatorChunk::add_signal(bpy::object key, bpyn::array sig, bpy::
 void PythonMpiSimulatorChunk::create_Probe(bpy::object key, bpy::object signal, bpy::object period){
     key_type signal_key = bpy::extract<key_type>(signal);
     Matrix* signal_mat = mpi_sim_chunk->get_signal(signal_key);
-    float c_period = bpy::extract<float>(period);
+    floattype c_period = bpy::extract<floattype>(period);
 
     Probe<Matrix>* probe = new Probe<Matrix>(signal_mat, c_period);
 
@@ -253,12 +254,11 @@ void PythonMpiSimulatorChunk::create_SimLIF(bpy::object n_neurons, bpy::object t
 }
 
 void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc,
-    bpy::object tau_ref, bpy::object dt, bpy::object J, bpy::object output){
+    bpy::object tau_ref, bpy::object J, bpy::object output){
 
     int c_n_neurons = bpy::extract<int>(n_neurons);
     floattype c_tau_rc = bpy::extract<floattype>(tau_rc);
     floattype c_tau_ref = bpy::extract<floattype>(tau_ref);
-    floattype c_dt = bpy::extract<floattype>(dt);
 
     key_type J_key = bpy::extract<key_type>(J);
     key_type output_key = bpy::extract<key_type>(output);
@@ -266,7 +266,7 @@ void PythonMpiSimulatorChunk::create_SimLIFRate(bpy::object n_neurons, bpy::obje
     Matrix* J_mat = mpi_sim_chunk->get_signal(J_key);
     Matrix* output_mat = mpi_sim_chunk->get_signal(output_key);
 
-    Operator* sim_lif_rate = new SimLIFRate(c_n_neurons, c_tau_rc, c_tau_ref, c_dt, J_mat, output_mat);
+    Operator* sim_lif_rate = new SimLIFRate(c_n_neurons, c_tau_rc, c_tau_ref, J_mat, output_mat);
     mpi_sim_chunk->add_operator(sim_lif_rate);
 }
 
@@ -289,7 +289,7 @@ void PythonMpiSimulatorChunk::create_SimSigmoid(bpy::object n_neurons,
         bpy::object tau_ref, bpy::object J, bpy::object output){
 
     int c_n_neurons = bpy::extract<int>(n_neurons);
-    float c_tau_ref = bpy::extract<float>(tau_ref);
+    floattype c_tau_ref = bpy::extract<floattype>(tau_ref);
 
     key_type J_key = bpy::extract<key_type>(J);
     key_type output_key = bpy::extract<key_type>(output);

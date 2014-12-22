@@ -207,7 +207,7 @@ class Simulator(object):
         models = partitioner.partition(self.model, network)
 
         for model in models:
-            mpi_chunk = self.mpi_sim.add_chunk()
+            mpi_chunk = self.mpi_sim.add_chunk(dt)
 
             chunk.SimulatorChunk(
                 mpi_chunk, model, dt, self.probe_keys, self._probe_outputs)

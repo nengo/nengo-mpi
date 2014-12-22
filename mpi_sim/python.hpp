@@ -32,7 +32,7 @@ public:
 
     string to_string() const;
 
-    PythonMpiSimulatorChunk* add_chunk();
+    PythonMpiSimulatorChunk* add_chunk(bpy::object dt);
 
     void finalize();
 
@@ -82,8 +82,7 @@ public:
                        bpy::object output);
 
     void create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc,
-                           bpy::object tau_ref, bpy::object dt, bpy::object J,
-                           bpy::object output);
+                           bpy::object tau_ref, bpy::object J, bpy::object output);
 
     void create_SimRectifiedLinear(bpy::object n_neurons, bpy::object J,
                                    bpy::object output);
