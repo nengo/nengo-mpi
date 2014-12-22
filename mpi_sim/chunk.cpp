@@ -1,7 +1,11 @@
 #include "chunk.hpp"
 
 MpiSimulatorChunk::MpiSimulatorChunk()
-    :time(0.0), dt(0.001), n_steps(0) {
+    :time(0.0), dt(dt), n_steps(0){
+}
+
+MpiSimulatorChunk::MpiSimulatorChunk(string label)
+    :time(0.0), dt(0.001), n_steps(0), label(label){
 }
 
 MpiSimulatorChunk::MpiSimulatorChunk(double dt)
@@ -10,7 +14,7 @@ MpiSimulatorChunk::MpiSimulatorChunk(double dt)
 
 void MpiSimulatorChunk::run_n_steps(int steps){
 
-    cout << "In C++ run_n_steps: " << steps << endl;
+    cout << label << ": running " << steps << " steps." << endl;
 
     map<key_type, Probe<Matrix>*>::iterator probe_it;
     for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
@@ -24,12 +28,12 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         time = n_steps * dt;
 
         if(step % 100 == 0){
-            cout << "Starting step: " << step << endl;
+            cout << label << ": starting step " << step << endl;
         }
 
         list<Operator*>::const_iterator it;
         for(it = operator_list.begin(); it != operator_list.end(); ++it){
-            run_dbg("Before calling: " << **it << endl);
+            run_dbg(label << ": before calling " << **it << endl);
 
             //Call the operator
             (**it)();
@@ -38,19 +42,17 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         map<key_type, Probe<Matrix>*>::iterator probe_it;
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
-            // cout << "Before gathering: " << *(probe_it->second) << endl;
             probe_it->second->gather(n_steps);
-            //cout << "After gathering: " << *(probe_it->second) << endl;
-            run_dbg("After gathering: " << *(probe_it->second) << endl);
+            run_dbg(label << ": after gathering " << *(probe_it->second) << endl);
         }
 
-        run_dbg(print_signal_pointers());
+        run_dbg(label << ": " << print_signal_pointers());
     }
 }
 
-void MpiSimulatorChunk::add_signal(key_type key, string label, Matrix* sig){
+void MpiSimulatorChunk::add_signal(key_type key, string l, Matrix* sig){
     signal_map[key] = sig;
-    signal_labels[key] = label;
+    signal_labels[key] = l;
 }
 
 void MpiSimulatorChunk::add_probe(key_type key, Probe<Matrix>* probe){
@@ -139,6 +141,7 @@ string MpiSimulatorChunk::to_string() const{
     stringstream out;
 
     out << "<MpiSimulatorChunk" << endl;
+    out << "    Label: " << label << endl;
 
     map<key_type, Matrix*>::const_iterator signal_it = signal_map.begin();
 

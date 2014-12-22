@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     mpi::communicator comm = intercomm.merge(true);
 
     if (parent == MPI_COMM_NULL) {
-        cout << "No parent!" << endl;
+        cout << "No parent." << endl;
     }
 
     MPI_Comm_remote_size(parent, &parent_size);
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     // Wait for the signal to run the simulation
     int steps;
     broadcast(comm, steps, 0);
-    cout << "Child " << my_id << " got the signal to start simulation!: " << steps << " steps." << endl;
+    cout << "Child " << my_id << " got the signal to start simulation: " << steps << " steps." << endl;
 
     chunk.run_n_steps(steps);
     comm.barrier();

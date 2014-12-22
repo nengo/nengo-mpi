@@ -19,15 +19,16 @@
 // The chunks contain a number of maps, and this typedef
 // gives the type of the key used in those maps. When created
 // from a python nengo simulation, the keys are typically
-// the address of python objects.
+// addresses of python objects.
 typedef unsigned long long int key_type;
 
 // An MpiSimulatorChunk represents the portion of a Nengo
-// simulator that is simulated by a single MPI process.
+// network that is simulated by a single MPI process.
 class MpiSimulatorChunk{
 
 public:
     MpiSimulatorChunk();
+    MpiSimulatorChunk(string label);
     MpiSimulatorChunk(double dt);
     const string classname() { return "MpiSimulatorChunk"; }
 
@@ -40,7 +41,7 @@ public:
     // required by the simulation, as well as current simulation
     // state. The key must be unique, as its purpose is to allow
     // operators to reference the key.
-    void add_signal(key_type key, string label, Matrix* sig);
+    void add_signal(key_type key, string l, Matrix* sig);
 
     // Probe the signal corresponding to key. A signal with this
     // key must already be in the chunk when this function is called
@@ -94,6 +95,7 @@ public:
     map<key_type, Probe<Matrix>*> probe_map;
 
 private:
+    string label;
     double time;
     double dt;
     int n_steps;
@@ -127,6 +129,7 @@ private:
         ar.template register_type<MPIRecv>();
         ar.template register_type<MPIWait>();
 
+        ar & label;
         ar & probe_map;
         ar & signal_map;
         ar & signal_labels;

@@ -22,6 +22,7 @@ class MpiSimulator{
 
 public:
     MpiSimulator();
+
     const string classname() { return "MpiSimulator"; }
 
     MpiSimulatorChunk* add_chunk();
@@ -52,6 +53,8 @@ private:
 
     // Map from a source index to number of probes
     map<int, int> probe_counts;
+
+    int chunk_index;
 
     friend class boost::serialization::access;
 

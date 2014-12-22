@@ -1,9 +1,17 @@
 #include "simulator.hpp"
 
+
+MpiSimulator::MpiSimulator():
+    master_chunk(NULL), chunk_index(0){
+}
+
 // The first chunk is kept on the master process,
 // subsequent chunks will be sent out to other processes.
 MpiSimulatorChunk* MpiSimulator::add_chunk(){
-    MpiSimulatorChunk* chunk = new MpiSimulatorChunk();
+
+    stringstream s;
+    s << "Chunk " << chunk_index;
+    MpiSimulatorChunk* chunk = new MpiSimulatorChunk(s.str());
 
     if(master_chunk == NULL){
         master_chunk = chunk;
@@ -11,11 +19,9 @@ MpiSimulatorChunk* MpiSimulator::add_chunk(){
         remote_chunks.push_back(chunk);
     }
 
-    return chunk;
-}
+    chunk_index++;
 
-MpiSimulator::MpiSimulator():
-    master_chunk(NULL){
+    return chunk;
 }
 
 void MpiSimulator::finalize(){
@@ -30,12 +36,12 @@ void MpiSimulator::finalize(){
         probe_data[probe_key] = probe_it->second->get_data();
     }
 
-    int chunk_index = 1;
+    int index = 1;
     list<MpiSimulatorChunk*>::const_iterator it;
 
     for(it = remote_chunks.begin(); it != remote_chunks.end(); ++it){
-        probe_counts[chunk_index] = (*it)->get_num_probes();
-        chunk_index++;
+        probe_counts[index] = (*it)->get_num_probes();
+        index++;
     }
 
     if(!remote_chunks.empty()){

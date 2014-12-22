@@ -37,13 +37,11 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulator
     mpi::intercommunicator intercomm(everyone, mpi::comm_duplicate);
     comm = intercomm.merge(false);
 
-#ifdef DEBUG
     int buflen = 512;
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
     cout << "Master host: " << name << endl;
     cout << "Master rank in merged communicator: " << comm.rank() << " (should be 0)." << endl;
-#endif
 
     int chunk_index = 1;
     string original_string, remote_string;
@@ -90,12 +88,12 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, list<MpiSimulator
 }
 
 void MpiInterface::run_n_steps(int steps){
-    cout << "Simulating..." << endl;
+    cout << "Master sending simulation signal." << endl;
     broadcast(comm, steps, 0);
 
     dbg("Master mpi ops: " << endl << master_chunk->print_maps());
 
-    cout << "Master starting simulation!: " << steps << " steps." << endl;
+    cout << "Master starting simulation: " << steps << " steps." << endl;
 
     master_chunk->run_n_steps(steps);
 
