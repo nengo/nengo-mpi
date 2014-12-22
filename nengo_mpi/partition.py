@@ -1,28 +1,20 @@
-import random
-
 from nengo import builder
-from nengo.ensemble import Ensemble
-from nengo.node import Node
 from nengo.connection import Connection
+import warnings
 
 import logging
 logger = logging.getLogger(__name__)
 
 
-def nice_str(lst):
-    return '[%s]' % '\n '.join(map(str, lst))
-
-
-def random_partitioner(network, num_components, assignments=None):
+def top_level_partitioner(network, num_components, assignments=None):
     """
-    Partition functions must return a dictionary which contains every
-    ensemble and every node in the entire network, including subnetworks.
+    A partitioner that puts top level subnetworks on different partitions if it
+    can.  Everything inside a top level subnetwork (except nodes) will go on
+    the same partition.  Reasonable if your network if split up into
+    subnetworks of relatively equal size.
 
-    Puts all nengo Nodes on partition 0.
-
-    Pseudo-randomly assigns nengo Ensembles to remaining partition components,
-    unless an Ensemble appears as a key in assignments, in which case the
-    integer that it maps to will be used as the component for that Ensemble.
+    Ensembles at top level will be handled in the same way. All nodes in the
+    network will be put on component 0 (even those inside subnetworks).
 
     Parameters
     ----------
@@ -36,45 +28,24 @@ def random_partitioner(network, num_components, assignments=None):
         to specific components.
     """
 
-    if assignments is None:
-        assignments = {}
-    else:
+    if assignments is not None:
         assignments = assignments.copy()
+    else:
+        assignments = {}
 
+    if num_components == 1:
+        return {}
+
+    component = 0
     for ensemble in network.ensembles:
         if ensemble not in assignments:
-            if num_components == 1:
-                assignments[ensemble] = 0
-            else:
-                assignments[ensemble] = (
-                    random.choice(xrange(1, num_components)))
-
-    for node in network.nodes:
-        if node.output is None:
-            if node not in assignments:
-                if num_components == 1:
-                    assignments[node] = 0
-                else:
-                    assignments[node] = (
-                        random.choice(xrange(1, num_components)))
-        else:
-            assignments[node] = 0
+            assignments[ensemble] = component
+            component = (component + 1) % num_components
 
     for n in network.networks:
-        if n in assignments:
-            for ensemble in n.all_ensembles:
-                assignments[ensemble] = assignments[n]
-
-            for node in n.all_nodes:
-                if node.output is None:
-                    assignments[node] = assignments[n]
-                else:
-                    assignments[node] = 0
-        else:
-            subnet_assignments = random_partitioner(
-                n, num_components, assignments)
-
-            assignments.update(subnet_assignments)
+        if network not in assignments:
+            assignments[network] = component
+            component = (component + 1) % num_components
 
     return assignments
 
@@ -85,8 +56,8 @@ class Partitioner(object):
 
     Parameters
     ----------
-    num_components: The number of components to divide the nengo graph into.
-        If None, appropriate value chosen automatically.
+    num_components: The number of components to divide the nengo network into.
+        If None, defaults to 1, and ``assignments'' and ``func'' are ignored.
 
     assignments: A dictionary mapping from nengo objects to component indices,
         with 0 as the first component. Used to hard-assign nengo objects
@@ -113,26 +84,37 @@ class Partitioner(object):
             self.num_components = 1
 
             if func is not None:
-                # TODO: issue a warning that its being ignored
-                pass
+                warnings.warn(
+                    "Number of components not specified. Defaulting to "
+                    "1 and ignoring supplied partitioner function.")
 
             if assignments is not None:
-                # TODO: issue a warning that its being ignored
-                pass
+                warnings.warn(
+                    "Number of components not specified. Defaulting to "
+                    "1 and ignoring supplied assignments.")
 
-            self.func = random_partitioner
+            self.func = top_level_partitioner
             self.assignments = {}
 
         else:
             self.num_components = num_components
 
             if func is None:
-                func = random_partitioner
+                func = top_level_partitioner
 
             self.func = func
 
             if assignments is None:
                 assignments = {}
+            else:
+                assert isinstance(assignments, dict)
+                max_component = max(assignments.values())
+
+                if not max_component < num_components:
+                    raise ValueError(
+                        "``assignments'' dictionary supplied to "
+                        "``Partitioner'' requires more components "
+                        "than specified by ``num_components''.")
 
             self.assignments = assignments
 
@@ -159,8 +141,77 @@ class Partitioner(object):
             network, self.num_components, self.assignments,
             *self.args, **self.kwargs)
 
+        propogate_assignments(network, assignments)
+
         return apply_partition(
             model, network, self.num_components, assignments)
+
+
+def propogate_assignments(network, assignments):
+    """
+    Propogates the component assignments stored in the dict ``assignments''
+    (which only needs to contain assignments for top level networks, nodes and
+    ensembles) down to objects that are contained in those top-level objects.
+    If assignments is empty, then all objects will be assigned to the 1st
+    component, which has index 0. The intent is to have some partitioning
+    algorithm determine some of the assignments before this function is called,
+    and then this function expands those assignments, respecting hierarchical
+    constraints.
+
+    Parameters
+    ----------
+    network: The network we are partitioning.
+
+    assignments: A dictionary mapping from nengo objects to component indices.
+        This dictionary will be altered to contain assignments for all objects
+        in the network. If a network appears in assignments, then all objects
+        in that network which do not also appear in assignments will be given
+        the same assignment as the network.
+
+    Returns
+    -------
+    Nothing, but ``assignments'' is modified.
+
+    """
+    def helper(network, assignments):
+
+        # TODO: allow sufficiently simple nodes to be
+        # simulated outside of main process.
+        for node in network.nodes:
+            assignments[node] = 0
+
+        for ensemble in network.ensembles:
+            if ensemble not in assignments:
+                assignments[ensemble] = assignments[network]
+
+        for ensemble in network.ensembles:
+            assignments[ensemble.neurons] = assignments[ensemble]
+
+        # TODO: properly handle probes that target connections
+        # connections will not be in ``assignments'' at this point.
+        for probe in network.probes:
+            assignments[probe] = assignments[probe.target]
+
+        for n in network.networks:
+            if n not in assignments:
+                assignments[n] = assignments[network]
+
+            helper(n, assignments)
+
+    assignments[network] = 0
+    helper(network, assignments)
+
+    nodes = network.all_nodes
+    nodes_in = all([node in assignments for node in nodes])
+    assert nodes_in, "Assignments incomplete, missing nodes."
+
+    ensembles = network.all_ensembles
+    ensembles_in = all([ensemble in assignments for ensemble in ensembles])
+    assert ensembles_in, "Assignments incomplete, missing ensembles."
+
+    probes = network.all_probes
+    probes_in = all([probe in assignments for probe in probes])
+    assert probes_in, "Assignments incomplete, missing probes."
 
 
 def split_connection(conn_ops, signal):
@@ -180,6 +231,11 @@ def split_connection(conn_ops, signal):
 
     signal: The signal where the connection will be split. Must be updated by
         one of the operators in ``conn_ops''.
+
+    Returns
+    -------
+    pre_ops: A list of the ops that come before the updated signal.
+    post_ops: A list of the ops that come after the updated signal.
 
     """
 
@@ -233,18 +289,15 @@ def apply_partition(model, network, num_components, assignments):
 
     assignments: A dictionary mapping from objects in the nengo network to
         component indices, with 0 as the first component. Currently, it
-        must contain every node and ensemble in the network, but will not
-        contain any information about networks.
+        must contain every node and ensemble in the network, including
+        those in subnetworks.
+
+    Returns
+    -------
+    models: A list of models, 1 for each component, containing the operators
+        and signals implementing the nengo objects assigned to each component.
+
     """
-
-    # Checks
-    nodes = network.all_nodes
-    nodes_in = all([node in assignments for node in nodes])
-    assert nodes_in, "Assignments incomplete, missing nodes."
-
-    ensembles = network.all_ensembles
-    ensembles_in = all([ensemble in assignments for ensemble in ensembles])
-    assert ensembles_in, "Assignments incomplete, missing ensembles."
 
     # Initialize component models
     models = [builder.Model(label="MPI Component %d" % i)
@@ -257,21 +310,12 @@ def apply_partition(model, network, num_components, assignments):
         m.recv_signals = []
 
     # Handle nodes and ensembles
-    neuron_assignments = {}
+    for obj in network.all_nodes + network.all_ensembles:
 
-    for obj, component in assignments.iteritems():
-
-        assert isinstance(obj, Ensemble) or isinstance(obj, Node)
-
-        if isinstance(obj, Ensemble):
-            neuron_assignments[obj.neurons] = component
-
-        m = models[component]
+        component = assignments[obj]
 
         for op in model.object_ops[obj]:
-            m.add_op(op)
-
-    assignments.update(neuron_assignments)
+            models[component].add_op(op)
 
     # Handle probes
     for probe in network.all_probes:
@@ -282,7 +326,6 @@ def apply_partition(model, network, num_components, assignments):
             models[component].add_op(op)
 
         models[component].probes.append(probe)
-        assignments[probe] = component
 
     # Handle connections
     connections = set(
@@ -303,10 +346,16 @@ def apply_partition(model, network, num_components, assignments):
                 m.add_op(op)
         else:
             # conn crosses component boundaries
+
             if conn.modulatory:
                 raise Exception(
                     "Connections crossing component boundaries "
                     "must not be modulatory.")
+
+            if conn.learning_rule_type:
+                raise Exception(
+                    "Connections crossing component boundaries "
+                    "must not have learning rules.")
 
             if 'synapse_out' in model.sig[conn]:
                 signal = model.sig[conn]['synapse_out']
