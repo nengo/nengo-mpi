@@ -3,11 +3,14 @@
 
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/list.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <map>
 #include <list>
 #include <string>
 #include <sstream>
+#include <vector>
 
 #include "operator.hpp"
 #include "mpi_operator.hpp"
@@ -21,6 +24,26 @@
 // from a python nengo simulation, the keys are typically
 // addresses of python objects.
 typedef unsigned long long int key_type;
+
+/*
+enum class OpType {
+    RESET,
+    COPY,
+    DOT_INC,
+    ELEMENTWISE_INC,
+    LIF,
+    LIF_RATE,
+    RECTIFIED_LINEAR,
+    SIGMOID,
+    LINEAR_FILTER,
+    MPI_SEND,
+    MPI_RECV,
+    MPI_WAIT
+}
+
+map<string, OpType> op_string_map {
+    {"RESET": }};
+    */
 
 // An MpiSimulatorChunk represents the portion of a Nengo
 // network that is simulated by a single MPI process.
@@ -40,14 +63,14 @@ public:
     // required by the simulation, as well as current simulation
     // state. The key must be unique, as its purpose is to allow
     // operators to reference the key.
-    void add_signal(key_type key, string l, Matrix* sig);
+    void add_signal(key_type key, string l, Matrix data);
 
-    // Probe the signal corresponding to key. A signal with this
-    // key must already be in the chunk when this function is called
-    void add_probe(key_type key, Probe<Matrix>* probe);
+    void add_probe(key_type probe_key, key_type signal, float period);
+    void add_probe(key_type probe_key, Probe<Matrix>* probe);
 
     // Look up internal object by key
     Matrix* get_signal(key_type key);
+    Matrix* get_signal(string key);
     Probe<Matrix>* get_probe(key_type key);
 
     // Functions used to add operators to the chunk. These
@@ -57,17 +80,22 @@ public:
     // it operates on must have already been added to the chunk.
     // Note that the order that operators are added to the chunk
     // determines the order that they will be executed in.
-    void add_operator(Operator* op);
+
     void add_mpi_send(MPISend* mpi_send);
     void add_mpi_recv(MPIRecv* mpi_recv);
     void add_mpi_wait(MPIWait* mpi_wait);
+
+    void add_op(Operator* op);
+
+    void add_op(string op_string);
+    Matrix* extract_list(string s);
 
     // Called after the chunk is sent over to the MPI worker that
     // will simulate it. Makes the MPIWait operators collect the
     // boost.mpi request objects from their assigned MPISend or
     // MPIRecv operator. Thus can only be done after chunk is sent,
     // because the requests cannot be serialized
-    void fix_mpi_waits();
+    void setup_mpi_waits();
 
     // Deprecated. This function isn't used anymore, but is kept around
     // in case it comes in handy. Finds the MPIWait operator that
@@ -93,10 +121,11 @@ public:
     map<int, MPIWait*> mpi_waits;
     map<key_type, Probe<Matrix>*> probe_map;
 
-private:
-    string label;
-    double time;
     float dt;
+    string label;
+
+private:
+    double time;
     int n_steps;
     map<key_type, Matrix*> signal_map;
     map<key_type, string> signal_labels;

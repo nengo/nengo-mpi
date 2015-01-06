@@ -22,10 +22,9 @@ class MpiSimulator{
 
 public:
     MpiSimulator();
+    MpiSimulator(int num_components, float dt);
 
     const string classname() { return "MpiSimulator"; }
-
-    MpiSimulatorChunk* add_chunk(double dt);
 
     // After this is called, chunks cannot be added.
     // Must be called before run_n_steps
@@ -33,6 +32,10 @@ public:
 
     void run_n_steps(int steps);
     vector<Matrix*>* get_probe_data(key_type probe_key);
+
+    void add_signal(int component, key_type key, string label, Matrix* data);
+    void add_op(int component, string op_string);
+    void add_probe(int component, key_type probe_key, key_type signal_key, int period);
 
     void write_to_file(string filename);
     void read_from_file(string filename);
@@ -44,17 +47,19 @@ public:
         return out;
     }
 
-private:
+    int num_components;
     MpiSimulatorChunk* master_chunk;
-    list<MpiSimulatorChunk*> remote_chunks;
-    MpiInterface mpi_interface;
 
+private:
+    MpiInterface mpi_interface;
+    float dt;
+
+    // Place to store probe data retrieved from worker
+    // processes after simulation has finished
     map<key_type, vector<Matrix*>* > probe_data;
 
     // Map from a source index to number of probes
     map<int, int> probe_counts;
-
-    int chunk_index;
 
     friend class boost::serialization::access;
 
@@ -64,7 +69,8 @@ private:
         dbg("Serializing: " << classname());
 
         ar & master_chunk;
-        ar & remote_chunks;
+        ar & num_components;
+        ar & dt;
     }
 };
 

@@ -24,75 +24,24 @@ bool hasattr(bpy::object obj, string const &attrName);
 Matrix* ndarray_to_matrix(bpyn::array a);
 Matrix* list_to_matrix(bpy::list l);
 
-class PythonMpiSimulatorChunk;
-
 class PythonMpiSimulator{
 public:
     PythonMpiSimulator();
-
-    string to_string() const;
-
-    PythonMpiSimulatorChunk* add_chunk(bpy::object dt);
-
-    void finalize();
+    PythonMpiSimulator(bpy::object num_components, bpy::object dt);
 
     void run_n_steps(bpy::object steps);
     bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
+    void finalize();
 
     void write_to_file(string filename);
     void read_from_file(string filename);
 
-private:
-    list<PythonMpiSimulatorChunk*> py_chunks;
-    MpiSimulator mpi_sim;
-};
+    void add_signal(bpy::object component, bpy::object key,
+                    bpy::object label, bpyn::array data);
 
-class PythonMpiSimulatorChunk{
+    void add_op(bpy::object component, bpy::object op_string);
 
-    friend class PythonMpiSimulator;
-
-public:
-    PythonMpiSimulatorChunk();
-    PythonMpiSimulatorChunk(MpiSimulatorChunk* mpi_sim_chunk);
-
-    string to_string() const;
-
-    //TODO: factor out this method
-    void run_n_steps(bpy::object steps);
-
-    void add_signal(bpy::object key, bpyn::array sig, bpy::object label);
-
-    bpy::object get_probe_data(bpy::object probe, bpy::object make_array);
-
-    void create_Probe(bpy::object key,  bpy::object signal, bpy::object period);
-
-    void create_Reset(bpy::object dst, bpy::object val);
-
-    void create_Copy(bpy::object dst, bpy::object src);
-
-    void create_DotInc(bpy::object A, bpy::object X, bpy::object Y);
-
-    void create_ElementwiseInc(bpy::object A, bpy::object X, bpy::object Y);
-
-    void create_Synapse(bpy::object input, bpy::object output,
-                       bpy::list numer, bpy::list denom);
-
-    void create_SimLIF(bpy::object n_neurons, bpy::object tau_rc,
-                       bpy::object tau_ref, bpy::object dt, bpy::object J,
-                       bpy::object output);
-
-    void create_SimLIFRate(bpy::object n_neurons, bpy::object tau_rc,
-                           bpy::object tau_ref, bpy::object J, bpy::object output);
-
-    void create_SimRectifiedLinear(bpy::object n_neurons, bpy::object J,
-                                   bpy::object output);
-
-    void create_SimSigmoid(bpy::object n_neurons, bpy::object tau_ref, bpy::object J,
-                           bpy::object output);
-
-    void create_MPISend(bpy::object dst, bpy::object tag, bpy::object content);
-    void create_MPIRecv(bpy::object src, bpy::object tag, bpy::object content);
-    void create_MPIWait(bpy::object content);
+    void add_probe(bpy::object component, bpy::object probe_key,  bpy::object signal_key, bpy::object period);
 
     void create_PyFunc(bpy::object py_fn, bpy::object t_in);
     void create_PyFuncO(bpy::object output, bpy::object py_fn, bpy::object t_in);
@@ -101,8 +50,11 @@ public:
     void create_PyFuncIO(bpy::object output, bpy::object py_fn, bpy::object t_in,
                     bpy::object input, bpyn::array py_input);
 
+    string to_string() const;
+
 private:
-    MpiSimulatorChunk* mpi_sim_chunk;
+    MpiSimulator mpi_sim;
+    MpiSimulatorChunk* master_chunk;
 };
 
 class PyFunc: public Operator{

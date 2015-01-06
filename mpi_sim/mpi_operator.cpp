@@ -14,7 +14,9 @@ MPIWait::MPIWait(int tag)
 
 void MPISend::operator() (){
 
+    run_dbg("GOOD");
     request = comm->isend(dst, tag, content->data());
+    run_dbg("BAD");
 
     run_dbg(*this);
 }

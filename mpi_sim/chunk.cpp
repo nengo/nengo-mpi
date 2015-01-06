@@ -41,18 +41,22 @@ void MpiSimulatorChunk::run_n_steps(int steps){
             probe_it->second->gather(n_steps);
             run_dbg(label << ": after gathering " << *(probe_it->second) << endl);
         }
-
-        run_dbg(label << ": " << print_signal_pointers());
     }
 }
 
-void MpiSimulatorChunk::add_signal(key_type key, string l, Matrix* sig){
-    signal_map[key] = sig;
+void MpiSimulatorChunk::add_signal(key_type key, string l, Matrix data){
+    signal_map[key] = new Matrix(data);
     signal_labels[key] = l;
 }
 
-void MpiSimulatorChunk::add_probe(key_type key, Probe<Matrix>* probe){
-    probe_map[key] = probe;
+void MpiSimulatorChunk::add_probe(key_type probe_key, key_type signal_key, float period){
+    Matrix* signal = get_signal(signal_key);
+    Probe<Matrix>* probe = new Probe<Matrix>(signal, period);
+    probe_map[probe_key] = probe;
+}
+
+void MpiSimulatorChunk::add_probe(key_type probe_key, Probe<Matrix>* probe){
+    probe_map[probe_key] = probe;
 }
 
 Matrix* MpiSimulatorChunk::get_signal(key_type key){
@@ -65,17 +69,147 @@ Matrix* MpiSimulatorChunk::get_signal(key_type key){
     }
 }
 
-Probe<Matrix>* MpiSimulatorChunk::get_probe(key_type key){
-    try{
-        Probe<Matrix>* probe = probe_map.at(key);
-        return probe;
-    }catch(const out_of_range& e){
-        cerr << "Error accessing MpiSimulatorChunk :: probe with key " << key << endl;
-        throw e;
+Matrix* MpiSimulatorChunk::get_signal(string key){
+    return get_signal(boost::lexical_cast<key_type>(key));
+}
+
+Matrix* MpiSimulatorChunk::extract_list(string s){
+    // Remove surrounding square brackets and whitespace
+    boost::trim_if(s, boost::is_any_of("[]"));
+
+    vector<string> tokens;
+    boost::split(tokens, s, boost::is_any_of(","));
+
+    int length = tokens.size();
+    int i = 0;
+    vector<string>::const_iterator it;
+
+    Matrix* ret = new Matrix(length, 1);
+
+    for(it = tokens.begin(); it != tokens.end(); ++it){
+        string val = *it;
+        boost::trim(val);
+        (*ret)(i, 0) = boost::lexical_cast<float>(val);
+        i++;
+    }
+
+    return ret;
+}
+
+void MpiSimulatorChunk::add_op(string op_string){
+    vector<string> tokens;
+    boost::split(tokens, op_string, boost::is_any_of(";"));
+
+    vector<string>::const_iterator it;
+    //for(it = tokens.begin(); it != tokens.end(); ++it){
+    //    cout << *it << endl;
+    //}
+
+    it = tokens.begin();
+    string type_string = *(it++);
+
+    if(type_string.compare("Reset") == 0){
+            Matrix* dst = get_signal(*(it++));
+            float value  = boost::lexical_cast<float>(*(it++));
+
+            add_op(new Reset(dst, value));
+
+     }else if(type_string.compare("Copy") == 0){
+            Matrix* dst = get_signal(tokens[1]);
+            Matrix* src = get_signal(tokens[2]);
+
+            add_op(new Copy(dst, src));
+
+     }else if(type_string.compare("DotInc") == 0){
+            Matrix* A = get_signal(tokens[1]);
+            Matrix* X = get_signal(tokens[2]);
+            Matrix* Y = get_signal(tokens[3]);
+
+            add_op(new DotInc(A, X, Y));
+
+     }else if(type_string.compare("ElementwiseInc") == 0){
+            Matrix* A = get_signal(tokens[1]);
+            Matrix* X = get_signal(tokens[2]);
+            Matrix* Y = get_signal(tokens[3]);
+
+            add_op(new ElementwiseInc(A, X, Y));
+
+     }else if(type_string.compare("LIF") == 0){
+            int num_neurons = boost::lexical_cast<int>(tokens[1]);
+            float tau_ref = boost::lexical_cast<float>(tokens[2]);
+            float tau_rc = boost::lexical_cast<float>(tokens[3]);
+            float dt = boost::lexical_cast<float>(tokens[4]);
+
+            Matrix* J = get_signal(tokens[5]);
+            Matrix* output = get_signal(tokens[6]);
+
+            add_op(new SimLIF(num_neurons, tau_ref, tau_rc, dt, J, output));
+
+     }else if(type_string.compare("LIFRate") == 0){
+            int num_neurons = boost::lexical_cast<int>(tokens[1]);
+            float tau_ref = boost::lexical_cast<float>(tokens[2]);
+            float tau_rc = boost::lexical_cast<float>(tokens[3]);
+
+            Matrix* J = get_signal(tokens[4]);
+            Matrix* output = get_signal(tokens[5]);
+
+            add_op(new SimLIFRate(num_neurons, tau_ref, tau_rc, J, output));
+
+     }else if(type_string.compare("RectifiedLinear") == 0){
+            int num_neurons = boost::lexical_cast<int>(tokens[1]);
+
+            Matrix* J = get_signal(tokens[2]);
+            Matrix* output = get_signal(tokens[3]);
+
+            add_op(new SimRectifiedLinear(num_neurons, J, output));
+
+     }else if(type_string.compare("Sigmoid") == 0){
+            int num_neurons = boost::lexical_cast<int>(tokens[1]);
+            float tau_ref = boost::lexical_cast<float>(tokens[2]);
+
+            Matrix* J = get_signal(tokens[3]);
+            Matrix* output = get_signal(tokens[4]);
+
+            add_op(new SimSigmoid(num_neurons, tau_ref, J, output));
+
+     }else if(type_string.compare("LinearFilter") == 0){
+
+            Matrix* input = get_signal(tokens[1]);
+            Matrix* output = get_signal(tokens[2]);
+
+            Matrix* numerator = extract_list(tokens[3]);
+            Matrix* denominator = extract_list(tokens[4]);
+
+            add_op(new Synapse(input, output, numerator, denominator));
+
+     }else if(type_string.compare("MpiSend") == 0){
+            int dst = boost::lexical_cast<int>(tokens[1]);
+            int tag = boost::lexical_cast<int>(tokens[2]);
+            Matrix* content = get_signal(tokens[3]);
+
+            dbg("MPISEND CONTENT" << *content);
+
+            add_mpi_send(new MPISend(dst, tag, content));
+
+     }else if(type_string.compare("MpiRecv") == 0){
+            int src = boost::lexical_cast<int>(tokens[1]);
+            int tag = boost::lexical_cast<int>(tokens[2]);
+            Matrix* content = get_signal(tokens[3]);
+            dbg("MPIRECV CONTENT" << *content);
+
+            add_mpi_recv(new MPIRecv(src, tag, content));
+
+     }else if(type_string.compare("MpiWait") == 0){
+            int tag = boost::lexical_cast<int>(tokens[1]);
+
+            add_mpi_wait(new MPIWait(tag));
+    }else{
+        // TODO: Throw exceptions here.
+        (void)0;
     }
 }
 
-void MpiSimulatorChunk::add_operator(Operator *op){
+void MpiSimulatorChunk::add_op(Operator *op){
     operator_list.push_back(op);
 }
 
@@ -97,7 +231,7 @@ void MpiSimulatorChunk::add_mpi_wait(MPIWait* mpi_wait){
     mpi_waits[mpi_wait->tag] = mpi_wait;
 }
 
-void MpiSimulatorChunk::fix_mpi_waits(){
+void MpiSimulatorChunk::setup_mpi_waits(){
 
     map<int, MPIWait*>::iterator wait_it;
 

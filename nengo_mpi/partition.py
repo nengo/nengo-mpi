@@ -121,20 +121,19 @@ class Partitioner(object):
         self.args = args
         self.kwargs = kwargs
 
-    def partition(self, model, network):
+    def partition(self, network):
         """
-        Returns a list of (non-mpi) models, one for each component
-        of the partition. Each model contains the operators assigned
-        to a single component of the partition, extracted from the
-        MpiModel passed in.
-
         Parameters
         ----------
-        model: An instance of MpiModel, built using the ref-impl builder, from
-            the nengo Network ``network''.
+        network: The network to partition.
 
-        network: A nengo Network. Ops and signals implementing this network are
-            stored in ``model''.
+        Returns
+        -------
+        num_components: The number of components the nengo network
+            is split into.
+
+        assignments: A dictionary mapping from nengo objects to
+            component indices.
 
         """
         assignments = self.func(
@@ -143,8 +142,7 @@ class Partitioner(object):
 
         propogate_assignments(network, assignments)
 
-        return apply_partition(
-            model, network, self.num_components, assignments)
+        return self.num_components, assignments
 
 
 def propogate_assignments(network, assignments):
@@ -212,62 +210,6 @@ def propogate_assignments(network, assignments):
     probes = network.all_probes
     probes_in = all([probe in assignments for probe in probes])
     assert probes_in, "Assignments incomplete, missing probes."
-
-
-def split_connection(conn_ops, signal):
-    """
-    Split the operators belonging to a connection into a
-    ``pre'' group and a ``post'' group. The connection is assumed
-    to contain exactly 1 operation performing an update, which
-    is assigned to the pre group. All ops that write to signals
-    which are read by this updating op are assumed to belong to
-    the pre group (as are all ops that write to signals which
-    *those* ops read from, etc.). The remaining ops are assigned
-    to the post group.
-
-    Parameters
-    ----------
-    conn_ops: A list containing the operators implementing a nengo connection.
-
-    signal: The signal where the connection will be split. Must be updated by
-        one of the operators in ``conn_ops''.
-
-    Returns
-    -------
-    pre_ops: A list of the ops that come before the updated signal.
-    post_ops: A list of the ops that come after the updated signal.
-
-    """
-
-    pre_ops = []
-
-    for op in conn_ops:
-        if signal in op.updates:
-            pre_ops.append(op)
-
-    assert len(pre_ops) == 1
-
-    reads = pre_ops[0].reads
-
-    post_ops = filter(
-        lambda op: op not in pre_ops, conn_ops)
-
-    changed = True
-    while changed:
-        changed = []
-
-        for op in post_ops:
-            writes = set(op.incs) | set(op.sets)
-
-            if writes & set(reads):
-                pre_ops.append(op)
-                reads.extend(op.reads)
-                changed.append(op)
-
-        post_ops = filter(
-            lambda op: op not in changed, post_ops)
-
-    return pre_ops, post_ops
 
 
 def apply_partition(model, network, num_components, assignments):

@@ -1,31 +1,26 @@
 #include "simulator.hpp"
 
 MpiSimulator::MpiSimulator():
-    master_chunk(NULL), chunk_index(0){
+    num_components(0), dt(0.001), master_chunk(NULL){
 }
 
-// The first chunk is kept on the master process,
-// subsequent chunks will be sent out to other processes.
-MpiSimulatorChunk* MpiSimulator::add_chunk(double dt){
+MpiSimulator::MpiSimulator(int num_components, float dt):
+    num_components(num_components), dt(dt), master_chunk(NULL){
 
-    stringstream s;
-    s << "Chunk " << chunk_index;
-    MpiSimulatorChunk* chunk = new MpiSimulatorChunk(s.str(), dt);
+    master_chunk = new MpiSimulatorChunk("Chunk 0", dt);
 
-    if(master_chunk == NULL){
-        master_chunk = chunk;
+    if(num_components > 1){
+        mpi_interface.initialize_chunks(master_chunk, num_components - 1);
     }else{
-        remote_chunks.push_back(chunk);
+        cout << "C++: Only one chunk supplied. Simulations will not use MPI." << endl;
     }
 
-    chunk_index++;
-
-    return chunk;
+    for(int i = 0; i < num_components; i++){
+        probe_counts[i] = 0;
+    }
 }
 
 void MpiSimulator::finalize(){
-    probe_counts[0] = master_chunk->get_num_probes();
-
     key_type probe_key;
     map<key_type, Probe<Matrix>*>::const_iterator probe_it = master_chunk->probe_map.begin();
 
@@ -35,24 +30,12 @@ void MpiSimulator::finalize(){
         probe_data[probe_key] = probe_it->second->get_data();
     }
 
-    int index = 1;
-    list<MpiSimulatorChunk*>::const_iterator it;
-
-    for(it = remote_chunks.begin(); it != remote_chunks.end(); ++it){
-        probe_counts[index] = (*it)->get_num_probes();
-        index++;
-    }
-
-    if(!remote_chunks.empty()){
-        mpi_interface.initialize_chunks(master_chunk, remote_chunks);
-    }else{
-        cout << "C++: Only one chunk supplied. Simulations will not use MPI." << endl;
-    }
+    mpi_interface.finalize();
 }
 
 void MpiSimulator::run_n_steps(int steps){
 
-    if(remote_chunks.empty()){
+    if(num_components == 1){
         master_chunk->run_n_steps(steps);
     }else{
         mpi_interface.run_n_steps(steps);
@@ -63,6 +46,33 @@ void MpiSimulator::run_n_steps(int steps){
 
 vector<Matrix*>* MpiSimulator::get_probe_data(key_type probe_key){
     return probe_data.at(probe_key);
+}
+
+
+void MpiSimulator::add_signal(int component, key_type key, string label, Matrix* data){
+    if(component == 0){
+        master_chunk->add_signal(key, label, *data);
+    }else{
+        mpi_interface.add_signal(component, key, label, data);
+    }
+}
+
+void MpiSimulator::add_op(int component, string op_string){
+    if(component == 0){
+        master_chunk->add_op(op_string);
+    }else{
+        mpi_interface.add_op(component, op_string);
+    }
+}
+
+void MpiSimulator::add_probe(int component, key_type probe_key, key_type signal_key, int period){
+    if(component == 0){
+        master_chunk->add_probe(probe_key, signal_key, period);
+    }else{
+        mpi_interface.add_probe(component, probe_key, signal_key, period);
+    }
+
+    probe_counts[component] += 1;
 }
 
 void MpiSimulator::write_to_file(string filename){
@@ -84,14 +94,9 @@ string MpiSimulator::to_string() const{
 
     out << "<MpiSimulator" << endl;
 
+    out << "num_components: " << num_components << endl;
     out << "**master chunk**" << endl;
     out << *master_chunk << endl;
-
-    out << "**remote chunks**" << endl;
-    list<MpiSimulatorChunk*>::const_iterator it;
-    for(it = remote_chunks.begin(); it != remote_chunks.end(); ++it){
-        out << **it << endl;
-    }
 
     return out.str();
 }

@@ -7,6 +7,7 @@
 #include <boost/mpi/intercommunicator.hpp>
 #include <boost/serialization/string.hpp>
 
+#include "flags.hpp"
 #include "simulator.hpp"
 
 namespace mpi = boost::mpi;
@@ -48,17 +49,63 @@ int main(int argc, char *argv[]) {
     cout << "Child " << my_id << " host: " << name << endl;
     cout << "Child " << my_id << " rank in merged communicator: " << comm.rank() << endl;
 
-    MpiSimulatorChunk chunk;
+    float dt;
+    string chunk_label;
+    int tag = 1;
 
-    // Recv the chunk from master
-    comm.recv(0, 1, chunk);
+    comm.recv(0, tag, chunk_label);
+    comm.recv(0, tag, dt);
 
-    // Send a validation string to master to confirm that
-    // the chunk was transferred properly
-    string validation_string = chunk.to_string();
-    comm.send(0, 2, validation_string);
+    MpiSimulatorChunk chunk(chunk_label, dt);
 
-    chunk.fix_mpi_waits();
+    int s = 0;
+    key_type key;
+    string label;
+    Matrix data;
+    string op_string;
+
+    key_type probe_key;
+    key_type signal_key;
+    float period;
+
+    while(1){
+        cout << "Child " << my_id << endl;
+        comm.recv(0, tag, s);
+        cout << "Child " << my_id << " received flag " << s << endl;
+
+        if(s == add_signal_flag){
+            comm.recv(0, tag, key);
+            comm.recv(0, tag, label);
+            comm.recv(0, tag, data);
+
+            chunk.add_signal(key, label, data);
+
+        }else if(s == add_op_flag){
+            comm.recv(0, tag, op_string);
+
+            chunk.add_op(op_string);
+
+        }else if(s == add_probe_flag){
+            cout << "Child " << my_id << " adding probe." << endl;
+            comm.recv(0, tag, probe_key);
+            comm.recv(0, tag, signal_key);
+            comm.recv(0, tag, period);
+            cout << "Child " << my_id << " pk: " << probe_key << ", sk: " << signal_key << ", period: " << period << endl;
+
+            chunk.add_probe(probe_key, signal_key, period);
+
+        }else if(s == stop_flag){
+            break;
+
+        }else{
+            throw runtime_error("Worker received invalid flag from master.");
+        }
+    }
+
+    // cout << "Child " << my_id << endl;
+    // cout << chunk << endl;
+
+    chunk.setup_mpi_waits();
 
     map<int, MPISend*>::iterator send_it;
     for(send_it = chunk.mpi_sends.begin(); send_it != chunk.mpi_sends.end(); ++send_it){

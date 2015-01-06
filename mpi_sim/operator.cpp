@@ -29,6 +29,7 @@ ElementwiseInc::ElementwiseInc(Matrix* A, Matrix* X, Matrix* Y)
         X_row_stride = X->size1() > 1 ? 1 : 0;
         X_col_stride = X->size2() > 1 ? 1 : 0;
     }else{
+        broadcast = false;
         A_row_stride = 1;
         A_col_stride = 1;
 
