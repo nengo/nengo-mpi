@@ -234,8 +234,8 @@ PyFunc::PyFunc(Matrix* output, bpy::object py_fn, double* time)
 }
 
 PyFunc::PyFunc(Matrix* output, bpy::object py_fn, double* time, Matrix* input, bpyn::array py_input)
-    :output(output), py_fn(py_fn),  time(time), supply_time(time!=NULL), supply_input(true),
-    input(input), py_input(py_input){
+    :output(output), py_fn(py_fn),  time(time), supply_time(time!=NULL),
+     supply_input(true), input(input), py_input(py_input){
 }
 
 void PyFunc::operator() (){

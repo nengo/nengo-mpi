@@ -9,10 +9,10 @@ MpiSimulator::MpiSimulator(int num_components, float dt):
 
     master_chunk = new MpiSimulatorChunk("Chunk 0", dt);
 
-    if(num_components > 1){
-        mpi_interface.initialize_chunks(master_chunk, num_components - 1);
-    }else{
+    if(num_components == 1){
         cout << "C++: Only one chunk supplied. Simulations will not use MPI." << endl;
+    }else{
+        mpi_interface.initialize_chunks(master_chunk, num_components - 1);
     }
 
     for(int i = 0; i < num_components; i++){
@@ -30,7 +30,9 @@ void MpiSimulator::finalize(){
         probe_data[probe_key] = probe_it->second->get_data();
     }
 
-    mpi_interface.finalize();
+    if(num_components > 1){
+        mpi_interface.finalize();
+    }
 }
 
 void MpiSimulator::run_n_steps(int steps){

@@ -173,7 +173,7 @@ def propogate_assignments(network, assignments):
     """
     def helper(network, assignments):
 
-        # TODO: allow sufficiently simple nodes to be
+        # TODO: allow sufficiently simple nodes (e.g. constant) to be
         # simulated outside of main process.
         for node in network.nodes:
             assignments[node] = 0
@@ -182,13 +182,7 @@ def propogate_assignments(network, assignments):
             if ensemble not in assignments:
                 assignments[ensemble] = assignments[network]
 
-        for ensemble in network.ensembles:
             assignments[ensemble.neurons] = assignments[ensemble]
-
-        # TODO: properly handle probes that target connections
-        # connections will not be in ``assignments'' at this point.
-        for probe in network.probes:
-            assignments[probe] = assignments[probe.target]
 
         for n in network.networks:
             if n not in assignments:
@@ -196,8 +190,23 @@ def propogate_assignments(network, assignments):
 
             helper(n, assignments)
 
+    def probe_helper(network, assignments):
+        # TODO: properly handle probes that target connections
+        # connections will not be in ``assignments'' at this point.
+        for probe in network.probes:
+            assignments[probe] = assignments[probe.target]
+
+        for n in network.networks:
+            probe_helper(n, assignments)
+
     assignments[network] = 0
-    helper(network, assignments)
+
+    try:
+        helper(network, assignments)
+        probe_helper(network, assignments)
+    except KeyError:
+        # Nengo tests require a value error to be raised in these cases.
+        raise ValueError("Invalid Partition")
 
     nodes = network.all_nodes
     nodes_in = all([node in assignments for node in nodes])

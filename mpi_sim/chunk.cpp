@@ -35,12 +35,14 @@ void MpiSimulatorChunk::run_n_steps(int steps){
             (**it)();
         }
 
+        cout << "About to gather! " << step << endl;
         map<key_type, Probe<Matrix>*>::iterator probe_it;
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
             probe_it->second->gather(n_steps);
             run_dbg(label << ": after gathering " << *(probe_it->second) << endl);
         }
+        cout << "Done gathering! " << step << endl;
     }
 }
 

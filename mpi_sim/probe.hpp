@@ -48,23 +48,12 @@ Probe<T>::Probe(T* signal, float period)
 
 template<class T>
 void Probe<T>::init_for_simulation(int n_steps){
-
-    index = 0;
-
-    // Initialize the probes storage resources
-    if(!data->empty()){
-        stringstream error;
-        error << "Probe must be empty before it can be initialized. "
-              << "Call Probe.clear first";
-
-        throw logic_error(error.str());
-    }
-
     int num_samples = (int) floor(n_steps / period);
-    data->resize(num_samples, NULL);
+
+    data->resize(index + num_samples, NULL);
 
     for(unsigned i = 0; i < num_samples; i++){
-        (*data)[i] = new T(*signal);
+        (*data)[i + index] = new T(*signal);
     }
 }
 

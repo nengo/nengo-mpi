@@ -512,18 +512,23 @@ class MpiModel(builder.Model):
 
                 else:
                     logger.debug(
-                        "Creating PyFuncWithInput, output:%d",
+                        "Creating PyFunc with input, output:%d",
                         make_key(op.output))
+
+                    if isinstance(x.value, DummyNdarray):
+                        input_array = np.zeros(x.shape)
+                    else:
+                        input_array = x.value
 
                     if op.output is None:
 
                         self.mpi_sim.create_PyFuncI(
-                            fn, t_in, make_key(x), x.value)
+                            fn, t_in, make_key(x), input_array)
 
                     else:
                         self.mpi_sim.create_PyFuncIO(
                             output_id, make_checked_func(fn, t_in, True),
-                            t_in, make_key(x), x.value)
+                            t_in, make_key(x), input_array)
             else:
                 op_string = self.op_to_string(op)
 
