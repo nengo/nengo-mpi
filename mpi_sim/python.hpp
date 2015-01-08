@@ -28,10 +28,12 @@ class PythonMpiSimulator{
 public:
     PythonMpiSimulator();
     PythonMpiSimulator(bpy::object num_components, bpy::object dt);
+    void finalize();
 
     void run_n_steps(bpy::object steps);
     bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
-    void finalize();
+
+    void reset();
 
     void write_to_file(string filename);
     void read_from_file(string filename);

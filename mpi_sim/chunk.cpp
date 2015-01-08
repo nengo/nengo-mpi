@@ -35,14 +35,12 @@ void MpiSimulatorChunk::run_n_steps(int steps){
             (**it)();
         }
 
-        cout << "About to gather! " << step << endl;
         map<key_type, Probe<Matrix>*>::iterator probe_it;
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
             probe_it->second->gather(n_steps);
             run_dbg(label << ": after gathering " << *(probe_it->second) << endl);
         }
-        cout << "Done gathering! " << step << endl;
     }
 }
 
@@ -102,12 +100,7 @@ void MpiSimulatorChunk::add_op(string op_string){
     vector<string> tokens;
     boost::split(tokens, op_string, boost::is_any_of(";"));
 
-    vector<string>::const_iterator it;
-    //for(it = tokens.begin(); it != tokens.end(); ++it){
-    //    cout << *it << endl;
-    //}
-
-    it = tokens.begin();
+    vector<string>::const_iterator it = tokens.begin();
     string type_string = *(it++);
 
     if(type_string.compare("Reset") == 0){

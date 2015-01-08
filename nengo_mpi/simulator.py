@@ -121,5 +121,5 @@ class Simulator(object):
         return dt * np.arange(1, n_steps + 1)
 
     def reset(self):
-        # TODO: clear probes in _probe_outputs
-        pass
+        self.n_steps = 0
+        self.mpi_sim.reset()

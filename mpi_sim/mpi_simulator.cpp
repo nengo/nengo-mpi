@@ -110,14 +110,15 @@ void MpiInterface::run_n_steps(int steps){
     cout << "Finished simulation." << endl;
 }
 
-void MpiInterface::gather_probe_data(map<key_type, vector<Matrix*>*>& probe_data,
+void MpiInterface::gather_probe_data(map<key_type, vector<Matrix*> >& probe_data,
                                      map<int, int>& probe_counts){
     key_type probe_key;
-    vector<Matrix*>* data = NULL;
     map<int, int>::iterator count_it;
     int chunk_index, probe_count;
 
     cout << "Master gathering probe data from children..." << endl;
+
+    vector<Matrix*> new_data, data;
 
     for(count_it = probe_counts.begin(); count_it != probe_counts.end(); ++count_it){
         chunk_index = count_it->first;
@@ -125,14 +126,16 @@ void MpiInterface::gather_probe_data(map<key_type, vector<Matrix*>*>& probe_data
 
         if(chunk_index > 0){
             for(unsigned i = 0; i < probe_count; i++){
-                data = new vector<Matrix*>();
-
                 cout << "Master receiving probe from chunk " << chunk_index;
                 comm.recv(chunk_index, 3, probe_key);
                 cout << " with key " << probe_key << "..." << endl;
-                comm.recv(chunk_index, 3, *data);
+                comm.recv(chunk_index, 3, new_data);
                 cout << "Done receiving probe data." << endl;
 
+                data = probe_data.at(probe_key);
+
+                data.reserve(data.size() + new_data.size());
+                data.insert(data.end(), new_data.begin(), new_data.end());
                 probe_data[probe_key] = data;
             }
         }

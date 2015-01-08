@@ -21,15 +21,6 @@ MpiSimulator::MpiSimulator(int num_components, float dt):
 }
 
 void MpiSimulator::finalize(){
-    key_type probe_key;
-    map<key_type, Probe<Matrix>*>::const_iterator probe_it = master_chunk->probe_map.begin();
-
-    // Hook the probes in the master chunk into the probe_map
-    for(; probe_it != master_chunk->probe_map.end(); probe_it++){
-        probe_key = probe_it->first;
-        probe_data[probe_key] = probe_it->second->get_data();
-    }
-
     if(num_components > 1){
         mpi_interface.finalize();
     }
@@ -44,12 +35,37 @@ void MpiSimulator::run_n_steps(int steps){
         mpi_interface.gather_probe_data(probe_data, probe_counts);
         mpi_interface.finish_simulation();
     }
+
+    vector<Matrix*>* new_data;
+    vector<Matrix*> data;
+
+    map<key_type, Probe<Matrix>*>::const_iterator probe_it = master_chunk->probe_map.begin();
+
+    // Gather probe data from the master chunk
+    for(; probe_it != master_chunk->probe_map.end(); probe_it++){
+
+        data = probe_data.at(probe_it->first);
+        new_data = probe_it->second->get_data();
+
+        data.reserve(data.size() + new_data->size());
+        data.insert(data.end(), new_data->begin(), new_data->end());
+        probe_data[probe_it->first] = data;
+
+        delete new_data;
+    }
 }
 
-vector<Matrix*>* MpiSimulator::get_probe_data(key_type probe_key){
+vector<Matrix*> MpiSimulator::get_probe_data(key_type probe_key){
+
     return probe_data.at(probe_key);
 }
 
+void MpiSimulator::reset(){
+    // TODO
+    //Clear probe data
+    //Tell master chunk to reset
+    //Send a signal to remote chunks telling them to reset
+}
 
 void MpiSimulator::add_signal(int component, key_type key, string label, Matrix* data){
     if(component == 0){
@@ -75,6 +91,7 @@ void MpiSimulator::add_probe(int component, key_type probe_key, key_type signal_
     }
 
     probe_counts[component] += 1;
+    probe_data[probe_key] = vector<Matrix*>();
 }
 
 void MpiSimulator::write_to_file(string filename){

@@ -126,9 +126,16 @@ int main(int argc, char *argv[]) {
     comm.barrier();
 
     map<key_type, Probe<Matrix>*>::iterator probe_it;
+    vector<Matrix*>* probe_data;
+
     for(probe_it = chunk.probe_map.begin(); probe_it != chunk.probe_map.end(); ++probe_it){
         comm.send(0, 3, probe_it->first);
-        comm.send(0, 3, *(probe_it->second->get_data()));
+
+        probe_data = probe_it->second->get_data();
+        comm.send(0, 3, *probe_data);
+
+        // TODO: find a better way to do this
+        delete probe_data;
     }
 
     comm.barrier();

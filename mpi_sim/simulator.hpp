@@ -31,7 +31,9 @@ public:
     void finalize();
 
     void run_n_steps(int steps);
-    vector<Matrix*>* get_probe_data(key_type probe_key);
+    vector<Matrix*> get_probe_data(key_type probe_key);
+
+    void reset();
 
     void add_signal(int component, key_type key, string label, Matrix* data);
     void add_op(int component, string op_string);
@@ -56,9 +58,10 @@ private:
 
     // Place to store probe data retrieved from worker
     // processes after simulation has finished
-    map<key_type, vector<Matrix*>* > probe_data;
+    map<key_type, vector<Matrix*> > probe_data;
 
-    // Map from a source index to number of probes
+    // Map from a source index to number of probes. Used for gather
+    // probe data from remote chunks after simulation
     map<int, int> probe_counts;
 
     friend class boost::serialization::access;

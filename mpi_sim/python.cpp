@@ -76,10 +76,6 @@ PythonMpiSimulator::PythonMpiSimulator(bpy::object num_components, bpy::object d
     master_chunk = mpi_sim.master_chunk;
 }
 
-string PythonMpiSimulator::to_string() const{
-    return mpi_sim.to_string();
-}
-
 void PythonMpiSimulator::finalize(){
     mpi_sim.finalize();
 }
@@ -92,11 +88,11 @@ void PythonMpiSimulator::run_n_steps(bpy::object pysteps){
 bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::object make_array){
     key_type c_probe_key;
     c_probe_key = bpy::extract<key_type>(probe_key);
-    vector<Matrix*>* data = mpi_sim.get_probe_data(c_probe_key);
+    vector<Matrix*> data = mpi_sim.get_probe_data(c_probe_key);
 
     bpy::list py_list;
     vector<Matrix*>::const_iterator it;
-    for(it = data->begin(); it != data->end(); ++it){
+    for(it = data.begin(); it != data.end(); ++it){
 
         bpy::object a;
         if((*it)->size1() == 1){
@@ -125,6 +121,10 @@ bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::objec
     }
 
     return py_list;
+}
+
+void PythonMpiSimulator::reset(){
+    mpi_sim.reset();
 }
 
 void PythonMpiSimulator::write_to_file(string filename){
@@ -228,6 +228,9 @@ void PythonMpiSimulator::create_PyFuncIO(
     master_chunk->add_op(sim_py_func);
 }
 
+string PythonMpiSimulator::to_string() const{
+    return mpi_sim.to_string();
+}
 
 PyFunc::PyFunc(Matrix* output, bpy::object py_fn, double* time)
     :output(output), py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false), input(NULL), py_input(0.0){
@@ -289,9 +292,10 @@ BOOST_PYTHON_MODULE(mpi_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulator>("PythonMpiSimulator", bpy::init<bpy::object, bpy::object>())
+        .def("finalize", &PythonMpiSimulator::finalize)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
-        .def("finalize", &PythonMpiSimulator::finalize)
+        .def("reset", &PythonMpiSimulator::reset)
         .def("write_to_file", &PythonMpiSimulator::write_to_file)
         .def("read_from_file", &PythonMpiSimulator::read_from_file)
         .def("add_signal", &PythonMpiSimulator::add_signal)

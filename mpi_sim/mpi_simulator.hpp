@@ -27,7 +27,7 @@ public:
     void finalize();
 
     void run_n_steps(int steps);
-    void gather_probe_data(map<key_type, vector<Matrix*>* >& probe_data, map<int, int>& probe_counts);
+    void gather_probe_data(map<key_type, vector<Matrix*> >& probe_data, map<int, int>& probe_counts);
 
     void finish_simulation();
 
