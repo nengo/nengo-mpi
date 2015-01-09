@@ -15,7 +15,7 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
 
-    int parent_size, parent_id, my_id, numprocs;
+    int parent_size, parent_id;
 
     // parent intercomm
     MPI_Comm parent;
@@ -36,18 +36,17 @@ int main(int argc, char *argv[]) {
         cout << "Something's wrong with the parent" << endl;
     }
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_id) ;
-    MPI_Comm_size(MPI_COMM_WORLD, &numprocs) ;
+    int my_id = comm.rank();
+    int num_procs = comm.size();
+
+    //MPI_Comm_rank(MPI_COMM_WORLD, &my_id) ;
+    //MPI_Comm_size(MPI_COMM_WORLD, &num_procs) ;
 
     int buflen = 512;
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
 
-    cout << "I'm child process rank "<< my_id << " and we are " << numprocs << endl;
-    cout << "The parent process has rank "<< parent_id << " and has size " << parent_size << endl;
-
-    cout << "Child " << my_id << " host: " << name << endl;
-    cout << "Child " << my_id << " rank in merged communicator: " << comm.rank() << endl;
+    cout << "Hello world! I'm a nengo_mpi worker process with rank "<< my_id << " of " << num_procs << endl;
 
     float dt;
     string chunk_label;
@@ -69,9 +68,7 @@ int main(int argc, char *argv[]) {
     float period;
 
     while(1){
-        cout << "Child " << my_id << endl;
         comm.recv(0, tag, s);
-        cout << "Child " << my_id << " received flag " << s << endl;
 
         if(s == add_signal_flag){
             comm.recv(0, tag, key);
@@ -86,11 +83,9 @@ int main(int argc, char *argv[]) {
             chunk.add_op(op_string);
 
         }else if(s == add_probe_flag){
-            cout << "Child " << my_id << " adding probe." << endl;
             comm.recv(0, tag, probe_key);
             comm.recv(0, tag, signal_string);
             comm.recv(0, tag, period);
-            cout << "Child " << my_id << " pk: " << probe_key << ", sk: " << signal_string << ", period: " << period << endl;
 
             chunk.add_probe(probe_key, signal_string, period);
 
@@ -101,9 +96,6 @@ int main(int argc, char *argv[]) {
             throw runtime_error("Worker received invalid flag from master.");
         }
     }
-
-    // cout << "Child " << my_id << endl;
-    // cout << chunk << endl;
 
     chunk.setup_mpi_waits();
 
@@ -120,7 +112,7 @@ int main(int argc, char *argv[]) {
     // Wait for the signal to run the simulation
     int steps;
     broadcast(comm, steps, 0);
-    cout << "Child " << my_id << " got the signal to start simulation: " << steps << " steps." << endl;
+    cout << "Worker process " << my_id << " got the signal to start simulation: " << steps << " steps." << endl;
 
     chunk.run_n_steps(steps);
     comm.barrier();

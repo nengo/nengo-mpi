@@ -4,7 +4,6 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, int num_chunks){
     master_chunk = chunk;
     num_remote_chunks = num_chunks;
 
-    cout << "C++: Initializing remote processes." << endl;
     MPI_Comm everyone;
 
     int argc = 0;
@@ -76,8 +75,6 @@ void MpiInterface::add_probe(int component, key_type probe_key, string signal_st
 }
 
 void MpiInterface::finalize(){
-    cout << "C++: Finalizing master chunk." << endl;
-
     master_chunk->setup_mpi_waits();
 
     map<int, MPISend*>::iterator send_it;
@@ -106,8 +103,6 @@ void MpiInterface::run_n_steps(int steps){
     master_chunk->run_n_steps(steps);
 
     comm.barrier();
-
-    cout << "Finished simulation." << endl;
 }
 
 void MpiInterface::gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_data,
@@ -126,11 +121,12 @@ void MpiInterface::gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_
 
         if(chunk_index > 0){
             for(unsigned i = 0; i < probe_count; i++){
-                cout << "Master receiving probe from chunk " << chunk_index;
                 comm.recv(chunk_index, 3, probe_key);
-                cout << " with key " << probe_key << "..." << endl;
+
+                run_dbg("Master receiving probe from chunk " << chunk_index << endl
+                        <<" with key " << probe_key << "..." << endl);
+
                 comm.recv(chunk_index, 3, new_data);
-                cout << "Done receiving probe data." << endl;
 
                 data = probe_data.at(probe_key);
 

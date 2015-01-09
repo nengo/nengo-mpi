@@ -24,7 +24,7 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         time = n_steps * dt;
 
         if(step % 100 == 0){
-            cout << label << ": starting step " << step << endl;
+            run_dbg(label << ": starting step " << step << endl);
         }
 
         list<Operator*>::const_iterator it;

@@ -383,10 +383,9 @@ class MpiModel(builder.Model):
         key = make_key(signal)
 
         if key not in self.added_signals[component]:
-            # TODO: Should copy the logic used to add signals
-            # to the SignalDict in the refimpl builder
             logger.debug(
-                "Adding signal %s with key: %s", signal, make_key(signal))
+                "Component %d: Adding signal %s with key: %s",
+                component, signal, make_key(signal))
 
             self.added_signals[component].append(key)
 
@@ -415,12 +414,10 @@ class MpiModel(builder.Model):
         self.object_ops[self._object_context[-1]].append(op)
 
     def finalize(self):
-        logger.debug("ADDING OPS TO MPI:")
+        """ Add operators and probes to the mpi simulator."""
+
         for component in range(self.num_components):
             self.add_ops_to_mpi(component)
-
-        logger.debug("ADDING PROBES TO MPI:")
-        logger.debug(self.probes)
 
         for probe in self.probes:
             self.add_probe(
@@ -451,11 +448,6 @@ class MpiModel(builder.Model):
         self.sig = model.sig
 
     def add_ops_to_mpi(self, component):
-        logger.debug("IN ADD OPS TO MPI!")
-        # logger.debug("MODEL: %s", self)
-        # logger.debug("SEND SIGNALS: %s", self.send_signals)
-        # logger.debug("RECV SIGNALS: %s", self.recv_signals)
-
         send_signals = self.send_signals[component]
         recv_signals = self.recv_signals[component]
 
@@ -499,14 +491,14 @@ class MpiModel(builder.Model):
             op_type = type(op)
 
             if op_type == builder.node.SimPyFunc:
+                logger.debug(
+                    "Component %d: Adding PyFunc operator.", component)
+
                 t_in = op.t_in
                 fn = op.fn
                 x = op.x
 
                 if x is None:
-                    logger.debug(
-                        "Creating PyFunc, output:%d", make_key(op.output))
-
                     if op.output is None:
                         self.mpi_sim.create_PyFunc(fn, t_in)
                     else:
@@ -515,10 +507,6 @@ class MpiModel(builder.Model):
                             t_in, signal_to_string(op.output))
 
                 else:
-                    logger.debug(
-                        "Creating PyFunc with input, output:%d",
-                        make_key(op.output))
-
                     if isinstance(x.value, DummyNdarray):
                         input_array = np.zeros(x.shape)
                     else:
@@ -538,14 +526,18 @@ class MpiModel(builder.Model):
                 op_string = self.op_to_string(op)
 
                 if op_string:
+                    logger.debug(
+                        "Component %d: Adding operator with string: %s",
+                        component, op_string)
+
                     self.mpi_sim.add_op(component, op_string)
 
     def op_to_string(self, op):
         """
         Convert an operator into a string. The string will be passed into
         the C++ simulator, where it will be communicated using MPI to the
-        correct MPI process. That process will then use build
-        an operator using the parameters specified in the string.
+        correct MPI process. That process will then build an operator
+        using the parameters specified in the string.
         """
 
         op_type = type(op)
@@ -656,14 +648,24 @@ class MpiModel(builder.Model):
 
         return op_string
 
-    def add_probe(self, probe, signal, probe_key=None, sample_every=None):
+    def add_probe(self, probe, signal, sample_every=None):
+        """Add a probe to the mpi simulator."""
 
         period = 1 if sample_every is None else sample_every / self.dt
 
-        self.probe_keys[probe] = (make_key(probe)
-                                  if probe_key is None
-                                  else probe_key)
+        probe_key = make_key(probe)
+        self.probe_keys[probe] = probe_key
+
+        signal_string = signal_to_string(signal)
+
+        component = self.assignments[probe]
+
+        logger.debug(
+            "Component: %d: Adding probe of signal %s.\n"
+            "probe_key: %d, signal_string: %s, period: %d",
+            component, str(signal), probe_key,
+            signal_string, period)
 
         self.mpi_sim.add_probe(
-            self.assignments[probe], self.probe_keys[probe],
-            signal_to_string(signal), period)
+            component, self.probe_keys[probe],
+            signal_string, period)

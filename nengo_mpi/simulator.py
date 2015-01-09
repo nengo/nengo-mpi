@@ -64,9 +64,10 @@ class Simulator(object):
         if partitioner is None:
             partitioner = Partitioner()
 
+        print "Partitioning network..."
         num_components, assignments = partitioner.partition(network)
 
-        # mpi model will store the PythonMpiSimulator
+        print "Building MPI model..."
         self.model = MpiModel(
             num_components, assignments, dt=dt,
             label="%s, dt=%f" % (network, dt),
@@ -74,6 +75,7 @@ class Simulator(object):
 
         builder.Builder.build(self.model, network)
 
+        print "Finalizing MPI model..."
         self.model.finalize()
 
         self.mpi_sim = self.model.mpi_sim
@@ -83,21 +85,19 @@ class Simulator(object):
 
         self.data = ProbeDict(self._probe_outputs)
 
+        print "MPI model ready."
+
     def __str__(self):
         return self.mpi_sim.to_string()
 
     def run_steps(self, steps):
         """Simulate for the given number of `dt` steps."""
+
+        print "Simulating MPI model for %d steps..." % steps
         self.mpi_sim.run_n_steps(steps)
 
         for probe, probe_key in self.model.probe_keys.items():
             data = self.mpi_sim.get_probe_data(probe_key, np.empty)
-
-            # logger.debug("******** PROBE DATA *********")
-            # logger.debug("KEY: %s", probe_key)
-            # logger.debug("PROBE: %s", probe)
-            # logger.debug("DATA SHAPE: %s", str(np.array(data).shape))
-            # logger.debug(data)
 
             if probe not in self._probe_outputs:
                 self.model._probe_outputs[probe] = data
@@ -105,6 +105,8 @@ class Simulator(object):
                 self._probe_outputs[probe].extend(data)
 
         self.n_steps += steps
+
+        print "MPI Simulation complete."
 
     def step(self):
         """Advance the simulator by `self.dt` seconds."""

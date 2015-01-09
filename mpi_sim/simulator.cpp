@@ -10,7 +10,7 @@ MpiSimulator::MpiSimulator(int num_components, float dt):
     master_chunk = new MpiSimulatorChunk("Chunk 0", dt);
 
     if(num_components == 1){
-        cout << "C++: Only one chunk supplied. Simulations will not use MPI." << endl;
+        cout << "Master: Only one chunk supplied. Simulations will not use MPI." << endl;
     }else{
         mpi_interface.initialize_chunks(master_chunk, num_components - 1);
     }
