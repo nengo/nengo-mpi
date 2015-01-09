@@ -1,10 +1,6 @@
 #ifndef NENGO_MPI_SIMULATOR_HPP
 #define NENGO_MPI_SIMULATOR_HPP
 
-#include <boost/serialization/list.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-
 #include <list>
 #include <map>
 #include <vector>
@@ -31,16 +27,13 @@ public:
     void finalize();
 
     void run_n_steps(int steps);
-    vector<Matrix*> get_probe_data(key_type probe_key);
+    vector<BaseMatrix*> get_probe_data(key_type probe_key);
 
     void reset();
 
-    void add_signal(int component, key_type key, string label, Matrix* data);
+    void add_base_signal(int component, key_type key, string label, BaseMatrix* data);
     void add_op(int component, string op_string);
-    void add_probe(int component, key_type probe_key, key_type signal_key, int period);
-
-    void write_to_file(string filename);
-    void read_from_file(string filename);
+    void add_probe(int component, key_type probe_key, string signal_string, int period);
 
     string to_string() const;
 
@@ -58,23 +51,11 @@ private:
 
     // Place to store probe data retrieved from worker
     // processes after simulation has finished
-    map<key_type, vector<Matrix*> > probe_data;
+    map<key_type, vector<BaseMatrix*> > probe_data;
 
     // Map from a source index to number of probes. Used for gather
     // probe data from remote chunks after simulation
     map<int, int> probe_counts;
-
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & master_chunk;
-        ar & num_components;
-        ar & dt;
-    }
 };
 
 #endif

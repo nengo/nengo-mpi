@@ -61,11 +61,11 @@ int main(int argc, char *argv[]) {
     int s = 0;
     key_type key;
     string label;
-    Matrix data;
+    BaseMatrix data;
     string op_string;
 
     key_type probe_key;
-    key_type signal_key;
+    string signal_string;
     float period;
 
     while(1){
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
             comm.recv(0, tag, label);
             comm.recv(0, tag, data);
 
-            chunk.add_signal(key, label, data);
+            chunk.add_base_signal(key, label, data);
 
         }else if(s == add_op_flag){
             comm.recv(0, tag, op_string);
@@ -88,11 +88,11 @@ int main(int argc, char *argv[]) {
         }else if(s == add_probe_flag){
             cout << "Child " << my_id << " adding probe." << endl;
             comm.recv(0, tag, probe_key);
-            comm.recv(0, tag, signal_key);
+            comm.recv(0, tag, signal_string);
             comm.recv(0, tag, period);
-            cout << "Child " << my_id << " pk: " << probe_key << ", sk: " << signal_key << ", period: " << period << endl;
+            cout << "Child " << my_id << " pk: " << probe_key << ", sk: " << signal_string << ", period: " << period << endl;
 
-            chunk.add_probe(probe_key, signal_key, period);
+            chunk.add_probe(probe_key, signal_string, period);
 
         }else if(s == stop_flag){
             break;
@@ -125,17 +125,15 @@ int main(int argc, char *argv[]) {
     chunk.run_n_steps(steps);
     comm.barrier();
 
-    map<key_type, Probe<Matrix>*>::iterator probe_it;
-    vector<Matrix*>* probe_data;
+    map<key_type, Probe*>::iterator probe_it;
+    vector<BaseMatrix*> probe_data;
 
     for(probe_it = chunk.probe_map.begin(); probe_it != chunk.probe_map.end(); ++probe_it){
         comm.send(0, 3, probe_it->first);
 
         probe_data = probe_it->second->get_data();
-        comm.send(0, 3, *probe_data);
-
-        // TODO: find a better way to do this
-        delete probe_data;
+        comm.send(0, 3, probe_data);
+        probe_it->second->clear(true);
     }
 
     comm.barrier();

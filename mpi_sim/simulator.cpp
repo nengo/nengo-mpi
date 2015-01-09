@@ -36,10 +36,10 @@ void MpiSimulator::run_n_steps(int steps){
         mpi_interface.finish_simulation();
     }
 
-    vector<Matrix*>* new_data;
-    vector<Matrix*> data;
+    vector<BaseMatrix*> new_data;
+    vector<BaseMatrix*> data;
 
-    map<key_type, Probe<Matrix>*>::const_iterator probe_it = master_chunk->probe_map.begin();
+    map<key_type, Probe*>::const_iterator probe_it = master_chunk->probe_map.begin();
 
     // Gather probe data from the master chunk
     for(; probe_it != master_chunk->probe_map.end(); probe_it++){
@@ -47,15 +47,13 @@ void MpiSimulator::run_n_steps(int steps){
         data = probe_data.at(probe_it->first);
         new_data = probe_it->second->get_data();
 
-        data.reserve(data.size() + new_data->size());
-        data.insert(data.end(), new_data->begin(), new_data->end());
+        data.reserve(data.size() + new_data.size());
+        data.insert(data.end(), new_data.begin(), new_data.end());
         probe_data[probe_it->first] = data;
-
-        delete new_data;
     }
 }
 
-vector<Matrix*> MpiSimulator::get_probe_data(key_type probe_key){
+vector<BaseMatrix*> MpiSimulator::get_probe_data(key_type probe_key){
 
     return probe_data.at(probe_key);
 }
@@ -67,11 +65,11 @@ void MpiSimulator::reset(){
     //Send a signal to remote chunks telling them to reset
 }
 
-void MpiSimulator::add_signal(int component, key_type key, string label, Matrix* data){
+void MpiSimulator::add_base_signal(int component, key_type key, string label, BaseMatrix* data){
     if(component == 0){
-        master_chunk->add_signal(key, label, *data);
+        master_chunk->add_base_signal(key, label, *data);
     }else{
-        mpi_interface.add_signal(component, key, label, data);
+        mpi_interface.add_base_signal(component, key, label, data);
     }
 }
 
@@ -83,29 +81,15 @@ void MpiSimulator::add_op(int component, string op_string){
     }
 }
 
-void MpiSimulator::add_probe(int component, key_type probe_key, key_type signal_key, int period){
+void MpiSimulator::add_probe(int component, key_type probe_key, string signal_string, int period){
     if(component == 0){
-        master_chunk->add_probe(probe_key, signal_key, period);
+        master_chunk->add_probe(probe_key, signal_string, period);
     }else{
-        mpi_interface.add_probe(component, probe_key, signal_key, period);
+        mpi_interface.add_probe(component, probe_key, signal_string, period);
     }
 
     probe_counts[component] += 1;
-    probe_data[probe_key] = vector<Matrix*>();
-}
-
-void MpiSimulator::write_to_file(string filename){
-    ofstream ofs(filename);
-
-    boost::archive::text_oarchive oa(ofs);
-    oa << *this;
-}
-
-void MpiSimulator::read_from_file(string filename){
-    ifstream ifs(filename);
-
-    boost::archive::text_iarchive ia(ifs);
-    ia >> *this;
+    probe_data[probe_key] = vector<BaseMatrix*>();
 }
 
 string MpiSimulator::to_string() const{

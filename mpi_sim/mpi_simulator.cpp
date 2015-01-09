@@ -47,7 +47,7 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, int num_chunks){
     }
 }
 
-void MpiInterface::add_signal(int component, key_type key, string label, Matrix* data){
+void MpiInterface::add_base_signal(int component, key_type key, string label, BaseMatrix* data){
     int tag = 1;
 
     comm.send(component, tag, add_signal_flag);
@@ -65,13 +65,13 @@ void MpiInterface::add_op(int component, string op_string){
     comm.send(component, tag, op_string);
 }
 
-void MpiInterface::add_probe(int component, key_type probe_key, key_type signal_key, float period){
+void MpiInterface::add_probe(int component, key_type probe_key, string signal_string, float period){
     int tag = 1;
 
     comm.send(component, tag, add_probe_flag);
 
     comm.send(component, tag, probe_key);
-    comm.send(component, tag, signal_key);
+    comm.send(component, tag, signal_string);
     comm.send(component, tag, period);
 }
 
@@ -110,7 +110,7 @@ void MpiInterface::run_n_steps(int steps){
     cout << "Finished simulation." << endl;
 }
 
-void MpiInterface::gather_probe_data(map<key_type, vector<Matrix*> >& probe_data,
+void MpiInterface::gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_data,
                                      map<int, int>& probe_counts){
     key_type probe_key;
     map<int, int>::iterator count_it;
@@ -118,7 +118,7 @@ void MpiInterface::gather_probe_data(map<key_type, vector<Matrix*> >& probe_data
 
     cout << "Master gathering probe data from children..." << endl;
 
-    vector<Matrix*> new_data, data;
+    vector<BaseMatrix*> new_data, data;
 
     for(count_it = probe_counts.begin(); count_it != probe_counts.end(); ++count_it){
         chunk_index = count_it->first;

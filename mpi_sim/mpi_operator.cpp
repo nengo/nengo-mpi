@@ -1,10 +1,10 @@
 #include "mpi_operator.hpp"
 
-MPISend::MPISend(int dst, int tag, Matrix* content):
+MPISend::MPISend(int dst, int tag, BaseMatrix* content):
     dst(dst), tag(tag), content(content){
 }
 
-MPIRecv::MPIRecv(int src, int tag, Matrix* content):
+MPIRecv::MPIRecv(int src, int tag, BaseMatrix* content):
     src(src), tag(tag), content(content){
 }
 
@@ -14,9 +14,7 @@ MPIWait::MPIWait(int tag)
 
 void MPISend::operator() (){
 
-    run_dbg("GOOD");
     request = comm->isend(dst, tag, content->data());
-    run_dbg("BAD");
 
     run_dbg(*this);
 }

@@ -25,7 +25,7 @@ class MPIWait;
 //We use mpi tags to identify signals. The tags will be the address of
 //the corresponding python signal.
 
-//In INTERLEAVED mode the MPISend operator should be called directly
+//The MPISend operator should be called directly
 //after its content vector is updated by an operation. The corresponding
 //MPIWait operator should be called directly before the content vector is
 //updated.
@@ -37,7 +37,7 @@ class MPISend: public Operator{
 
 public:
     MPISend(){};
-    MPISend(int dst, int tag, Matrix* content);
+    MPISend(int dst, int tag, BaseMatrix* content);
     string classname() const { return "MPISend"; }
 
     void operator()();
@@ -47,23 +47,11 @@ public:
 
     int tag;
     mpi::communicator* comm;
-    Matrix* content;
+    BaseMatrix* content;
 
 private:
     int dst;
     mpi::request request;
-
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & dst;
-        ar & tag;
-        ar & content;
-    }
 };
 
 //In INTERLEAVED mode the MPIRecv operator should be called directly
@@ -76,7 +64,7 @@ class MPIRecv: public Operator{
 
 public:
     MPIRecv(){};
-    MPIRecv(int src, int tag, Matrix* content);
+    MPIRecv(int src, int tag, BaseMatrix* content);
     string classname() const { return "MPIRecv"; }
 
     void operator()();
@@ -86,23 +74,11 @@ public:
 
     int tag;
     mpi::communicator* comm;
-    Matrix* content;
+    BaseMatrix* content;
 
 private:
     int src;
     mpi::request request;
-
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & src;
-        ar & tag;
-        ar & content;
-    }
 };
 
 // Used to complete isend/irecv operations.
@@ -122,18 +98,6 @@ public:
 private:
     bool first_call;
 
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version) {
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-
-        ar & tag;
-        ar & first_call;
-    }
 };
 
 #endif

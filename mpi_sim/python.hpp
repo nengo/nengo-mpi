@@ -21,8 +21,8 @@ namespace bpyn = bpy::numeric;
 
 bool hasattr(bpy::object obj, string const &attrName);
 
-Matrix* ndarray_to_matrix(bpyn::array a);
-Matrix* list_to_matrix(bpy::list l);
+BaseMatrix* ndarray_to_matrix(bpyn::array a);
+BaseMatrix* list_to_matrix(bpy::list l);
 
 class PythonMpiSimulator{
 public:
@@ -35,22 +35,19 @@ public:
 
     void reset();
 
-    void write_to_file(string filename);
-    void read_from_file(string filename);
-
     void add_signal(bpy::object component, bpy::object key,
                     bpy::object label, bpyn::array data);
 
     void add_op(bpy::object component, bpy::object op_string);
 
-    void add_probe(bpy::object component, bpy::object probe_key,  bpy::object signal_key, bpy::object period);
+    void add_probe(bpy::object component, bpy::object probe_key,  bpy::object signal_string, bpy::object period);
 
     void create_PyFunc(bpy::object py_fn, bpy::object t_in);
-    void create_PyFuncO(bpy::object output, bpy::object py_fn, bpy::object t_in);
     void create_PyFuncI(bpy::object py_fn, bpy::object t_in,
-                    bpy::object input, bpyn::array py_input);
-    void create_PyFuncIO(bpy::object output, bpy::object py_fn, bpy::object t_in,
-                    bpy::object input, bpyn::array py_input);
+                        bpy::object input, bpyn::array py_input);
+    void create_PyFuncO(bpy::object py_fn, bpy::object t_in, bpy::object output);
+    void create_PyFuncIO(bpy::object py_fn, bpy::object t_in,
+                         bpy::object input, bpyn::array py_input, bpy::object output);
 
     string to_string() const;
 
@@ -61,16 +58,22 @@ private:
 
 class PyFunc: public Operator{
 public:
-    PyFunc(Matrix* output, bpy::object py_fn, double* t_in);
-    PyFunc(Matrix* output, bpy::object py_fn, double* t_in,
-           Matrix* input, bpyn::array py_input);
+    PyFunc(bpy::object py_fn, double* t_in);
+    PyFunc(bpy::object py_fn, double* t_in, Matrix input, bpyn::array py_input);
+    PyFunc(bpy::object py_fn, double* t_in, Matrix output);
+    PyFunc(bpy::object py_fn, double* t_in, Matrix input, bpyn::array py_input, Matrix output);
 
     void operator()();
     virtual string to_string() const;
 
+    // Used to initialize input and output when their values are not supplied.
+    // The Matrix constructor requires a BaseMatrix.
+    static BaseMatrix null_matrix;
+    static ublas::slice null_slice;
+
 private:
-    Matrix* output;
-    Matrix* input;
+    Matrix input;
+    Matrix output;
 
     double* time;
 
@@ -80,16 +83,10 @@ private:
 
     bool supply_time;
     bool supply_input;
-
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-        //TODO
-        ar & input;
-        ar & output;
-        ar & time;
-    }
+    bool get_output;
 };
+
+BaseMatrix PyFunc::null_matrix = BaseMatrix(0,0);
+ublas::slice PyFunc::null_slice = ublas::slice(0, 0, 0);
 
 #endif

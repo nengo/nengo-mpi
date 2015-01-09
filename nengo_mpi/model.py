@@ -257,6 +257,17 @@ def make_key(obj):
         return id(obj)
 
 
+def signal_to_string(signal, delim=':'):
+    shape = signal.shape if signal.shape else 1
+    strides = signal.elemstrides if signal.elemstrides else 1
+
+    signal_args = [
+        make_key(signal), shape, strides, signal.offset]
+
+    signal_string = delim.join(map(str, signal_args))
+    return signal_string
+
+
 class MpiModel(builder.Model):
     """
     Output of the Builder, used by the Simulator.
@@ -269,9 +280,6 @@ class MpiModel(builder.Model):
     specified in terms of the high-level nengo objects like nodes,
     networks and ensembles).
     """
-
-    # implemented_ops = [Reset, Copy, ]
-
     def __init__(
             self, num_components, assignments, dt=0.001, label=None,
             decoder_cache=NoDecoderCache()):
@@ -393,7 +401,7 @@ class MpiModel(builder.Model):
 
             if delete:
                 # Replace the data stored in the signal by a dummy array,
-                # which has # no contents but has the same shape, size, etc
+                # which has no contents but has the same shape, size, etc
                 # as the original. This should allow the memory to be
                 # reclaimed.
                 signal.base._value = DummyNdarray(signal.base._value)
@@ -416,7 +424,7 @@ class MpiModel(builder.Model):
 
         for probe in self.probes:
             self.add_probe(
-                probe, make_key(self.sig[probe]['in']),
+                probe, self.sig[probe]['in'],
                 sample_every=probe.sample_every)
 
         self.mpi_sim.finalize()
@@ -495,10 +503,6 @@ class MpiModel(builder.Model):
                 fn = op.fn
                 x = op.x
 
-                output_id = (make_key(op.output)
-                             if op.output is not None
-                             else -1)
-
                 if x is None:
                     logger.debug(
                         "Creating PyFunc, output:%d", make_key(op.output))
@@ -507,8 +511,8 @@ class MpiModel(builder.Model):
                         self.mpi_sim.create_PyFunc(fn, t_in)
                     else:
                         self.mpi_sim.create_PyFuncO(
-                            output_id, make_checked_func(fn, t_in, False),
-                            t_in)
+                            make_checked_func(fn, t_in, False),
+                            t_in, signal_to_string(op.output))
 
                 else:
                     logger.debug(
@@ -523,12 +527,13 @@ class MpiModel(builder.Model):
                     if op.output is None:
 
                         self.mpi_sim.create_PyFuncI(
-                            fn, t_in, make_key(x), input_array)
+                            fn, t_in, signal_to_string(x), input_array)
 
                     else:
                         self.mpi_sim.create_PyFuncIO(
-                            output_id, make_checked_func(fn, t_in, True),
-                            t_in, make_key(x), input_array)
+                            make_checked_func(fn, t_in, True), t_in,
+                            signal_to_string(x), input_array,
+                            signal_to_string(op.output))
             else:
                 op_string = self.op_to_string(op)
 
@@ -546,19 +551,21 @@ class MpiModel(builder.Model):
         op_type = type(op)
 
         if op_type == builder.operator.Reset:
-            op_args = ["Reset", make_key(op.dst), op.value]
+            op_args = ["Reset", signal_to_string(op.dst), op.value]
 
         elif op_type == builder.operator.Copy:
-            op_args = ["Copy", make_key(op.dst), make_key(op.src)]
+            op_args = [
+                "Copy", signal_to_string(op.dst), signal_to_string(op.src)]
 
         elif op_type == builder.operator.DotInc:
             op_args = [
-                "DotInc", make_key(op.A), make_key(op.X), make_key(op.Y)]
+                "DotInc", signal_to_string(op.A), signal_to_string(op.X),
+                signal_to_string(op.Y)]
 
         elif op_type == builder.operator.ElementwiseInc:
             op_args = [
-                "ElementwiseInc", make_key(op.A),
-                make_key(op.X), make_key(op.Y)]
+                "ElementwiseInc", signal_to_string(op.A),
+                signal_to_string(op.X), signal_to_string(op.Y)]
 
         elif op_type == builder.neurons.SimNeurons:
             num_neurons = op.J.size
@@ -569,24 +576,24 @@ class MpiModel(builder.Model):
                 tau_rc = op.neurons.tau_rc
                 op_args = [
                     "LIF", num_neurons, tau_rc, tau_ref, self.dt,
-                    make_key(op.J), make_key(op.output)]
+                    signal_to_string(op.J), signal_to_string(op.output)]
 
             elif neuron_type is LIFRate:
                 tau_ref = op.neurons.tau_ref
                 tau_rc = op.neurons.tau_rc
                 op_args = [
                     "LIFRate", num_neurons, tau_rc, tau_ref,
-                    make_key(op.J), make_key(op.output)]
+                    signal_to_string(op.J), signal_to_string(op.output)]
 
             elif neuron_type is RectifiedLinear:
                 op_args = [
-                    "RectifiedLinear", num_neurons, make_key(op.J),
-                    make_key(op.output)]
+                    "RectifiedLinear", num_neurons, signal_to_string(op.J),
+                    signal_to_string(op.output)]
 
             elif neuron_type is Sigmoid:
                 op_args = [
                     "Sigmoid", num_neurons, op.neurons.tau_ref,
-                    make_key(op.J), make_key(op.output)]
+                    signal_to_string(op.J), signal_to_string(op.output)]
             else:
                 raise NotImplementedError(
                     'nengo_mpi cannot handle neurons of type ' +
@@ -609,8 +616,8 @@ class MpiModel(builder.Model):
                     num, den = synapse.num, synapse.den
 
                 op_args = [
-                    "LinearFilter", make_key(op.input),
-                    make_key(op.output), str(num), str(den)]
+                    "LinearFilter", signal_to_string(op.input),
+                    signal_to_string(op.output), str(num), str(den)]
 
             else:
                 raise NotImplementedError(
@@ -620,7 +627,7 @@ class MpiModel(builder.Model):
         elif op_type == builder.operator.PreserveValue:
             logger.debug(
                 "Skipping PreserveValue, signal: %d, signal_key: %d",
-                str(op.dst), make_key(op.dst))
+                str(op.dst), signal_to_string(op.dst))
 
             op_args = []
 
@@ -643,9 +650,13 @@ class MpiModel(builder.Model):
 
         delim = ';'
         op_string = delim.join(map(str, op_args))
+        op_string = op_string.replace(" ", "")
+        op_string = op_string.replace("(", "")
+        op_string = op_string.replace(")", "")
+
         return op_string
 
-    def add_probe(self, probe, signal_key, probe_key=None, sample_every=None):
+    def add_probe(self, probe, signal, probe_key=None, sample_every=None):
 
         period = 1 if sample_every is None else sample_every / self.dt
 
@@ -655,4 +666,4 @@ class MpiModel(builder.Model):
 
         self.mpi_sim.add_probe(
             self.assignments[probe], self.probe_keys[probe],
-            signal_key, period)
+            signal_to_string(signal), period)

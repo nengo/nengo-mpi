@@ -5,8 +5,8 @@
 #include <string>
 #include <sstream>
 
-#include <boost/numeric/ublas/vector.hpp>
 #include <boost/numeric/ublas/matrix.hpp>
+#include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/circular_buffer.hpp>
 
@@ -14,14 +14,13 @@
 
 using namespace std;
 
+namespace ublas = boost::numeric::ublas;
+
 typedef double floattype;
 
-typedef boost::numeric::ublas::vector<floattype> Vector;
-typedef boost::numeric::ublas::matrix<floattype> Matrix;
-
-// A vector/matrix whose elements are all the same
-typedef boost::numeric::ublas::scalar_vector<floattype> ScalarVector;
-typedef boost::numeric::ublas::scalar_matrix<floattype> ScalarMatrix;
+typedef ublas::matrix<floattype> BaseMatrix;
+typedef ublas::matrix_slice<BaseMatrix> Matrix;
+typedef ublas::scalar_matrix<floattype> ScalarMatrix;
 
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures will be in an array, and we simply call
@@ -44,115 +43,65 @@ public:
         out << op.to_string();
         return out;
     }
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){}
 };
 
 class Reset: public Operator{
 
 public:
-    Reset(){};
-    Reset(Matrix* dst, floattype value);
+    Reset(Matrix dst, floattype value);
     string classname() const { return "Reset"; }
 
     void operator() ();
     virtual string to_string() const;
 
 protected:
-    Matrix* dst;
-    Matrix dummy;
+    Matrix dst;
+    ScalarMatrix dummy;
     floattype value;
 
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & dst;
-        ar & dummy;
-        ar & value;
-    }
 };
 
 class Copy: public Operator{
 public:
-    Copy(){};
-    Copy(Matrix* dst, Matrix* src);
+    Copy(Matrix dst, Matrix src);
     string classname() const { return "Copy"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix* dst;
-    Matrix* src;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & dst;
-        ar & src;
-    }
+    Matrix dst;
+    Matrix src;
 };
 
 // Increment signal Y by dot(A,X)
 class DotInc: public Operator{
 public:
-    DotInc(){};
-    DotInc(Matrix* A, Matrix* X, Matrix* Y);
+    DotInc(Matrix A, Matrix X, Matrix Y);
     string classname() const { return "DotInc"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix* A;
-    Matrix* X;
-    Matrix* Y;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & A;
-        ar & X;
-        ar & Y;
-    }
+    Matrix A;
+    Matrix X;
+    Matrix Y;
 };
 
 
 class ElementwiseInc: public Operator{
 public:
-    ElementwiseInc(){};
-    ElementwiseInc(Matrix* A, Matrix* X, Matrix* Y);
+    ElementwiseInc(Matrix A, Matrix X, Matrix Y);
     string classname() const { return "ElementwiseInc"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix* A;
-    Matrix* X;
-    Matrix* Y;
+    Matrix A;
+    Matrix X;
+    Matrix Y;
 
     bool broadcast;
 
@@ -162,92 +111,33 @@ protected:
 
     int X_row_stride;
     int X_col_stride;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & A;
-        ar & X;
-        ar & Y;
-
-        ar & broadcast;
-
-        ar & A_row_stride;
-        ar & A_col_stride;
-
-        ar & X_row_stride;
-        ar & X_col_stride;
-    }
 };
 
 class Synapse: public Operator{
 
 public:
-    Synapse(){};
-    Synapse(Matrix* input, Matrix* output, Matrix* numer, Matrix* denom);
+    Synapse(Matrix input, Matrix output, BaseMatrix* numer, BaseMatrix* denom);
     string classname() const { return "Synapse"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix* input;
-    Matrix* output;
-    Matrix* numer;
-    Matrix* denom;
+    Matrix input;
+    Matrix output;
+
+    // TODO: make these into normal Matrices referring to BaseMatrices stored
+    // inside the chunk
+    BaseMatrix* numer;
+    BaseMatrix* denom;
 
     vector< boost::circular_buffer<floattype> > x;
     vector< boost::circular_buffer<floattype> > y;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void save(Archive & ar, const unsigned int version) const{
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-
-        ar & input;
-        ar & output;
-        ar & numer;
-        ar & denom;
-    }
-
-    template<class Archive>
-    void load(Archive & ar, const unsigned int version){
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-
-        ar & input;
-        ar & output;
-        ar & numer;
-        ar & denom;
-
-        // Circular buffers do not have serialization method, but they
-        // should be empty anyway
-        for(int i = 0; i < input->size1(); i++){
-            x.push_back(boost::circular_buffer<floattype>(numer->size1()));
-            y.push_back(boost::circular_buffer<floattype>(denom->size1()));
-        }
-    }
-
-    // macro to use separate save/load functions for serialization
-    BOOST_SERIALIZATION_SPLIT_MEMBER()
 };
 
 class SimLIF: public Operator{
 public:
-    SimLIF(){};
-    SimLIF(int n_neuron, floattype tau_rc, floattype tau_ref, floattype dt, Matrix* J, Matrix* output);
+    SimLIF(int n_neuron, floattype tau_rc, floattype tau_ref, floattype dt, Matrix J, Matrix output);
     string classname() const { return "SimLIF"; }
 
     void operator()();
@@ -260,50 +150,22 @@ protected:
     floattype tau_ref;
     int n_neurons;
 
-    Matrix* J;
-    Matrix* output;
+    Matrix J;
+    Matrix output;
 
-    Matrix voltage;
-    Matrix refractory_time;
+    BaseMatrix voltage;
+    BaseMatrix refractory_time;
 
-    Matrix dt_vec;
-    Matrix mult;
-    Matrix dV;
-    Matrix one;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & dt;
-        ar & dt_inv;
-        ar & tau_rc;
-        ar & tau_ref;
-        ar & n_neurons;
-
-        ar & J;
-        ar & output;
-
-        ar & voltage;
-        ar & refractory_time;
-
-        ar & dt_vec;
-        ar & mult;
-        ar & dV;
-        ar & one;
-    }
+    ScalarMatrix dt_vec;
+    BaseMatrix mult;
+    BaseMatrix dV;
+    ScalarMatrix one;
 };
 
 class SimLIFRate: public Operator{
 
 public:
-    SimLIFRate(){};
-    SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, Matrix* J, Matrix* output);
+    SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, Matrix J, Matrix output);
     string classname() const { return "SimLIFRate"; }
 
     void operator()();
@@ -314,37 +176,16 @@ protected:
     floattype tau_ref;
     int n_neurons;
 
-    Matrix j;
-    Matrix one;
+    BaseMatrix j;
+    ScalarMatrix one;
 
-    Matrix* J;
-    Matrix* output;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & tau_rc;
-        ar & tau_ref;
-        ar & n_neurons;
-
-        ar & j;
-        ar & one;
-
-        ar & J;
-        ar & output;
-    }
+    Matrix J;
+    Matrix output;
 };
 
 class SimRectifiedLinear: public Operator{
 public:
-    SimRectifiedLinear(){};
-    SimRectifiedLinear(int n_neurons, Matrix* J, Matrix* output);
+    SimRectifiedLinear(int n_neurons, Matrix J, Matrix output);
     string classname() const { return "SimRectifiedLinear"; }
 
     void operator()();
@@ -353,29 +194,13 @@ public:
 protected:
     int n_neurons;
 
-    Matrix* J;
-    Matrix* output;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & n_neurons;
-
-        ar & J;
-        ar & output;
-    }
+    Matrix J;
+    Matrix output;
 };
 
 class SimSigmoid: public Operator{
 public:
-    SimSigmoid(){};
-    SimSigmoid(int n_neurons, float tau_ref, Matrix* J, Matrix* output);
+    SimSigmoid(int n_neurons, float tau_ref, Matrix J, Matrix output);
     string classname() const { return "SimSigmoid"; }
 
     void operator()();
@@ -386,25 +211,8 @@ protected:
     float tau_ref;
     float tau_ref_inv;
 
-    Matrix* J;
-    Matrix* output;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & ar, const unsigned int version){
-
-        dbg("Serializing: " << classname());
-
-        ar & boost::serialization::base_object<Operator>(*this);
-        ar & n_neurons;
-        ar & tau_ref;
-        ar & tau_ref_inv;
-
-        ar & J;
-        ar & output;
-    }
+    Matrix J;
+    Matrix output;
 };
 
 

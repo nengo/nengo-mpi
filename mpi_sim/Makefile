@@ -47,7 +47,7 @@ clean:
 # ********* mpi_sim_worker *************
 
 mpi_sim_worker: worker.o ${OBJS}
-	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lmpi -lboost_mpi -lm -std=c++0x ${DEFS}
+	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} -L${MPI_LIB} -L${BOOST_LIB} -lmpi -lboost_mpi -lm -std=c++0x ${DEFS}
 
 worker.o: worker.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 	mpicxx -std=c++0x -c -o worker.o worker.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
@@ -55,7 +55,7 @@ worker.o: worker.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug
 # ********* mpi_sim.so *************
 
 mpi_sim: ${OBJS} python.o
-	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared -L${PYTHON_LIB} -L${MPI_LIB} -L${BOOST_LIB} -lboost_serialization -lboost_python -lmpi -lboost_mpi -lm ${DEFS}
+	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared -L${PYTHON_LIB} -L${MPI_LIB} -L${BOOST_LIB} -lboost_python -lmpi -lboost_mpi -lm ${DEFS}
 
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
 	mpicxx -std=c++0x -c -o mpi_operator.o -fPIC mpi_operator.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
