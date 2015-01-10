@@ -396,6 +396,9 @@ class MpiModel(builder.Model):
             if A.ndim == 0:
                 A = np.reshape(A, (1, 1))
 
+            if A.dtype != np.float64:
+                A = A.astype(np.float64)
+
             self.mpi_sim.add_signal(component, key, label, A)
 
             if delete:

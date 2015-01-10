@@ -108,13 +108,17 @@ class Partitioner(object):
                 assignments = {}
             else:
                 assert isinstance(assignments, dict)
-                max_component = max(assignments.values())
+
+                max_component = max(assignments.values()) if assignments else 0
 
                 if not max_component < num_components:
                     raise ValueError(
                         "``assignments'' dictionary supplied to "
                         "``Partitioner'' requires more components "
                         "than specified by ``num_components''.")
+
+                for k, v in assignments.iteritems():
+                    assignments[k] = int(v)
 
             self.assignments = assignments
 
@@ -173,10 +177,15 @@ def propogate_assignments(network, assignments):
     """
     def helper(network, assignments):
 
-        # TODO: allow sufficiently simple nodes (e.g. constant) to be
-        # simulated outside of main process.
         for node in network.nodes:
-            assignments[node] = 0
+            # Non-callable nodes can go on arbitrary processes, as long as
+            # connections coming from those nodes do not have functions
+            # associated with them. TODO: enforce this rule.
+
+            if callable(node.output):
+                assignments[node] = 0
+            elif node not in assignments:
+                assignments[node] = assignments[network]
 
         for ensemble in network.ensembles:
             if ensemble not in assignments:
