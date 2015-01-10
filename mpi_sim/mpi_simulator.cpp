@@ -100,7 +100,7 @@ void MpiInterface::run_n_steps(int steps){
 
     cout << "Master starting simulation: " << steps << " steps." << endl;
 
-    master_chunk->run_n_steps(steps);
+    master_chunk->run_n_steps(steps, true);
 
     comm.barrier();
 }

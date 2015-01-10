@@ -29,7 +29,7 @@ void MpiSimulator::finalize(){
 void MpiSimulator::run_n_steps(int steps){
 
     if(num_components == 1){
-        master_chunk->run_n_steps(steps);
+        master_chunk->run_n_steps(steps, true);
     }else{
         mpi_interface.run_n_steps(steps);
         mpi_interface.gather_probe_data(probe_data, probe_counts);

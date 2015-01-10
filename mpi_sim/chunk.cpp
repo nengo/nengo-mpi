@@ -8,7 +8,7 @@ MpiSimulatorChunk::MpiSimulatorChunk(string label, float dt)
     :time(0.0), label(label), dt(dt), n_steps(0){
 }
 
-void MpiSimulatorChunk::run_n_steps(int steps){
+void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
     cout << label << ": running " << steps << " steps." << endl;
 
@@ -17,15 +17,17 @@ void MpiSimulatorChunk::run_n_steps(int steps){
         probe_it->second->init_for_simulation(steps);
     }
 
+    ez::ezETAProgressBar eta(steps);
+
+    if(progress){
+        eta.start();
+    }
+
     for(unsigned step = 0; step < steps; ++step){
 
         // Update time before calling operators, as refimpl does
         n_steps++;
         time = n_steps * dt;
-
-        if(step % 100 == 0){
-            run_dbg(label << ": starting step " << step << endl);
-        }
 
         list<Operator*>::const_iterator it;
         for(it = operator_list.begin(); it != operator_list.end(); ++it){
@@ -40,6 +42,10 @@ void MpiSimulatorChunk::run_n_steps(int steps){
             //Call the operator
             probe_it->second->gather(n_steps);
             run_dbg(label << ": after gathering " << *(probe_it->second) << endl);
+        }
+
+        if(progress){
+            ++eta;
         }
     }
 }

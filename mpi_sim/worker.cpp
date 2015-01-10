@@ -39,9 +39,6 @@ int main(int argc, char *argv[]) {
     int my_id = comm.rank();
     int num_procs = comm.size();
 
-    //MPI_Comm_rank(MPI_COMM_WORLD, &my_id) ;
-    //MPI_Comm_size(MPI_COMM_WORLD, &num_procs) ;
-
     int buflen = 512;
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
@@ -114,7 +111,7 @@ int main(int argc, char *argv[]) {
     broadcast(comm, steps, 0);
     cout << "Worker process " << my_id << " got the signal to start simulation: " << steps << " steps." << endl;
 
-    chunk.run_n_steps(steps);
+    chunk.run_n_steps(steps, false);
     comm.barrier();
 
     map<key_type, Probe*>::iterator probe_it;

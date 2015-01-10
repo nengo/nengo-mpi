@@ -14,6 +14,7 @@
 #include "mpi_operator.hpp"
 #include "probe.hpp"
 #include "debug.hpp"
+#include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
 
 // Class declaration for MpiSimulatorChunk
 
@@ -35,7 +36,7 @@ public:
     // Run an integer number of steps. Called by a
     // worker process once it gets a signal from the master
     // process telling the worker to begin a simulation
-    void run_n_steps(int steps);
+    void run_n_steps(int steps, bool progress);
 
     // Add signals to the chunk. These contain the data
     // required by the simulation, as well as current simulation
@@ -60,7 +61,6 @@ public:
     // it operates on must have already been added to the chunk.
     // Note that the order that operators are added to the chunk
     // determines the order that they will be executed in.
-
     void add_mpi_send(MPISend* mpi_send);
     void add_mpi_recv(MPIRecv* mpi_recv);
     void add_mpi_wait(MPIWait* mpi_wait);
