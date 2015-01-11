@@ -25,7 +25,7 @@ public:
     void add_probe(int component, key_type probe_key, string signal_string, float period);
     void finalize();
 
-    void run_n_steps(int steps);
+    void run_n_steps(int steps, bool progress);
     void gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_data, map<int, int>& probe_counts);
 
     void finish_simulation();

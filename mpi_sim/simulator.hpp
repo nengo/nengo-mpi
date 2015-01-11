@@ -26,7 +26,7 @@ public:
     // Must be called before run_n_steps
     void finalize();
 
-    void run_n_steps(int steps);
+    void run_n_steps(int steps, bool progress);
     vector<BaseMatrix*> get_probe_data(key_type probe_key);
 
     void reset();

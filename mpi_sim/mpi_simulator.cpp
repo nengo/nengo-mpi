@@ -94,13 +94,13 @@ void MpiInterface::finalize(){
     }
 }
 
-void MpiInterface::run_n_steps(int steps){
+void MpiInterface::run_n_steps(int steps, bool progress){
     cout << "Master sending simulation signal." << endl;
     broadcast(comm, steps, 0);
 
     cout << "Master starting simulation: " << steps << " steps." << endl;
 
-    master_chunk->run_n_steps(steps, true);
+    master_chunk->run_n_steps(steps, progress);
 
     comm.barrier();
 }

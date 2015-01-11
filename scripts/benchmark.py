@@ -3,17 +3,69 @@ import logging
 import nengo
 import numpy as np
 
+import argparse
+
 logger = logging.getLogger(__name__)
 nengo.log(debug=False)
 
+parser = argparse.ArgumentParser(
+    description="Benchmarking script for nengo_mpi")
+
+parser.add_argument(
+    '--ns', type=int, default=1,
+    help='Number of streams in the network.')
+
+parser.add_argument(
+    '--sl', type=int, default=1,
+    help='Length of each stream.')
+
+parser.add_argument(
+    '--d', type=int, default=1,
+    help='Number of dimensions in each neural ensemble')
+
+parser.add_argument(
+    '--npd', type=int, default=50,
+    help='Number of neurons per dimension in each neural ensemble')
+
+parser.add_argument(
+    '--t', type=float, default=1.0,
+    help='Length of the simulation in seconds')
+
+parser.add_argument(
+    '--mpi', type=int, default=1, help='Whether to use MPI')
+
+parser.add_argument(
+    '--p', type=int, default=1,
+    help='If using MPI, the number of processors to use '
+         '(components in the partition.')
+
+parser.add_argument(
+    '--noprog', action='store_true', default=False,
+    help='Supply to omit the progress bar')
+
+args = parser.parse_args()
+
 name = 'node_to_ensemble'
-N = 50
-D = 4
+N = args.npd
+D = args.d
 seed = 10
 
-num_streams = 30
-stream_length = 30
-extra_partitions = 15
+num_streams = args.ns
+stream_length = args.sl
+
+extra_partitions = args.p - 1
+
+use_mpi = args.mpi
+
+sim_time = args.t
+
+progress_bar = not args.noprog
+
+assert num_streams > 0
+assert stream_length > 0
+assert extra_partitions >= 0
+assert sim_time > 0
+
 partitions = range(extra_partitions)
 
 assignments = {}
@@ -57,24 +109,16 @@ with m:
 
 
 assignment_seed = 11
-
 np.random.seed(assignment_seed)
-choice = np.random.choice(range(num_streams * stream_length))
 
 #for key in assignments.keys():
-#    assignments[key] = (
-#        1 if assignments[key] == choice
-#        else 0)
-
     #assignments[key] = (
     #    0 if assignments[key] == 0
     #    else np.random.choice(partitions) + 1)
 
 print assignments.values()
 
-sim_time = 1
-
-if 1:
+if use_mpi:
     import nengo_mpi
     partitioner = nengo_mpi.Partitioner(1 + extra_partitions, assignments)
 
@@ -85,10 +129,12 @@ else:
 import time
 
 t0 = time.time()
-sim.run(sim_time)
+sim.run(sim_time, progress_bar)
 t1 = time.time()
 
 print "Total simulation time:", t1 - t0, "seconds"
+print "Parameters were: ", args
+print "Number of neurons in simulations: ", N * D * num_streams * stream_length
 
 if probe:
     print "Input node result: "

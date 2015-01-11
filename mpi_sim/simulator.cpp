@@ -26,12 +26,12 @@ void MpiSimulator::finalize(){
     }
 }
 
-void MpiSimulator::run_n_steps(int steps){
+void MpiSimulator::run_n_steps(int steps, bool progress){
 
     if(num_components == 1){
-        master_chunk->run_n_steps(steps, true);
+        master_chunk->run_n_steps(steps, progress);
     }else{
-        mpi_interface.run_n_steps(steps);
+        mpi_interface.run_n_steps(steps, progress);
         mpi_interface.gather_probe_data(probe_data, probe_counts);
         mpi_interface.finish_simulation();
     }

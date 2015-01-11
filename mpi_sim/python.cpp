@@ -80,9 +80,11 @@ void PythonMpiSimulator::finalize(){
     mpi_sim.finalize();
 }
 
-void PythonMpiSimulator::run_n_steps(bpy::object pysteps){
-    int steps = bpy::extract<int>(pysteps);
-    mpi_sim.run_n_steps(steps);
+void PythonMpiSimulator::run_n_steps(bpy::object pysteps, bpy::object progress){
+    int c_steps = bpy::extract<int>(pysteps);
+    bool c_progress = bpy::extract<bool>(progress);
+
+    mpi_sim.run_n_steps(c_steps, c_progress);
 }
 
 bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::object make_array){

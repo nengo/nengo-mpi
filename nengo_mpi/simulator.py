@@ -90,11 +90,11 @@ class Simulator(object):
     def __str__(self):
         return self.mpi_sim.to_string()
 
-    def run_steps(self, steps):
+    def run_steps(self, steps, progress_bar):
         """Simulate for the given number of `dt` steps."""
 
         print "Simulating MPI model for %d steps..." % steps
-        self.mpi_sim.run_n_steps(steps)
+        self.mpi_sim.run_n_steps(steps, progress_bar)
 
         for probe, probe_key in self.model.probe_keys.items():
             data = self.mpi_sim.get_probe_data(probe_key, np.empty)
@@ -112,10 +112,11 @@ class Simulator(object):
         """Advance the simulator by `self.dt` seconds."""
         self.run_steps(1)
 
-    def run(self, time_in_seconds):
+    def run(self, time_in_seconds, progress_bar=True):
         """Simulate for the given length of time."""
+
         steps = int(np.round(float(time_in_seconds) / self.dt))
-        self.run_steps(steps)
+        self.run_steps(steps, progress_bar)
 
     def trange(self, dt=None):
         dt = self.dt if dt is None else dt

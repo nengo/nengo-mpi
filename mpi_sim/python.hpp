@@ -30,7 +30,7 @@ public:
     PythonMpiSimulator(bpy::object num_components, bpy::object dt);
     void finalize();
 
-    void run_n_steps(bpy::object steps);
+    void run_n_steps(bpy::object steps, bpy::object progress);
     bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
 
     void reset();
