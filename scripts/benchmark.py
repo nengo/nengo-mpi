@@ -116,8 +116,6 @@ np.random.seed(assignment_seed)
     #    0 if assignments[key] == 0
     #    else np.random.choice(partitions) + 1)
 
-print assignments.values()
-
 if use_mpi:
     import nengo_mpi
     partitioner = nengo_mpi.Partitioner(1 + extra_partitions, assignments)

@@ -1,7 +1,7 @@
 #!/bin/bash
 # MOAB/Torque submission script for SciNet GPC 
 #
-#PBS -l nodes=2:ppn=8,walltime=0:15:00
+#PBS -l nodes=3:ppn=8,walltime=0:15:00
 #PBS -N nengo_mpi
 #PBS -m abe
 
@@ -17,5 +17,5 @@ module load nengo
 # DIRECTORY TO RUN - $PBS_O_WORKDIR is directory job was submitted from
 cd /home/c/celiasmi/e2crawfo/nengo_mpi/scripts
 
-# EXECUTION COMMAND; -np = nodes*ppn
-mpirun -np 1 python benchmark.py > /scratch/c/celiasmi/e2crawfo/experiments/temp.txt
+# EXECUTION COMMAND;
+mpirun -np 1 python benchmark.py --noprog > /scratch/c/celiasmi/e2crawfo/experiments/temp.txt
