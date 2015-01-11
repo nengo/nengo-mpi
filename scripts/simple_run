@@ -1,0 +1,4 @@
+#mpirun -np 1 python nengo_conn_mpi.py
+#mpirun -np 1 python nengo_extra_simple.py
+mpirun -np 1 python simple_mpi.py
+#mpirun -np 1 python simple_mpi2.py
