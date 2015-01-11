@@ -1,1 +1,2 @@
-mpirun -np 1 python ~/.local/bin/py.test -x
+mpirun -np 1 python ~/.local/bin/py.test --maxfail=1 -k 'not test_operators and not test_learning_rules and not noise'
+# --collect-only -s -x --capture=no

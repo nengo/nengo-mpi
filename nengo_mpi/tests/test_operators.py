@@ -206,7 +206,7 @@ def test_lif_rate(Simulator, plt):
     sim.run(1.0)
 
     output = sim.data[1]
-    sim_rates = output[-1, :] / dt
+    sim_rates = output[-1, :]
 
     lif = nengo.LIF(tau_rc=tau_rc, tau_ref=tau_ref)
     math_rates = lif.rates(

@@ -1,5 +1,6 @@
 from nengo.tests.conftest import *
 
+import nengo
 import nengo_mpi
 
 
@@ -20,4 +21,4 @@ def pytest_funcarg__RefSimulator(request):
 
     For this file, it's sim_npy.Simulator.
     """
-    return Mpi2Simulator
+    return nengo.Simulator

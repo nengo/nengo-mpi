@@ -21,24 +21,32 @@ import pytest
 
 test_files = {}
 
-nengo_test_dir = os.path.dirname(nengo.tests.__file__)
-test_files["nengo.tests."] = os.listdir(nengo_test_dir)
+if 0:
+    # Standard nengo tests
+    nengo_test_dir = os.path.dirname(nengo.tests.__file__)
+    test_files["nengo.tests."] = os.listdir(nengo_test_dir)
 
 try:
-    import nengo.spa.tests
-    spa_test_dir = os.path.dirname(nengo.spa.tests.__file__)
-    test_files["nengo.spa.tests."] = os.listdir(spa_test_dir)
-except:
-    pass
+    if 1:
+        # Spa tests
+        import nengo.spa.tests
+        spa_test_dir = os.path.dirname(nengo.spa.tests.__file__)
+        test_files["nengo.spa.tests."] = os.listdir(spa_test_dir)
+
+except Exception as e:
+    print "Couldn't import spa tests because" + e.message
 
 try:
-    import nengo.networks.tests
-    networks_test_dir = os.path.dirname(nengo.networks.tests.__file__)
-    test_files["nengo.networks.tests."] = os.listdir(networks_test_dir)
-except:
-    pass
+    if 0:
+        # Nengo network tests
+        import nengo.networks.tests
+        networks_test_dir = os.path.dirname(nengo.networks.tests.__file__)
+        test_files["nengo.networks.tests."] = os.listdir(networks_test_dir)
 
-nengo.log(debug=True)
+except Exception as e:
+    print "Couldn't import network tests because" + e.message
+
+nengo.log(debug=False)
 
 for key in test_files:
     for test_file in test_files[key]:
@@ -50,12 +58,14 @@ for key in test_files:
 
         module_string = key + test_file[:-3]
         m = __import__(module_string, globals(), locals(), ['*'])
+
         for k in dir(m):
             if k.startswith('test_'):
                 tst = getattr(m, k)
-                args = inspect.getargspec(tst).args
-                if 'Simulator' in args:
-                    locals()[test_file[:-3] + '.' + k] = tst
+                if callable(tst):
+                    args = inspect.getargspec(tst).args
+                    if 'Simulator' in args:
+                        locals()[test_file[:-3] + '.' + k] = tst
             if k.startswith('pytest'):
                 locals()[k] = getattr(m, k)
 
