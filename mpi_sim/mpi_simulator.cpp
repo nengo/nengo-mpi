@@ -15,9 +15,11 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, int num_chunks){
 
     cout << "Master spawning " << num_remote_chunks << " children..." << endl;
 
-    MPI_Comm_spawn("mpi_sim_worker", MPI_ARGV_NULL, num_remote_chunks,
-             MPI_INFO_NULL, 0, MPI_COMM_SELF, &everyone,
-             MPI_ERRCODES_IGNORE);
+    MPI_Comm_spawn(
+        "/home/c/celiasmi/e2crawfo/nengo_mpi/nengo_mpi/mpi_sim_worker",
+         MPI_ARGV_NULL, num_remote_chunks,
+         MPI_INFO_NULL, 0, MPI_COMM_SELF, &everyone,
+         MPI_ERRCODES_IGNORE);
 
     cout << "Master finished spawning children." << endl;
 
