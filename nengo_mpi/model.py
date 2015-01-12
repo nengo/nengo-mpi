@@ -282,12 +282,12 @@ class MpiModel(builder.Model):
     """
     def __init__(
             self, num_components, assignments, dt=0.001, label=None,
-            decoder_cache=NoDecoderCache()):
+            decoder_cache=NoDecoderCache(), save_file=""):
 
         self.num_components = num_components
         self.assignments = assignments
 
-        self.mpi_sim = mpi_sim.PythonMpiSimulator(num_components, dt)
+        self.mpi_sim = mpi_sim.PythonMpiSimulator(num_components, dt, save_file)
 
         # TODO: not sure if we still need this
         # C++ key (int) -> ndarray

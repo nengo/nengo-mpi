@@ -15,10 +15,12 @@
 
 using namespace std;
 class MpiSimulator{
+    static char delim;
 
 public:
     MpiSimulator();
-    MpiSimulator(int num_components, float dt);
+    MpiSimulator(int num_components, float dt, string out_filename);
+    MpiSimulator(string in_filename);
 
     const string classname() { return "MpiSimulator"; }
 
@@ -27,6 +29,7 @@ public:
     void finalize();
 
     void run_n_steps(int steps, bool progress);
+    vector<key_type> get_probe_keys();
     vector<BaseMatrix*> get_probe_data(key_type probe_key);
 
     void reset();
@@ -48,6 +51,8 @@ public:
 private:
     MpiInterface mpi_interface;
     float dt;
+    bool write_to_file;
+    ofstream* out_file;
 
     // Place to store probe data retrieved from worker
     // processes after simulation has finished

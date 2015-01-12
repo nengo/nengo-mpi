@@ -20,7 +20,7 @@ class Simulator(object):
 
     def __init__(
             self, network, dt=0.001, seed=None, model=None,
-            partitioner=None):
+            partitioner=None, save_file=""):
         """
         Most of the time, you will pass in a network and sometimes a dt::
 
@@ -52,6 +52,12 @@ class Simulator(object):
         partitioner:
             An instance of class Partitioner which specifies how to
             assign nengo objects to MPI processes.
+
+        save_file:
+            Name of a file that will be created, which will store all data
+            added to the Simulator. The simulator can later be reconstructed
+            from this file. If equal to the empty string, then no file
+            is created.
         """
 
         # Note: seed is not used right now, but one day...
@@ -71,7 +77,8 @@ class Simulator(object):
         self.model = MpiModel(
             num_components, assignments, dt=dt,
             label="%s, dt=%f" % (network, dt),
-            decoder_cache=get_default_decoder_cache())
+            decoder_cache=get_default_decoder_cache(),
+            save_file=save_file)
 
         builder.Builder.build(self.model, network)
 

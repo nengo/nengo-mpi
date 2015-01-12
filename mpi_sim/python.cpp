@@ -67,12 +67,16 @@ PythonMpiSimulator::PythonMpiSimulator(){
     master_chunk = NULL;
 }
 
-PythonMpiSimulator::PythonMpiSimulator(bpy::object num_components, bpy::object dt){
+PythonMpiSimulator::PythonMpiSimulator(
+        bpy::object num_components, bpy::object dt, bpy::object out_filename):
+    mpi_sim(bpy::extract<int>(num_components), bpy::extract<float>(dt), bpy::extract<string>(out_filename)){
 
-    int c_num_components = bpy::extract<int>(num_components);
-    float c_dt = bpy::extract<float>(dt);
+    master_chunk = mpi_sim.master_chunk;
+}
 
-    mpi_sim = MpiSimulator(c_num_components, c_dt);
+PythonMpiSimulator::PythonMpiSimulator(bpy::object in_filename):
+    mpi_sim(bpy::extract<string>(in_filename)){
+
     master_chunk = mpi_sim.master_chunk;
 }
 
@@ -301,7 +305,8 @@ string PyFunc::to_string() const{
 BOOST_PYTHON_MODULE(mpi_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
-    bpy::class_<PythonMpiSimulator>("PythonMpiSimulator", bpy::init<bpy::object, bpy::object>())
+    bpy::class_<PythonMpiSimulator>("PythonMpiSimulator", bpy::init<bpy::object, bpy::object, bpy::object>())
+        .def(bpy::init<bpy::object>())
         .def("finalize", &PythonMpiSimulator::finalize)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)

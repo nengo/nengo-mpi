@@ -27,7 +27,9 @@ BaseMatrix* list_to_matrix(bpy::list l);
 class PythonMpiSimulator{
 public:
     PythonMpiSimulator();
-    PythonMpiSimulator(bpy::object num_components, bpy::object dt);
+    PythonMpiSimulator(bpy::object num_components, bpy::object dt, bpy::object out_filename);
+    PythonMpiSimulator(bpy::object in_filename);
+
     void finalize();
 
     void run_n_steps(bpy::object steps, bpy::object progress);
