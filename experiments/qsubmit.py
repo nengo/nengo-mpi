@@ -38,11 +38,16 @@ parser.add_argument(
     '-w', default="0:15:00",
     help="Upper bound on required wall time.")
 
+parser.add_argument(
+    '-d', action="store_true", default=False,
+    help="Supply this arg to run an interactive debug session.")
+
 args = parser.parse_args()
 
 num_nodes = args.n
 wall_time = args.w
 script_args = args.o
+debug = args.d
 
 experiments_dir = "/scratch/c/celiasmi/e2crawfo/experiments"
 directory = experiments_dir + "/exp_"
@@ -76,9 +81,12 @@ with open(directory + '/' + submit_script_name, 'w') as outf:
     outf.write("#!/bin/bash\n")
     outf.write("# MOAB/Torque submission script for SciNet GPC\n")
     outf.write("#\n")
-    outf.write(
-        "#PBS -l nodes=%d:ppn=8,"
-        "walltime=%s\n" % (num_nodes, wall_time))
+
+    line = "#PBS -l nodes=%d:ppn=8,walltime=%s " % (num_nodes, wall_time)
+    if debug:
+        line += "-I -X -qdebug"
+    outf.write(line + "\n")
+
     outf.write("#PBS -N nengo_mpi\n")
     outf.write("#PBS -m abe\n\n")
 
@@ -90,7 +98,12 @@ with open(directory + '/' + submit_script_name, 'w') as outf:
     outf.write("module load cxxlibraries/boost/1.55.0-intel\n")
     outf.write("module load gcc/4.8.1\n")
     outf.write("module load use.own\n")
+
+    if debug:
+        outf.write("module load extras ddt\n")
+
     outf.write("module load nengo\n\n")
+
 
     outf.write("cd %s\n\n" % directory)
 
