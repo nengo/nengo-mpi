@@ -89,6 +89,9 @@ void MpiInterface::finalize(){
         recv_it->second->comm = &comm;
     }
 
+    MPIBarrier* mpi_barrier = new MPIBarrier(&comm);
+    master_chunk->add_op(mpi_barrier);
+
     int tag = 1;
 
     for(int i = 0; i < num_remote_chunks; i++){

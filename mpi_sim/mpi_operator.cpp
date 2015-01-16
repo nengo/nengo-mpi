@@ -36,6 +36,16 @@ void MPIWait::operator() (){
     run_dbg(*this);
 }
 
+void MPIBarrier::operator() (){
+    if(step != 0 && step % BARRIER_PERIOD == 0){
+        comm->barrier();
+    }
+
+    step++;
+
+    run_dbg(*this);
+}
+
 string MPISend::to_string() const{
     stringstream out;
 
@@ -66,6 +76,16 @@ string MPIWait::to_string() const{
     out << "MPIWait:" << endl;
     out << "tag: " << tag << endl;
     out << "first_call: " << first_call << endl;
+
+    return out.str();
+}
+
+string MPIBarrier::to_string() const{
+    stringstream out;
+
+    out << "MPIBarrier:" << endl;
+    out << "step: " << step << endl;
+    out << "barrier period: " << BARRIER_PERIOD << endl;
 
     return out.str();
 }

@@ -5,7 +5,6 @@
 #include <boost/mpi/environment.hpp>
 #include <boost/mpi/communicator.hpp>
 #include <boost/mpi/intercommunicator.hpp>
-#include <boost/serialization/string.hpp>
 
 #include "flags.hpp"
 #include "simulator.hpp"
@@ -43,7 +42,7 @@ int main(int argc, char *argv[]) {
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
 
-    cout << "Hello world! I'm a nengo_mpi worker process with rank "<< my_id << " of " << num_procs << endl;
+    cout << "Hello world! I'm a nengo_mpi worker process with rank "<< my_id << " on host " << name << "." << endl;
 
     float dt;
     string chunk_label;
@@ -105,6 +104,9 @@ int main(int argc, char *argv[]) {
     for(recv_it = chunk.mpi_recvs.begin(); recv_it != chunk.mpi_recvs.end(); ++recv_it){
         recv_it->second->comm = &comm;
     }
+
+    MPIBarrier* mpi_barrier = new MPIBarrier(&comm);
+    chunk.add_op(mpi_barrier);
 
     // Wait for the signal to run the simulation
     int steps;

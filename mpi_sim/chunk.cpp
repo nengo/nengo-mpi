@@ -30,7 +30,7 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         time = n_steps * dt;
 
         if(step % 10 == 0){
-            cout << label << ": still alive at step " << step << endl;
+            run_dbg(label << ": still alive at step " << step << endl);
         }
 
         list<Operator*>::const_iterator it;
@@ -42,7 +42,7 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         }
 
         if(step % 10 == 0){
-            cout << label << ": still alive after running ops on " << step << endl;
+            run_dbg(label << ": still alive after running ops on " << step << endl);
         }
 
         map<key_type, Probe*>::iterator probe_it;
@@ -53,7 +53,7 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         }
 
         if(step % 10 == 0){
-            cout << label << ": still alive after gathering probe data on " << step << endl;
+            run_dbg(label << ": still alive after gathering probe data on " << step << endl);
         }
 
         if(progress){

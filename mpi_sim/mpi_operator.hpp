@@ -100,4 +100,22 @@ private:
 
 };
 
+static const int BARRIER_PERIOD = 1;
+
+class MPIBarrier: public Operator{
+
+public:
+    MPIBarrier():comm(NULL), step(0){};
+    MPIBarrier(mpi::communicator* comm):comm(comm), step(0){};
+    string classname() const { return "MPIBarrier"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+    mpi::communicator* comm;
+
+private:
+    int step;
+};
+
 #endif
