@@ -67,16 +67,6 @@ void MpiSimulatorChunk::add_base_signal(key_type key, string l, BaseMatrix data)
     signal_labels[key] = l;
 }
 
-void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, float period){
-    Matrix signal = get_signal(signal_string);
-    Probe* probe = new Probe(signal, period);
-    probe_map[probe_key] = probe;
-}
-
-void MpiSimulatorChunk::add_probe(key_type probe_key, Probe* probe){
-    probe_map[probe_key] = probe;
-}
-
 BaseMatrix* MpiSimulatorChunk::get_base_signal(key_type key){
     try{
         BaseMatrix* mat = signal_map.at(key);
@@ -125,27 +115,8 @@ Matrix MpiSimulatorChunk::get_signal(string signal_string){
     return get_signal(key, shape1, shape2, stride1, stride2, offset);
 }
 
-BaseMatrix* MpiSimulatorChunk::extract_list(string s){
-    // Remove surrounding square brackets and whitespace
-    boost::trim_if(s, boost::is_any_of("[]"));
-
-    vector<string> tokens;
-    boost::split(tokens, s, boost::is_any_of(","));
-
-    int length = tokens.size();
-    int i = 0;
-    vector<string>::const_iterator it;
-
-    BaseMatrix* ret = new BaseMatrix(length, 1);
-
-    for(it = tokens.begin(); it != tokens.end(); ++it){
-        string val = *it;
-        boost::trim(val);
-        (*ret)(i, 0) = boost::lexical_cast<float>(val);
-        i++;
-    }
-
-    return ret;
+void MpiSimulatorChunk::add_op(Operator *op){
+    operator_list.push_back(op);
 }
 
 void MpiSimulatorChunk::add_op(string op_string){
@@ -254,10 +225,6 @@ void MpiSimulatorChunk::add_op(string op_string){
     }
 }
 
-void MpiSimulatorChunk::add_op(Operator *op){
-    operator_list.push_back(op);
-}
-
 void MpiSimulatorChunk::add_mpi_send(MPISend* mpi_send){
     operator_list.push_back(mpi_send);
 
@@ -274,6 +241,17 @@ void MpiSimulatorChunk::add_mpi_wait(MPIWait* mpi_wait){
     operator_list.push_back(mpi_wait);
 
     mpi_waits[mpi_wait->tag] = mpi_wait;
+}
+
+
+void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, float period){
+    Matrix signal = get_signal(signal_string);
+    Probe* probe = new Probe(signal, period);
+    probe_map[probe_key] = probe;
+}
+
+void MpiSimulatorChunk::add_probe(key_type probe_key, Probe* probe){
+    probe_map[probe_key] = probe;
 }
 
 void MpiSimulatorChunk::setup_mpi_waits(){
@@ -297,19 +275,27 @@ void MpiSimulatorChunk::setup_mpi_waits(){
     }
 }
 
-MPIWait* MpiSimulatorChunk::find_wait(int tag){
+BaseMatrix* MpiSimulatorChunk::extract_list(string s){
+    // Remove surrounding square brackets
+    boost::trim_if(s, boost::is_any_of("[]"));
 
-    MPIWait* mpi_wait;
+    vector<string> tokens;
+    boost::split(tokens, s, boost::is_any_of(","));
 
-    try{
-        mpi_wait = mpi_waits.at(tag);
-    }catch(const out_of_range& e){
-        stringstream error;
-        error << "MPIWait object with tag " << tag << " does not exist.";
-        throw invalid_argument(error.str());
+    int length = tokens.size();
+    int i = 0;
+    vector<string>::const_iterator it;
+
+    BaseMatrix* ret = new BaseMatrix(length, 1);
+
+    for(it = tokens.begin(); it != tokens.end(); ++it){
+        string val = *it;
+        boost::trim(val);
+        (*ret)(i, 0) = boost::lexical_cast<float>(val);
+        i++;
     }
 
-    return mpi_wait;
+    return ret;
 }
 
 string MpiSimulatorChunk::to_string() const{
@@ -319,8 +305,7 @@ string MpiSimulatorChunk::to_string() const{
     out << "    Label: " << label << endl;
 
     map<key_type, BaseMatrix*>::const_iterator signal_it = signal_map.begin();
-
-    out << "** Matrices: **" << endl;
+    out << "** Signals: **" << endl;
     for(; signal_it != signal_map.end(); signal_it++){
         out << "Key: " << signal_it->first << endl;
         out << "Label: " << signal_labels.at(signal_it->first);
@@ -329,7 +314,6 @@ string MpiSimulatorChunk::to_string() const{
     out << endl;
 
     map<key_type, Probe*>::const_iterator probe_it = probe_map.begin();
-
     out << "** Probes: **" << endl;
     for(; probe_it != probe_map.end(); probe_it++){
         out << "Key: " << probe_it->first << endl;
@@ -338,62 +322,31 @@ string MpiSimulatorChunk::to_string() const{
     out << endl;
 
     list<Operator*>::const_iterator it;
-
     out << "** Operators: **" << endl;
     for(it = operator_list.begin(); it != operator_list.end(); ++it){
         out << (**it) << endl;
     }
     out << endl;
 
-    return out.str();
-}
-
-string MpiSimulatorChunk::print_maps(){
-    stringstream out;
-
-    map<int, MPISend*>::iterator send_it;
-    out << "SENDS" << endl;
+    map<int, MPISend*>::const_iterator send_it;
+    out << "** MPISends: **" << endl;
     for(send_it = mpi_sends.begin(); send_it != mpi_sends.end(); ++send_it){
-        out << "key: " << send_it->first <<  ", value: " << *(send_it->second) << endl;
+        out << "Key: " << send_it->first << endl;
+        out << "Value: " << *(send_it->second) << endl;
     }
 
-    map<int, MPIRecv*>::iterator recv_it;
-    out << "RECVS" << endl;
+    map<int, MPIRecv*>::const_iterator recv_it;
+    out << "** MPIRecvs: **" << endl;
     for(recv_it = mpi_recvs.begin(); recv_it != mpi_recvs.end(); ++recv_it){
-        out << "key: " << recv_it->first <<  ", value: " << *(recv_it->second) << endl;
+        out << "Key: " << recv_it->first << endl;
+        out << "Value: " << *(recv_it->second) << endl;
     }
 
-    return out.str();
-}
-
-string MpiSimulatorChunk::print_signal_pointers(){
-    stringstream out;
-
-    out << "Printing signal pointers: " << endl;
-    map<key_type, BaseMatrix*>::iterator signal_it;
-    int count = 0;
-    for(signal_it = signal_map.begin(); signal_it != signal_map.end(); ++signal_it){
-        out << "Count: " << count << ", pointer: " << signal_it->second << endl;
-        out << "Label: " << signal_labels.at(signal_it->first) << endl;
-        out << "Value: " << *(signal_it->second) << endl << endl;
-        count++;
-    }
-
-    return out.str();
-}
-
-string MpiSimulatorChunk::print_signals(){
-    stringstream out;
-
-    out << "Printing signals: " << endl;
-    map<key_type, BaseMatrix*>::iterator signal_it;
-    int index = 0;
-
-    for(signal_it = signal_map.begin(); signal_it != signal_map.end(); ++signal_it){
-        out << "Index: " << index << endl;
-        out << "Label: " << signal_labels.at(signal_it->first) << endl;
-        out << "Value: " << *(signal_it->second) << endl << endl;
-        index++;
+    map<int, MPIWait*>::const_iterator wait_it;
+    out << "** MPIWaits: **" << endl;
+    for(wait_it = mpi_waits.begin(); wait_it != mpi_waits.end(); ++wait_it){
+        out << "Key: " << wait_it->first << endl;
+        out << "Value: " << *(wait_it->second) << endl;
     }
 
     return out.str();
