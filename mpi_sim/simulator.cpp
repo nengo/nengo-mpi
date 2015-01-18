@@ -7,7 +7,7 @@ MpiSimulator::MpiSimulator():
 }
 
 MpiSimulator::MpiSimulator(int num_components, float dt, string out_filename):
-    num_components(num_components), dt(dt), master_chunk(NULL){
+    num_components(num_components), dt(dt), master_chunk(NULL), spawn(true){
 
     write_to_file = !(out_filename.empty());
 
@@ -21,7 +21,7 @@ MpiSimulator::MpiSimulator(int num_components, float dt, string out_filename):
     if(num_components == 1){
         cout << "Master: Only one chunk supplied. Simulations will not use MPI." << endl;
     }else{
-        mpi_interface.initialize_chunks(master_chunk, num_components - 1);
+        mpi_interface.initialize_chunks(spawn, master_chunk, num_components - 1);
     }
 
     for(int i = 0; i < num_components; i++){
@@ -29,8 +29,8 @@ MpiSimulator::MpiSimulator(int num_components, float dt, string out_filename):
     }
 }
 
-MpiSimulator::MpiSimulator(string in_filename):
-    num_components(0), dt(0.0), master_chunk(NULL){
+MpiSimulator::MpiSimulator(string in_filename, bool spawn):
+    num_components(0), dt(0.0), master_chunk(NULL), spawn(spawn){
 
     write_to_file = false;
 
@@ -48,7 +48,7 @@ MpiSimulator::MpiSimulator(string in_filename):
     if(num_components == 1){
         cout << "Master: Only one chunk supplied. Simulations will not use MPI." << endl;
     }else{
-        mpi_interface.initialize_chunks(master_chunk, num_components - 1);
+        mpi_interface.initialize_chunks(spawn, master_chunk, num_components - 1);
     }
 
     for(int i = 0; i < num_components; i++){

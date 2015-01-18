@@ -1,6 +1,6 @@
 #include "mpi_simulator.hpp"
 
-void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, int num_chunks){
+void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int num_chunks){
     master_chunk = chunk;
     num_remote_chunks = num_chunks;
 
@@ -13,18 +13,20 @@ void MpiInterface::initialize_chunks(MpiSimulatorChunk* chunk, int num_chunks){
     MPI_Init(&argc, &argv);
     cout << "Master finished initing MPI." << endl;
 
-    cout << "Master spawning " << num_remote_chunks << " children..." << endl;
+    if(spawn){
+        cout << "Master spawning " << num_remote_chunks << " children..." << endl;
 
-    MPI_Comm_spawn(
-        "/home/c/celiasmi/e2crawfo/nengo_mpi/nengo_mpi/mpi_sim_worker",
-         MPI_ARGV_NULL, num_remote_chunks,
-         MPI_INFO_NULL, 0, MPI_COMM_SELF, &everyone,
-         MPI_ERRCODES_IGNORE);
+        MPI_Comm_spawn(
+            "/home/c/celiasmi/e2crawfo/nengo_mpi/nengo_mpi/mpi_sim_worker",
+             MPI_ARGV_NULL, num_remote_chunks,
+             MPI_INFO_NULL, 0, MPI_COMM_SELF, &everyone,
+             MPI_ERRCODES_IGNORE);
 
-    cout << "Master finished spawning children." << endl;
+        cout << "Master finished spawning children." << endl;
 
-    mpi::intercommunicator intercomm(everyone, mpi::comm_duplicate);
-    comm = intercomm.merge(false);
+        mpi::intercommunicator intercomm(everyone, mpi::comm_duplicate);
+        comm = intercomm.merge(false);
+    }
 
     int buflen = 512;
     char name[buflen];

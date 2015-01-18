@@ -28,7 +28,6 @@ class PythonMpiSimulator{
 public:
     PythonMpiSimulator();
     PythonMpiSimulator(bpy::object num_components, bpy::object dt, bpy::object out_filename);
-    PythonMpiSimulator(bpy::object in_filename);
 
     void finalize();
 

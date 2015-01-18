@@ -74,12 +74,6 @@ PythonMpiSimulator::PythonMpiSimulator(
     master_chunk = mpi_sim.master_chunk;
 }
 
-PythonMpiSimulator::PythonMpiSimulator(bpy::object in_filename):
-    mpi_sim(bpy::extract<string>(in_filename)){
-
-    master_chunk = mpi_sim.master_chunk;
-}
-
 void PythonMpiSimulator::finalize(){
     mpi_sim.finalize();
 }
@@ -306,7 +300,6 @@ BOOST_PYTHON_MODULE(mpi_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulator>("PythonMpiSimulator", bpy::init<bpy::object, bpy::object, bpy::object>())
-        .def(bpy::init<bpy::object>())
         .def("finalize", &PythonMpiSimulator::finalize)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)

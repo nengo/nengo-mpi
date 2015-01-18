@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
+
 #include <mpi.h>
+
 #include <boost/mpi.hpp>
 #include <boost/mpi/environment.hpp>
 #include <boost/mpi/communicator.hpp>
@@ -12,28 +14,15 @@
 namespace mpi = boost::mpi;
 using namespace std;
 
-int main(int argc, char *argv[]) {
+// This file can be used in two ways. First, if using nengo_mpi from python, this
+// code is the entry point for the workers that are spawned by the initial process.
+// If using nengo_mpi straight from C++, then this file is the entry point for all
+// processes in the simulation. In that case, the process with rank 0 will create an
+// MpiSimulator object and load a built nengo network from a file specified on the
+// command line, and the rest of the processes will jump straight into start_worker.
 
-    int parent_size, parent_id;
-
-    // parent intercomm
-    MPI_Comm parent;
-    MPI_Init(&argc, &argv);
-
-    MPI_Comm_get_parent(&parent);
-
-    mpi::intercommunicator intercomm(parent, mpi::comm_duplicate);
-    mpi::communicator comm = intercomm.merge(true);
-
-    if (parent == MPI_COMM_NULL) {
-        cout << "No parent." << endl;
-    }
-
-    MPI_Comm_remote_size(parent, &parent_size);
-    MPI_Comm_rank(parent, &parent_id) ;
-    if (parent_size != 1) {
-        cout << "Something's wrong with the parent" << endl;
-    }
+// comm: The communicator for the worker to communicate on.
+void start_worker(mpi::communicator comm){
 
     int my_id = comm.rank();
     int num_procs = comm.size();
@@ -130,5 +119,47 @@ int main(int argc, char *argv[]) {
     comm.barrier();
 
     MPI_Finalize();
+}
+
+int main(int argc, char **argv){
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm parent;
+    MPI_Comm_get_parent(&parent);
+
+    if (parent != MPI_COMM_NULL){
+        mpi::intercommunicator intercomm(parent, mpi::comm_duplicate);
+        mpi::communicator comm = intercomm.merge(true);
+
+        start_worker(comm);
+    }else{
+        mpi::communicator comm;
+        int rank = comm.rank();
+
+        if(rank == 0){
+            if(argc < 1){
+                cout << "Please specify a file to load" << endl;
+                return 0;
+            }
+
+            if(argc > 2){
+                cout << "Please specify a simulation length" << endl;
+                return 0;
+            }
+
+            string filename = argv[1];
+            bool spawn = false;
+
+            MpiSimulator mpi_sim(filename, spawn);
+
+            int num_steps = boost::lexical_cast<int>(argv[2]);
+            mpi_sim.run_n_steps(num_steps, true);
+        }
+        else{
+            start_worker(comm);
+        }
+    }
+
     return 0;
 }

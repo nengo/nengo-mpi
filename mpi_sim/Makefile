@@ -39,18 +39,10 @@ run_debug: debug
 debug: DEFS+=-DDEBUG -g
 debug: build
 
-build: mpi_sim_worker mpi_sim stand_alone
+build: mpi_sim_worker mpi_sim
 
 clean:
-	rm -rf ${SO_LOC}/mpi_sim.so ${WORKER_LOC}/mpi_sim_worker *.o stand_alone
-
-# ********* stand_alone *************
-
-stand_alone: stand_alone.o ${OBJS}
-	${CXX} -o stand_alone stand_alone.o ${OBJS} -L${MPI_LIB} -L${BOOST_LIB} -lmpi -lboost_mpi -lm -std=${STD} ${DEFS}
-
-stand_alone.o: stand_alone.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
-	mpicxx -std=${STD} -c -o stand_alone.o stand_alone.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
+	rm -rf ${SO_LOC}/mpi_sim.so ${WORKER_LOC}/mpi_sim_worker *.o
 
 # ********* mpi_sim_worker *************
 

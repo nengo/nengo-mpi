@@ -18,7 +18,7 @@ using namespace std;
 
 class MpiInterface{
 public:
-    void initialize_chunks(MpiSimulatorChunk* chunk, int num_remote_chunks);
+    void initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int num_remote_chunks);
 
     void add_base_signal(int component, key_type key, string label, BaseMatrix* data);
     void add_op(int component, string op_string);

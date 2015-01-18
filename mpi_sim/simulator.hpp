@@ -20,7 +20,7 @@ class MpiSimulator{
 public:
     MpiSimulator();
     MpiSimulator(int num_components, float dt, string out_filename);
-    MpiSimulator(string in_filename);
+    MpiSimulator(string in_filename, bool spawn);
 
     const string classname() { return "MpiSimulator"; }
 
@@ -49,8 +49,10 @@ public:
     MpiSimulatorChunk* master_chunk;
 
 private:
+    bool spawn;
     MpiInterface mpi_interface;
     float dt;
+
     bool write_to_file;
     ofstream* out_file;
 

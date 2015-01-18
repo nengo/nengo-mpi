@@ -552,8 +552,6 @@ class MpiModel(builder.Model):
                         "Component %d: Adding operator with string: %s",
                         component, op_string)
 
-                    print op_string
-
                     self.mpi_sim.add_op(component, op_string)
 
     def op_to_string(self, op):
