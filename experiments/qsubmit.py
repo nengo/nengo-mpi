@@ -27,12 +27,18 @@ parser = argparse.ArgumentParser(
     description="Run nengo mpi simulation using GPC queue.")
 
 parser.add_argument(
-    '-o', nargs=1, default='',
-    help="Arguments for the benchmark script. Should be in quotes.")
+    '-N', type=int, default=0,
+    help="Number of hardware nodes. If supplied, overrides "
+         "the arguments to the nengo script as well.")
 
 parser.add_argument(
     '-n', type=int, default=1,
-    help="Number of hardware nodes.")
+    help="Number of hardware nodes. Same as -N, but doesn't "
+         "override arguments to the nengo script.")
+
+parser.add_argument(
+    '-o', default='',
+    help="Arguments for the nengo script. Should be in quotes.")
 
 parser.add_argument(
     '-w', default="0:15:00",
@@ -44,9 +50,16 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-num_nodes = args.n
-wall_time = args.w
 script_args = args.o
+
+if args.N:
+    num_nodes = args.N
+    script_args = (
+        "--p %d --sl %d " % (num_nodes * 8, num_nodes * 8) + script_args)
+else:
+    num_nodes = args.n
+
+wall_time = args.w
 debug = args.d
 
 experiments_dir = "/scratch/c/celiasmi/e2crawfo/experiments"
@@ -56,6 +69,7 @@ date_time_string = reduce(
     lambda y, z: string.replace(y, z, "_"),
     [date_time_string, ":", " ", "-"])
 directory += date_time_string
+directory += '_p_%d' % (num_nodes * 8)
 
 if not os.path.isdir(directory):
     os.makedirs(directory)
@@ -104,13 +118,18 @@ with open(directory + '/' + submit_script_name, 'w') as outf:
 
     outf.write("module load nengo\n\n")
 
+    outf.write("cd %s\n" % directory)
 
-    outf.write("cd %s\n\n" % directory)
+    outf.write("cp ${PBS_NODEFILE} .\n\n")
 
     outf.write("# EXECUTION COMMAND;\n")
     outf.write(
         "mpirun -np 1 python %s --noprog %s "
-        "> %s\n" % (nengo_script_location, script_args[0], results))
+        "> %s\n" % (nengo_script_location, script_args, results))
 
 os.chdir(directory)
-print subprocess.check_output(['qsub', submit_script_name])
+job_id = subprocess.check_output(['qsub', submit_script_name])
+job_id = job_id.split('.')[0]
+
+open(directory + '/' + job_id, 'w').close()
+print "Job ID: ", job_id

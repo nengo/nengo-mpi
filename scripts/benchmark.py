@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 nengo.log(debug=False)
 
 parser = argparse.ArgumentParser(
-    description="Benchmarking script for nengo_mpi")
+    description="Benchmarking script for nengo_mpi.")
 
 parser.add_argument(
     '--ns', type=int, default=1,
@@ -21,18 +21,18 @@ parser.add_argument(
 
 parser.add_argument(
     '--d', type=int, default=1,
-    help='Number of dimensions in each neural ensemble')
+    help='Number of dimensions in each neural ensemble.')
 
 parser.add_argument(
     '--npd', type=int, default=50,
-    help='Number of neurons per dimension in each neural ensemble')
+    help='Number of neurons per dimension in each neural ensemble.')
 
 parser.add_argument(
     '--t', type=float, default=1.0,
-    help='Length of the simulation in seconds')
+    help='Length of the simulation in seconds.')
 
 parser.add_argument(
-    '--mpi', type=int, default=1, help='Whether to use MPI')
+    '--mpi', type=int, default=1, help='Whether to use MPI.')
 
 parser.add_argument(
     '--p', type=int, default=1,
@@ -41,9 +41,14 @@ parser.add_argument(
 
 parser.add_argument(
     '--noprog', action='store_true', default=False,
-    help='Supply to omit the progress bar')
+    help='Supply to omit the progress bar.')
+
+parser.add_argument(
+    '--noprobe', action='store_true', default=False,
+    help='Supply to omit probing.')
 
 args = parser.parse_args()
+print "Parameters are: ", args
 
 name = 'node_to_ensemble'
 N = args.npd
@@ -60,6 +65,7 @@ use_mpi = args.mpi
 sim_time = args.t
 
 progress_bar = not args.noprog
+probe = not args.noprobe
 
 assert num_streams > 0
 assert stream_length > 0
@@ -70,13 +76,11 @@ partitions = range(extra_partitions)
 
 assignments = {}
 
-probe = True
-
 ensembles = []
 
 m = nengo.Network(label=name, seed=seed)
 with m:
-    m.config[nengo.Ensemble].neuron_type = nengo.LIF()
+    m.config[nengo.Ensemble].neuron_type = nengo.LIFRate()
     input_node = nengo.Node(output=[0.25] * D)
     input_p = nengo.Probe(input_node, synapse=0.01)
 
