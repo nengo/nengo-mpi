@@ -168,6 +168,7 @@ vector<key_type> MpiSimulator::get_probe_keys(){
 
     return keys;
 }
+
 vector<BaseMatrix*> MpiSimulator::get_probe_data(key_type probe_key){
     return probe_data.at(probe_key);
 }

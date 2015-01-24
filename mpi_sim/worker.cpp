@@ -162,6 +162,20 @@ int main(int argc, char **argv){
 
             int num_steps = boost::lexical_cast<int>(argv[2]);
             mpi_sim.run_n_steps(num_steps, true);
+
+            vector<key_type> keys = mpi_sim.get_probe_keys();
+            vector<key_type>::iterator keys_it;
+
+            for(keys_it = keys.begin(); keys_it < keys.end(); keys_it++){
+                vector<BaseMatrix*> probe_data = mpi_sim.get_probe_data(*keys_it);
+                vector<BaseMatrix*>::iterator pd_it;
+
+                cout << "Probe data for key: " << *keys_it << endl;
+
+                for(pd_it = probe_data.begin(); pd_it < probe_data.end(); pd_it++){
+                    cout << **pd_it << endl;
+                }
+            }
         }
         else{
             start_worker(comm);
