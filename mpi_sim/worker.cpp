@@ -56,6 +56,8 @@ void start_worker(mpi::communicator comm){
         comm.recv(0, tag, s);
 
         if(s == add_signal_flag){
+            dbg("Worker " << my_id  << " receiving signal.");
+
             comm.recv(0, tag, key);
             comm.recv(0, tag, label);
             comm.recv(0, tag, data);
@@ -63,11 +65,13 @@ void start_worker(mpi::communicator comm){
             chunk.add_base_signal(key, label, data);
 
         }else if(s == add_op_flag){
+            dbg("Worker " << my_id  << " receiving operator.");
             comm.recv(0, tag, op_string);
 
             chunk.add_op(op_string);
 
         }else if(s == add_probe_flag){
+            dbg("Worker " << my_id  << " receiving probe.");
             comm.recv(0, tag, probe_key);
             comm.recv(0, tag, signal_string);
             comm.recv(0, tag, period);
@@ -75,6 +79,7 @@ void start_worker(mpi::communicator comm){
             chunk.add_probe(probe_key, signal_string, period);
 
         }else if(s == stop_flag){
+            dbg("Worker " << my_id  << " done building.");
             break;
 
         }else{
@@ -82,6 +87,7 @@ void start_worker(mpi::communicator comm){
         }
     }
 
+    dbg("Worker setting up MPI operators..");
     chunk.setup_mpi_waits();
 
     map<int, MPISend*>::iterator send_it;
@@ -97,7 +103,8 @@ void start_worker(mpi::communicator comm){
     MPIBarrier* mpi_barrier = new MPIBarrier(&comm);
     chunk.add_op(mpi_barrier);
 
-    // Wait for the signal to run the simulation
+    dbg("Worker waiting for signal to start simulation.");
+
     int steps;
     broadcast(comm, steps, 0);
     cout << "Worker process " << my_id << " got the signal to start simulation: " << steps << " steps." << endl;
@@ -143,7 +150,7 @@ int main(int argc, char **argv){
                 return 0;
             }
 
-            if(argc > 2){
+            if(argc < 2){
                 cout << "Please specify a simulation length" << endl;
                 return 0;
             }

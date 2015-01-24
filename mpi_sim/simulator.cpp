@@ -57,6 +57,8 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn):
 
     string cell;
 
+    dbg("Loading nengo network from file.");
+
     while(getline(in_file, line, '\n')){
         stringstream line_stream;
         line_stream << line;
@@ -132,7 +134,6 @@ void MpiSimulator::finalize(){
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress){
-
     if(num_components == 1){
         master_chunk->run_n_steps(steps, progress);
     }else{

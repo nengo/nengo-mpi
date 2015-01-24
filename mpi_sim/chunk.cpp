@@ -94,25 +94,31 @@ Matrix MpiSimulatorChunk::get_signal(string signal_string){
     boost::split(tokens, signal_string, boost::is_any_of(":"));
     vector<string>::iterator it;
 
-    key_type key = boost::lexical_cast<key_type>(tokens[0]);
+    try{
+        key_type key = boost::lexical_cast<key_type>(tokens[0]);
 
-    vector<string> shape_tokens;
-    boost::trim_if(tokens[1], boost::is_any_of("(,)"));
-    boost::split(shape_tokens, tokens[1], boost::is_any_of(","));
+        vector<string> shape_tokens;
+        boost::trim_if(tokens[1], boost::is_any_of("(,)"));
+        boost::split(shape_tokens, tokens[1], boost::is_any_of(","));
 
-    int shape1 = boost::lexical_cast<int>(shape_tokens[0]);
-    int shape2 = shape_tokens.size() == 1 ? 1 : boost::lexical_cast<int>(shape_tokens[1]);
+        int shape1 = boost::lexical_cast<int>(shape_tokens[0]);
+        int shape2 = shape_tokens.size() == 1 ? 1 : boost::lexical_cast<int>(shape_tokens[1]);
 
-    vector<string> stride_tokens;
-    boost::trim_if(tokens[2], boost::is_any_of("(,)"));
-    boost::split(stride_tokens, tokens[2], boost::is_any_of(","));
+        vector<string> stride_tokens;
+        boost::trim_if(tokens[2], boost::is_any_of("(,)"));
+        boost::split(stride_tokens, tokens[2], boost::is_any_of(","));
 
-    int stride1 = boost::lexical_cast<int>(stride_tokens[0]);
-    int stride2 = stride_tokens.size() == 1 ? 1 : boost::lexical_cast<int>(stride_tokens[1]);
+        int stride1 = boost::lexical_cast<int>(stride_tokens[0]);
+        int stride2 = stride_tokens.size() == 1 ? 1 : boost::lexical_cast<int>(stride_tokens[1]);
 
-    int offset = boost::lexical_cast<int>(tokens[3]);
+        int offset = boost::lexical_cast<int>(tokens[3]);
 
-    return get_signal(key, shape1, shape2, stride1, stride2, offset);
+        return get_signal(key, shape1, shape2, stride1, stride2, offset);
+    }catch(const boost::bad_lexical_cast& e){
+        cout << "Caught bad lexical cast while extracting signal from string "
+                "with error " << e.what() << endl;
+        terminate();
+    }
 }
 
 void MpiSimulatorChunk::add_op(Operator *op){
@@ -126,102 +132,109 @@ void MpiSimulatorChunk::add_op(string op_string){
     vector<string>::const_iterator it = tokens.begin();
     string type_string = *(it++);
 
-    if(type_string.compare("Reset") == 0){
-            Matrix dst = get_signal(*(it++));
-            float value = boost::lexical_cast<float>(*(it++));
+    try{
+        if(type_string.compare("Reset") == 0){
+                Matrix dst = get_signal(*(it++));
+                float value = boost::lexical_cast<float>(*(it++));
 
-            add_op(new Reset(dst, value));
+                add_op(new Reset(dst, value));
 
-     }else if(type_string.compare("Copy") == 0){
+         }else if(type_string.compare("Copy") == 0){
 
-            Matrix dst = get_signal(tokens[1]);
-            Matrix src = get_signal(tokens[2]);
+                Matrix dst = get_signal(tokens[1]);
+                Matrix src = get_signal(tokens[2]);
 
-            add_op(new Copy(dst, src));
+                add_op(new Copy(dst, src));
 
-     }else if(type_string.compare("DotInc") == 0){
-            Matrix A = get_signal(tokens[1]);
-            Matrix X = get_signal(tokens[2]);
-            Matrix Y = get_signal(tokens[3]);
+         }else if(type_string.compare("DotInc") == 0){
+                Matrix A = get_signal(tokens[1]);
+                Matrix X = get_signal(tokens[2]);
+                Matrix Y = get_signal(tokens[3]);
 
-            add_op(new DotInc(A, X, Y));
+                add_op(new DotInc(A, X, Y));
 
-     }else if(type_string.compare("ElementwiseInc") == 0){
-            Matrix A = get_signal(tokens[1]);
-            Matrix X = get_signal(tokens[2]);
-            Matrix Y = get_signal(tokens[3]);
+         }else if(type_string.compare("ElementwiseInc") == 0){
+                Matrix A = get_signal(tokens[1]);
+                Matrix X = get_signal(tokens[2]);
+                Matrix Y = get_signal(tokens[3]);
 
-            add_op(new ElementwiseInc(A, X, Y));
+                add_op(new ElementwiseInc(A, X, Y));
 
-     }else if(type_string.compare("LIF") == 0){
-            int num_neurons = boost::lexical_cast<int>(tokens[1]);
-            float tau_ref = boost::lexical_cast<float>(tokens[2]);
-            float tau_rc = boost::lexical_cast<float>(tokens[3]);
-            float dt = boost::lexical_cast<float>(tokens[4]);
+         }else if(type_string.compare("LIF") == 0){
+                int num_neurons = boost::lexical_cast<int>(tokens[1]);
+                float tau_ref = boost::lexical_cast<float>(tokens[2]);
+                float tau_rc = boost::lexical_cast<float>(tokens[3]);
+                float dt = boost::lexical_cast<float>(tokens[4]);
 
-            Matrix J = get_signal(tokens[5]);
-            Matrix output = get_signal(tokens[6]);
+                Matrix J = get_signal(tokens[5]);
+                Matrix output = get_signal(tokens[6]);
 
-            add_op(new SimLIF(num_neurons, tau_ref, tau_rc, dt, J, output));
+                add_op(new SimLIF(num_neurons, tau_ref, tau_rc, dt, J, output));
 
-     }else if(type_string.compare("LIFRate") == 0){
-            int num_neurons = boost::lexical_cast<int>(tokens[1]);
-            float tau_ref = boost::lexical_cast<float>(tokens[2]);
-            float tau_rc = boost::lexical_cast<float>(tokens[3]);
+         }else if(type_string.compare("LIFRate") == 0){
+                int num_neurons = boost::lexical_cast<int>(tokens[1]);
+                float tau_ref = boost::lexical_cast<float>(tokens[2]);
+                float tau_rc = boost::lexical_cast<float>(tokens[3]);
 
-            Matrix J = get_signal(tokens[4]);
-            Matrix output = get_signal(tokens[5]);
+                Matrix J = get_signal(tokens[4]);
+                Matrix output = get_signal(tokens[5]);
 
-            add_op(new SimLIFRate(num_neurons, tau_ref, tau_rc, J, output));
+                add_op(new SimLIFRate(num_neurons, tau_ref, tau_rc, J, output));
 
-     }else if(type_string.compare("RectifiedLinear") == 0){
-            int num_neurons = boost::lexical_cast<int>(tokens[1]);
+         }else if(type_string.compare("RectifiedLinear") == 0){
+                int num_neurons = boost::lexical_cast<int>(tokens[1]);
 
-            Matrix J = get_signal(tokens[2]);
-            Matrix output = get_signal(tokens[3]);
+                Matrix J = get_signal(tokens[2]);
+                Matrix output = get_signal(tokens[3]);
 
-            add_op(new SimRectifiedLinear(num_neurons, J, output));
+                add_op(new SimRectifiedLinear(num_neurons, J, output));
 
-     }else if(type_string.compare("Sigmoid") == 0){
-            int num_neurons = boost::lexical_cast<int>(tokens[1]);
-            float tau_ref = boost::lexical_cast<float>(tokens[2]);
+         }else if(type_string.compare("Sigmoid") == 0){
+                int num_neurons = boost::lexical_cast<int>(tokens[1]);
+                float tau_ref = boost::lexical_cast<float>(tokens[2]);
 
-            Matrix J = get_signal(tokens[3]);
-            Matrix output = get_signal(tokens[4]);
+                Matrix J = get_signal(tokens[3]);
+                Matrix output = get_signal(tokens[4]);
 
-            add_op(new SimSigmoid(num_neurons, tau_ref, J, output));
+                add_op(new SimSigmoid(num_neurons, tau_ref, J, output));
 
-     }else if(type_string.compare("LinearFilter") == 0){
+         }else if(type_string.compare("LinearFilter") == 0){
 
-            Matrix input = get_signal(tokens[1]);
-            Matrix output = get_signal(tokens[2]);
+                Matrix input = get_signal(tokens[1]);
+                Matrix output = get_signal(tokens[2]);
 
-            BaseMatrix* numerator = extract_list(tokens[3]);
-            BaseMatrix* denominator = extract_list(tokens[4]);
+                BaseMatrix* numerator = extract_list(tokens[3]);
+                BaseMatrix* denominator = extract_list(tokens[4]);
 
-            add_op(new Synapse(input, output, numerator, denominator));
+                add_op(new Synapse(input, output, numerator, denominator));
 
-     }else if(type_string.compare("MpiSend") == 0){
-            int dst = boost::lexical_cast<int>(tokens[1]);
-            int tag = boost::lexical_cast<int>(tokens[2]);
-            BaseMatrix* content = get_base_signal(boost::lexical_cast<key_type>(tokens[3]));
+         }else if(type_string.compare("MpiSend") == 0){
+                int dst = boost::lexical_cast<int>(tokens[1]);
+                int tag = boost::lexical_cast<int>(tokens[2]);
+                BaseMatrix* content = get_base_signal(boost::lexical_cast<key_type>(tokens[3]));
 
-            add_mpi_send(new MPISend(dst, tag, content));
+                add_mpi_send(new MPISend(dst, tag, content));
 
-     }else if(type_string.compare("MpiRecv") == 0){
-            int src = boost::lexical_cast<int>(tokens[1]);
-            int tag = boost::lexical_cast<int>(tokens[2]);
-            BaseMatrix* content = get_base_signal(boost::lexical_cast<key_type>(tokens[3]));
+         }else if(type_string.compare("MpiRecv") == 0){
+                int src = boost::lexical_cast<int>(tokens[1]);
+                int tag = boost::lexical_cast<int>(tokens[2]);
+                BaseMatrix* content = get_base_signal(boost::lexical_cast<key_type>(tokens[3]));
 
-            add_mpi_recv(new MPIRecv(src, tag, content));
+                add_mpi_recv(new MPIRecv(src, tag, content));
 
-     }else if(type_string.compare("MpiWait") == 0){
-            int tag = boost::lexical_cast<int>(tokens[1]);
+         }else if(type_string.compare("MpiWait") == 0){
+                int tag = boost::lexical_cast<int>(tokens[1]);
 
-            add_mpi_wait(new MPIWait(tag));
-    }else{
-        // TODO: Throw exceptions here.
-        (void)0;
+                add_mpi_wait(new MPIWait(tag));
+        }else{
+            stringstream ss;
+            ss << "Received an operator type that we can't handle: " << type_string;
+            throw runtime_error(ss.str());
+        }
+    }catch(const boost::bad_lexical_cast& e){
+        cout << "Caught bad lexical cast while extracting operator from string "
+                "with error " << e.what() << endl;
+        terminate();
     }
 }
 
@@ -287,12 +300,17 @@ BaseMatrix* MpiSimulatorChunk::extract_list(string s){
     vector<string>::const_iterator it;
 
     BaseMatrix* ret = new BaseMatrix(length, 1);
-
-    for(it = tokens.begin(); it != tokens.end(); ++it){
-        string val = *it;
-        boost::trim(val);
-        (*ret)(i, 0) = boost::lexical_cast<float>(val);
-        i++;
+    try{
+        for(it = tokens.begin(); it != tokens.end(); ++it){
+            string val = *it;
+            boost::trim(val);
+            (*ret)(i, 0) = boost::lexical_cast<float>(val);
+            i++;
+        }
+    }catch(const boost::bad_lexical_cast& e){
+        cout << "Caught bad lexical cast while extracting list "
+                "with error " << e.what() << endl;
+        terminate();
     }
 
     return ret;
