@@ -10,7 +10,7 @@
 #include <sstream>
 
 #include "chunk.hpp"
-#include "mpi_simulator.hpp"
+#include "mpi_interface.hpp"
 #include "debug.hpp"
 
 using namespace std;

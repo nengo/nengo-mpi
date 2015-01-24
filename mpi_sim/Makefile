@@ -18,8 +18,7 @@ else
 	BOOST_LIB=${SCINET_BOOST_LIB}
 endif
 
-# Note this doesn't contain python.o or mpi_simulator.o
-OBJS=simulator.o operator.o mpi_operator.o probe.o chunk.o mpi_simulator.o
+OBJS=simulator.o operator.o mpi_operator.o probe.o chunk.o mpi_interface.o
 
 SO_LOC=../nengo_mpi
 
@@ -45,6 +44,7 @@ clean:
 	rm -rf ${SO_LOC}/mpi_sim.so ${WORKER_LOC}/mpi_sim_worker *.o
 
 # ********* mpi_sim_worker *************
+# Worker doesn't need any of the python includes.
 
 mpi_sim_worker: worker.o ${OBJS}
 	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} -L${MPI_LIB} -L${BOOST_LIB} -lmpi -lboost_mpi -lm -std=${STD} ${DEFS}
@@ -60,11 +60,11 @@ mpi_sim: ${OBJS} python.o
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
 	mpicxx -std=${STD} -c -o mpi_operator.o -fPIC mpi_operator.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
 
-mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
-	mpicxx -std=${STD} -c -o mpi_simulator.o -fPIC mpi_simulator.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
+mpi_interface.o: mpi_interface.cpp mpi_interface.hpp simulator.hpp
+	mpicxx -std=${STD} -c -o mpi_interface.o -fPIC mpi_interface.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
 
 probe.o: probe.cpp probe.hpp operator.hpp
 python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
 chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
-simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_simulator.hpp debug.hpp
+simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_interface.hpp debug.hpp

@@ -1,4 +1,4 @@
-#include "mpi_simulator.hpp"
+#include "mpi_interface.hpp"
 
 void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int num_chunks){
     master_chunk = chunk;
