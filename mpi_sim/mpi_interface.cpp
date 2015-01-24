@@ -9,11 +9,12 @@ void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int n
     int argc = 0;
     char** argv;
 
-    cout << "Master initing MPI..." << endl;
-    MPI_Init(&argc, &argv);
-    cout << "Master finished initing MPI." << endl;
-
     if(spawn){
+
+        cout << "Master initing MPI..." << endl;
+        MPI_Init(&argc, &argv);
+        cout << "Master finished initing MPI." << endl;
+
         cout << "Master spawning " << num_remote_chunks << " children..." << endl;
 
         MPI_Comm_spawn(
