@@ -14,6 +14,7 @@ MpiSimulator::MpiSimulator(int num_components, float dt, string out_filename):
     if (write_to_file){
         out_file = new ofstream(out_filename);
         (*out_file) << num_components << delim << dt << endl;
+        return;
     }
 
     master_chunk = new MpiSimulatorChunk("Chunk 0", dt);
@@ -122,18 +123,22 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn):
 }
 
 void MpiSimulator::finalize(){
-
     if (write_to_file){
         out_file->close();
         delete out_file;
-    }
-
-    if(num_components > 1){
+    }else if(num_components > 1){
         mpi_interface.finalize();
     }
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress){
+
+    if(write_to_file){
+        cout << "Can not simulate. Simulator was used to "
+                "write the network to a file." << endl;
+        return;
+    }
+
     if(num_components == 1){
         master_chunk->run_n_steps(steps, progress);
     }else{
@@ -170,6 +175,12 @@ vector<key_type> MpiSimulator::get_probe_keys(){
 }
 
 vector<BaseMatrix*> MpiSimulator::get_probe_data(key_type probe_key){
+    if(write_to_file){
+        cout << "No probe data to get. Simulator was used to "
+                "write the network to a file." << endl;
+        return vector<BaseMatrix*>();
+    }
+
     return probe_data.at(probe_key);
 }
 
@@ -184,6 +195,7 @@ void MpiSimulator::add_base_signal(int component, key_type key, string label, Ba
 
     if(write_to_file){
         (*out_file) << "SIGNAL" << delim << component << delim << key << delim << label << delim << *data << endl;
+        return;
     }
 
     if(component == 0){
@@ -198,6 +210,7 @@ void MpiSimulator::add_op(int component, string op_string){
 
     if(write_to_file){
         (*out_file) << "OP" << delim << component << delim << op_string << endl;
+        return;
     }
 
     if(component == 0){
@@ -211,6 +224,7 @@ void MpiSimulator::add_probe(int component, key_type probe_key, string signal_st
 
     if(write_to_file){
         (*out_file) << "PROBE" << delim << component << delim << probe_key << delim << signal_string << delim << period << endl;
+        return;
     }
 
     if(component == 0){
