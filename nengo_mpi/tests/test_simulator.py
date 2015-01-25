@@ -21,7 +21,7 @@ import pytest
 
 test_files = {}
 
-if 0:
+if 1:
     # Standard nengo tests
     nengo_test_dir = os.path.dirname(nengo.tests.__file__)
     test_files["nengo.tests."] = os.listdir(nengo_test_dir)
@@ -37,7 +37,7 @@ except Exception as e:
     print "Couldn't import spa tests because" + e.message
 
 try:
-    if 0:
+    if 1:
         # Nengo network tests
         import nengo.networks.tests
         networks_test_dir = os.path.dirname(nengo.networks.tests.__file__)
