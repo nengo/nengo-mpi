@@ -24,11 +24,10 @@ SO_LOC=../nengo_mpi
 
 WORKER_LOC=/home/c/celiasmi/e2crawfo/nengo_mpi/nengo_mpi
 
-DEFS=
+DEFS=-O3
 
-CXXFLAGS= -I${BOOST_INC} -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=${STD}
-
-STD=c++0x
+STD=c++11
+#STD=c++0x
 
 all: build
 
@@ -37,6 +36,8 @@ run_debug: debug
 
 debug: DEFS+=-DDEBUG -g
 debug: build
+
+CXXFLAGS= -I${BOOST_INC} -I${MPI_INC} -I$(PYTHON_INC)/python2.7 $(DEFS) -fPIC -std=${STD}
 
 build: mpi_sim_worker mpi_sim
 
