@@ -45,6 +45,13 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
             ++eta;
         }
     }
+
+    // Call all the waits a final time to resolve the isends
+    // and irecvs issued on the last simulation step.
+    map<int, MPIWait*>::const_iterator wait_it;
+    for(wait_it = mpi_waits.begin(); wait_it != mpi_waits.end(); ++wait_it){
+        (*wait_it->second)();
+    }
 }
 
 void MpiSimulatorChunk::add_base_signal(key_type key, string l, BaseMatrix data){

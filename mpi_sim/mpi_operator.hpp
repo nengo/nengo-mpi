@@ -100,7 +100,7 @@ private:
 
 };
 
-static const int BARRIER_PERIOD = 1;
+static const int BARRIER_PERIOD = 50;
 
 class MPIBarrier: public Operator{
 
