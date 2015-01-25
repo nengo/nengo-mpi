@@ -124,7 +124,7 @@ with open(directory + '/' + submit_script_name, 'w') as outf:
 
     outf.write("# EXECUTION COMMAND;\n")
     outf.write(
-        "mpirun -np 1 --mca pml ob1 python %s --noprog %s"
+        "mpirun -np 1 --mca pml ob1 python %s --noprog %s "
         "> %s\n" % (nengo_script_location, script_args, results))
 
 os.chdir(directory)
