@@ -51,7 +51,7 @@ public:
     Reset(Matrix dst, floattype value);
     string classname() const { return "Reset"; }
 
-    void operator() ();
+    void operator()();
     virtual string to_string() const;
 
 protected:

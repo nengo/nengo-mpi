@@ -29,31 +29,16 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         n_steps++;
         time = n_steps * dt;
 
-        if(step % 10 == 0){
-            run_dbg(label << ": still alive at step " << step << endl);
-        }
-
         list<Operator*>::const_iterator it;
         for(it = operator_list.begin(); it != operator_list.end(); ++it){
-            run_dbg(label << ": before calling " << **it << endl);
-
             //Call the operator
             (**it)();
-        }
-
-        if(step % 10 == 0){
-            run_dbg(label << ": still alive after running ops on " << step << endl);
         }
 
         map<key_type, Probe*>::iterator probe_it;
         for(probe_it = probe_map.begin(); probe_it != probe_map.end(); ++probe_it){
             //Call the operator
             probe_it->second->gather(n_steps);
-            run_dbg(label << ": after gathering " << *(probe_it->second) << endl);
-        }
-
-        if(step % 10 == 0){
-            run_dbg(label << ": still alive after gathering probe data on " << step << endl);
         }
 
         if(progress){

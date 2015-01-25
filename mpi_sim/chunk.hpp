@@ -135,8 +135,6 @@ private:
     map<key_type, BaseMatrix*> signal_map;
     map<key_type, string> signal_labels;
     list<Operator*> operator_list;
-    Operator* operators;
-    int num_operators;
 };
 
 #endif
