@@ -47,6 +47,17 @@ parser.add_argument(
     '--noprobe', action='store_true', default=False,
     help='Supply to omit probing.')
 
+parser.add_argument(
+    '--rand', action='store_true', default=False,
+    help='Supply to use a (pseudo) random scheme for assigning nengo '
+         'object to processors')
+
+parser.add_argument(
+    '--save', default='',
+    help="Supply a filename to write the network to (so it can be "
+         "later be used by the stand-alone version of nengo_mpi). "
+         "In this case, the network will not be simulated.")
+
 args = parser.parse_args()
 print "Parameters are: ", args
 
@@ -62,17 +73,23 @@ extra_partitions = args.p - 1
 
 use_mpi = args.mpi
 
+save_file = args.save
+
 sim_time = args.t
 
 progress_bar = not args.noprog
 probe = not args.noprobe
+
+random_partitions = args.rand
 
 assert num_streams > 0
 assert stream_length > 0
 assert extra_partitions >= 0
 assert sim_time > 0
 
-partitions = range(extra_partitions)
+assignment_seed = 11
+assignments_rng = np.random.RandomState(assignment_seed)
+denom = int(np.ceil(float(stream_length) / (extra_partitions + 1)))
 
 assignments = {}
 
@@ -98,8 +115,11 @@ with m:
                 nengo.Connection(input_node, ensemble)
 
             if extra_partitions:
-                assignments[ensemble] = (
-                    j / int(np.ceil(float(stream_length) / (extra_partitions + 1))))
+                if random_partitions:
+                    assignments[ensemble] = (
+                        assignments_rng.randint(extra_partitions + 1))
+                else:
+                    assignments[ensemble] = j / denom
 
             ensembles[-1].append(ensemble)
 
@@ -111,37 +131,47 @@ with m:
             probes.append(
                 nengo.Probe(ensemble, 'decoded_output', synapse=0.01))
 
-
-assignment_seed = 11
-np.random.seed(assignment_seed)
-
-#for key in assignments.keys():
-    #assignments[key] = (
-    #    0 if assignments[key] == 0
-    #    else np.random.choice(partitions) + 1)
-
 if use_mpi:
     import nengo_mpi
     partitioner = nengo_mpi.Partitioner(1 + extra_partitions, assignments)
 
-    sim = nengo_mpi.Simulator(m, dt=0.001, partitioner=partitioner)
+    sim = nengo_mpi.Simulator(
+        m, dt=0.001, partitioner=partitioner, save_file=save_file)
 else:
     sim = nengo.Simulator(m, dt=0.001)
 
-import time
+if not save_file:
+    import time
 
-t0 = time.time()
-sim.run(sim_time, progress_bar)
-t1 = time.time()
+    t0 = time.time()
+    sim.run(sim_time, progress_bar)
+    t1 = time.time()
 
-print "Total simulation time:", t1 - t0, "seconds"
-print "Parameters were: ", args
-print "Number of neurons in simulations: ", N * D * num_streams * stream_length
+    if probe:
+        print "Input node result: "
+        print sim.data[input_p][-5:]
 
-if probe:
-    print "Input node result: "
-    print sim.data[input_p][-5:]
+        for i, p in enumerate(probes):
+            print "Stream %d result: " % i
+            print sim.data[p][-5:]
 
-    for i, p in enumerate(probes):
-        print "Stream %d result: " % i
-        print sim.data[p][-5:]
+    num_neurons = N * D * num_streams * stream_length
+    print "Total simulation time:", t1 - t0, "seconds"
+    print "Parameters were: ", args
+    print "Number of neurons in simulations: ", num_neurons
+
+    import pandas as pd
+    import os
+
+    runtimes_file = "/scratch/c/celiasmi/e2crawfo/benchmark_runtimes.csv"
+    header = not os.path.isfile(runtimes_file)
+
+    vals = vars(args).copy()
+    vals['runtime'] = t1 - t0
+    vals['num_neurons'] = num_neurons
+
+    now = pd.datetime.now()
+    df = pd.DataFrame(vals, index=pd.date_range(now, periods=1))
+
+    with open(runtimes_file, 'a') as f:
+        df.to_csv(f, header=header)
