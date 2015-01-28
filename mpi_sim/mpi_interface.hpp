@@ -5,16 +5,34 @@
 #include <string>
 
 #include <mpi.h>
-#include <boost/mpi.hpp>
-#include <boost/mpi/environment.hpp>
-#include <boost/mpi/communicator.hpp>
-#include <boost/mpi/intercommunicator.hpp>
 
-#include "flags.hpp"
 #include "chunk.hpp"
 
-namespace mpi = boost::mpi;
 using namespace std;
+
+const int stop_flag = -1;
+
+const int add_signal_flag = 0;
+const int add_op_flag = 1;
+const int add_probe_flag = 2;
+
+const int setup_tag = 1;
+const int probe_tag = 2;
+
+string recv_string(int src, int tag, MPI_Comm comm);
+void send_string(string s, int dst, int tag, MPI_Comm comm);
+
+float recv_float(int src, int tag, MPI_Comm comm);
+void send_float(float f, int dst, int tag, MPI_Comm comm);
+
+int recv_int(int src, int tag, MPI_Comm comm);
+void send_int(int i, int dst, int tag, MPI_Comm comm);
+
+key_type recv_key(int src, int tag, MPI_Comm comm);
+void send_key(key_type i, int dst, int tag, MPI_Comm comm);
+
+BaseMatrix* recv_matrix(int src, int tag, MPI_Comm comm);
+void send_matrix(BaseMatrix* matrix, int dst, int tag, MPI_Comm comm);
 
 class MpiInterface{
 public:
@@ -31,7 +49,7 @@ public:
     void finish_simulation();
 
 private:
-    mpi::communicator comm;
+    MPI_Comm comm;
     int num_remote_chunks;
     MpiSimulatorChunk* master_chunk;
 };

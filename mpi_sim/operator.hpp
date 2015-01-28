@@ -7,6 +7,7 @@
 
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
+#include <boost/numeric/ublas/storage.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/circular_buffer.hpp>
 
@@ -18,6 +19,7 @@ namespace ublas = boost::numeric::ublas;
 
 typedef double floattype;
 
+typedef ublas::unbounded_array<floattype> array_type;
 typedef ublas::matrix<floattype> BaseMatrix;
 typedef ublas::matrix_slice<BaseMatrix> Matrix;
 typedef ublas::scalar_matrix<floattype> ScalarMatrix;

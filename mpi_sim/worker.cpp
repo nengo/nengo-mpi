@@ -3,15 +3,9 @@
 
 #include <mpi.h>
 
-#include <boost/mpi.hpp>
-#include <boost/mpi/environment.hpp>
-#include <boost/mpi/communicator.hpp>
-#include <boost/mpi/intercommunicator.hpp>
-
-#include "flags.hpp"
 #include "simulator.hpp"
+#include "mpi_interface.hpp"
 
-namespace mpi = boost::mpi;
 using namespace std;
 
 // This file can be used in two ways. First, if using nengo_mpi from python, this
@@ -22,30 +16,28 @@ using namespace std;
 // command line, and the rest of the processes will jump straight into start_worker.
 
 // comm: The communicator for the worker to communicate on.
-void start_worker(mpi::communicator comm){
+void start_worker(MPI_Comm comm){
 
-    int my_id = comm.rank();
-    int num_procs = comm.size();
+    int my_id, num_procs;
+    MPI_Comm_rank(comm, &my_id);
+    MPI_Comm_size(comm, &num_procs);
 
     int buflen = 512;
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
 
-    cout << "Hello world! I'm a nengo_mpi worker process with rank "<< my_id << " on host " << name << "." << endl;
+    cout << "Hello world! I'm a nengo_mpi worker process with "
+            "rank "<< my_id << " on host " << name << "." << endl;
 
-    float dt;
-    string chunk_label;
-    int tag = 1;
+    MPI_Status status;
 
-    comm.recv(0, tag, chunk_label);
-    comm.recv(0, tag, dt);
+    string chunk_label = recv_string(0, setup_tag, comm);
+
+    float dt = recv_float(0, setup_tag, comm);
 
     MpiSimulatorChunk chunk(chunk_label, dt);
 
     int s = 0;
-    key_type key;
-    string label;
-    BaseMatrix data;
     string op_string;
 
     key_type probe_key;
@@ -53,28 +45,38 @@ void start_worker(mpi::communicator comm){
     float period;
 
     while(1){
-        comm.recv(0, tag, s);
+        s = recv_int(0, setup_tag, comm);
 
         if(s == add_signal_flag){
             dbg("Worker " << my_id  << " receiving signal.");
 
-            comm.recv(0, tag, key);
-            comm.recv(0, tag, label);
-            comm.recv(0, tag, data);
+            key_type key = recv_key(0, setup_tag, comm);
+
+            string label = recv_string(0, setup_tag, comm);
+
+            BaseMatrix* data = recv_matrix(0, setup_tag, comm);
 
             chunk.add_base_signal(key, label, data);
+            dbg("Worker " << my_id  << " done receiving signal.");
+            dbg("key; " << key);
+            dbg("label; " << key);
+            dbg("data; " << *data);
 
         }else if(s == add_op_flag){
             dbg("Worker " << my_id  << " receiving operator.");
-            comm.recv(0, tag, op_string);
+
+            string op_string = recv_string(0, setup_tag, comm);
 
             chunk.add_op(op_string);
 
         }else if(s == add_probe_flag){
             dbg("Worker " << my_id  << " receiving probe.");
-            comm.recv(0, tag, probe_key);
-            comm.recv(0, tag, signal_string);
-            comm.recv(0, tag, period);
+
+            key_type probe_key = recv_key(0, setup_tag, comm);
+
+            string signal_string = recv_string(0, setup_tag, comm);
+
+            int period = recv_int(0, setup_tag, comm);
 
             chunk.add_probe(probe_key, signal_string, period);
 
@@ -88,42 +90,52 @@ void start_worker(mpi::communicator comm){
     }
 
     dbg("Worker setting up MPI operators..");
-    chunk.setup_mpi_waits();
 
-    map<int, MPISend*>::iterator send_it;
-    for(send_it = chunk.mpi_sends.begin(); send_it != chunk.mpi_sends.end(); ++send_it){
-        send_it->second->comm = &comm;
+    vector<MPISend*>::iterator send_it = chunk.mpi_sends.begin();
+    for(; send_it != chunk.mpi_sends.end(); ++send_it){
+        (*send_it)->set_communicator(comm);
     }
 
-    map<int, MPIRecv*>::iterator recv_it;
-    for(recv_it = chunk.mpi_recvs.begin(); recv_it != chunk.mpi_recvs.end(); ++recv_it){
-        recv_it->second->comm = &comm;
+    vector<MPIRecv*>::iterator recv_it = chunk.mpi_recvs.begin();
+    for(; recv_it != chunk.mpi_recvs.end(); ++recv_it){
+        (*recv_it)->set_communicator(comm);
     }
 
-    MPIBarrier* mpi_barrier = new MPIBarrier(&comm);
+    MPIBarrier* mpi_barrier = new MPIBarrier(comm);
     chunk.add_op(mpi_barrier);
 
     dbg("Worker waiting for signal to start simulation.");
 
     int steps;
-    broadcast(comm, steps, 0);
+    MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
+
     cout << "Worker process " << my_id << " got the signal to start simulation: " << steps << " steps." << endl;
 
+    dbg("WORKER HERE");
     chunk.run_n_steps(steps, false);
-    comm.barrier();
+    dbg("WORKER THERE");
+    MPI_Barrier(comm);
 
     map<key_type, Probe*>::iterator probe_it;
     vector<BaseMatrix*> probe_data;
 
     for(probe_it = chunk.probe_map.begin(); probe_it != chunk.probe_map.end(); ++probe_it){
-        comm.send(0, 3, probe_it->first);
+        send_key(probe_it->first, 0, probe_tag, comm);
 
         probe_data = probe_it->second->get_data();
-        comm.send(0, 3, probe_data);
+
+        send_int(probe_data.size(), 0, probe_tag, comm);
+
+        vector<BaseMatrix*>::iterator data_it = probe_data.begin();
+
+        for(; data_it != probe_data.end(); data_it++){
+            send_matrix(*data_it, 0, probe_tag, comm);
+        }
+
         probe_it->second->clear(true);
     }
 
-    comm.barrier();
+    MPI_Barrier(comm);
 
     MPI_Finalize();
 }
@@ -136,13 +148,12 @@ int main(int argc, char **argv){
     MPI_Comm_get_parent(&parent);
 
     if (parent != MPI_COMM_NULL){
-        mpi::intercommunicator intercomm(parent, mpi::comm_duplicate);
-        mpi::communicator comm = intercomm.merge(true);
-
-        start_worker(comm);
+        MPI_Comm everyone;
+        MPI_Intercomm_merge(parent, true, &everyone);
+        start_worker(everyone);
     }else{
-        mpi::communicator comm;
-        int rank = comm.rank();
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
         if(rank == 0){
             if(argc < 1){
@@ -178,7 +189,7 @@ int main(int argc, char **argv){
             }
         }
         else{
-            start_worker(comm);
+            start_worker(MPI_COMM_WORLD);
         }
     }
 

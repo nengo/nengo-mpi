@@ -151,12 +151,14 @@ class MpiSend(builder.operator.Operator):
     send and the partition that it will be sent to. No makestep is defined,
     as it will never be called.
     """
-    def __init__(self, dst, signal):
+    def __init__(self, dst, tag, signal):
         self.sets = []
         self.incs = []
         self.reads = []
         self.updates = []
+
         self.dst = dst
+        self.tag = tag
         self.signal = signal
 
 
@@ -166,29 +168,14 @@ class MpiRecv(builder.operator.Operator):
     receive and the partition that it will be received from. No makestep is
     defined, as it will never be called.
     """
-    def __init__(self, src, signal):
+    def __init__(self, src, tag, signal):
         self.sets = []
         self.incs = []
         self.reads = []
         self.updates = []
+
         self.src = src
-        self.signal = signal
-
-
-class MpiWait(builder.operator.Operator):
-    """
-    MpiWait placeholder operator. Each MpiWait is assigned to an MpiRecv
-    or MpiSend. MpiRecv and MpiSend use asynchronous versions of the
-    MPI send and receive functions, and thus the MpiWaits are necessary
-    to make sure that the sends and receives have completed before any
-    operation takes place that would invalidate that data.
-    """
-    def __init__(self, signal):
-
-        self.sets = []
-        self.incs = []
-        self.reads = []
-        self.updates = []
+        self.tag = tag
         self.signal = signal
 
 
@@ -288,6 +275,7 @@ class MpiModel(builder.Model):
     specified in terms of the high-level nengo objects like nodes,
     networks and ensembles).
     """
+
     def __init__(
             self, num_components, assignments, dt=0.001, label=None,
             decoder_cache=NoDecoderCache(), save_file=""):
@@ -317,10 +305,17 @@ class MpiModel(builder.Model):
         self._object_context = [None]
         self.object_ops = defaultdict(list)
 
+        self._mpi_tag = 0
+
         super(MpiModel, self).__init__(dt, label, decoder_cache)
 
     def __str__(self):
         return "MpiModel: %s" % self.label
+
+    def get_new_mpi_tag(self):
+        mpi_tag = self._mpi_tag
+        self._mpi_tag += 1
+        return mpi_tag
 
     def push_object(self, object):
         self._object_context.append(object)
@@ -361,10 +356,12 @@ class MpiModel(builder.Model):
                         "Connections crossing component boundaries "
                         "must be filtered so that there is an update.")
 
+                tag = self.get_new_mpi_tag()
+
                 self.send_signals[pre_component].append(
-                    (signal, post_component))
+                    (signal, tag, post_component))
                 self.recv_signals[post_component].append(
-                    (signal, pre_component))
+                    (signal, tag, pre_component))
 
                 pre_ops, post_ops = split_connection(
                     self.object_ops[conn], signal)
@@ -473,7 +470,7 @@ class MpiModel(builder.Model):
         recv_signals = self.recv_signals[component]
 
         # Required for the dependency-graph-creation to work properly.
-        for signal, dst in recv_signals:
+        for signal, tag, dst in recv_signals:
             self.component_ops[component].append(
                 builder.operator.PreserveValue(signal))
 
@@ -481,9 +478,8 @@ class MpiModel(builder.Model):
         step_order = [node for node in toposort(dg)
                       if hasattr(node, 'make_step')]
 
-        for signal, dst in send_signals:
-            mpi_wait = MpiWait(signal)
-            mpi_send = MpiSend(dst, signal)
+        for signal, tag, dst in send_signals:
+            mpi_send = MpiSend(dst, tag, signal)
 
             update_indices = filter(
                 lambda i: signal in step_order[i].updates,
@@ -491,23 +487,18 @@ class MpiModel(builder.Model):
 
             assert len(update_indices) == 1
 
-            # Put the send after the op that updates the signal,
-            # and the wait immediately before it.
+            # Put the send after the op that updates the signal.
             step_order.insert(update_indices[0]+1, mpi_send)
-            step_order.insert(update_indices[0], mpi_wait)
 
-        for signal, src in recv_signals:
-            mpi_wait = MpiWait(signal)
-            mpi_recv = MpiRecv(src, signal)
+        for signal, tag, src in recv_signals:
+            mpi_recv = MpiRecv(src, tag, signal)
 
             read_indices = filter(
                 lambda i: signal in step_order[i].reads,
                 range(len(step_order)))
 
-            # Put the recv after the last read,
-            # and the wait before the first read
-            step_order.insert(read_indices[-1]+1, mpi_recv)
-            step_order.insert(read_indices[0], mpi_wait)
+            # Put the recv in front of the first op that reads the signal.
+            step_order.insert(read_indices[0], mpi_recv)
 
         for op in step_order:
             op_type = type(op)
@@ -648,15 +639,11 @@ class MpiModel(builder.Model):
 
         elif op_type == MpiSend:
             signal_key = make_key(op.signal)
-            op_args = ["MpiSend", op.dst, signal_key, signal_key]
+            op_args = ["MpiSend", op.dst, op.tag, signal_key]
 
         elif op_type == MpiRecv:
             signal_key = make_key(op.signal)
-            op_args = ["MpiRecv", op.src, signal_key, signal_key]
-
-        elif op_type == MpiWait:
-            signal_key = make_key(op.signal)
-            op_args = ["MpiWait", signal_key]
+            op_args = ["MpiRecv", op.src, op.tag, signal_key]
 
         else:
             raise NotImplementedError(

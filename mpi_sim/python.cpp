@@ -86,8 +86,7 @@ void PythonMpiSimulator::run_n_steps(bpy::object pysteps, bpy::object progress){
 }
 
 bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::object make_array){
-    key_type c_probe_key;
-    c_probe_key = bpy::extract<key_type>(probe_key);
+    key_type c_probe_key = bpy::extract<key_type>(probe_key);
     vector<BaseMatrix*> data = mpi_sim.get_probe_data(c_probe_key);
 
     bpy::list py_list;
@@ -156,7 +155,7 @@ void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
 void PythonMpiSimulator::add_probe(
         bpy::object component, bpy::object probe_key, bpy::object signal_string, bpy::object period){
 
-    key_type c_component = bpy::extract<key_type>(component);
+    int c_component = bpy::extract<int>(component);
     key_type c_probe_key = bpy::extract<key_type>(probe_key);
     string c_signal_string = bpy::extract<string>(signal_string);
     floattype c_period = bpy::extract<floattype>(period);

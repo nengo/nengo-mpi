@@ -46,16 +46,19 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         }
     }
 
-    // Call all the waits a final time to resolve the isends
-    // and irecvs issued on the last simulation step.
-    map<int, MPIWait*>::const_iterator wait_it;
-    for(wait_it = mpi_waits.begin(); wait_it != mpi_waits.end(); ++wait_it){
-        (*wait_it->second)();
+    vector<MPISend*>::const_iterator send_it = mpi_sends.begin();
+    for(; send_it != mpi_sends.end(); ++send_it){
+        (*send_it)->complete();
+    }
+
+    vector<MPIRecv*>::const_iterator recv_it = mpi_recvs.begin();
+    for(; recv_it != mpi_recvs.end(); ++recv_it){
+        (*recv_it)->complete();
     }
 }
 
-void MpiSimulatorChunk::add_base_signal(key_type key, string l, BaseMatrix data){
-    signal_map[key] = new BaseMatrix(data);
+void MpiSimulatorChunk::add_base_signal(key_type key, string l, BaseMatrix* data){
+    signal_map[key] = data;
     signal_labels[key] = l;
 }
 
@@ -203,21 +206,19 @@ void MpiSimulatorChunk::add_op(string op_string){
          }else if(type_string.compare("MpiSend") == 0){
                 int dst = boost::lexical_cast<int>(tokens[1]);
                 int tag = boost::lexical_cast<int>(tokens[2]);
-                BaseMatrix* content = get_base_signal(boost::lexical_cast<key_type>(tokens[3]));
+                key_type signal_key = boost::lexical_cast<key_type>(tokens[3]);
+                BaseMatrix* content = get_base_signal(signal_key);
 
                 add_mpi_send(new MPISend(dst, tag, content));
 
          }else if(type_string.compare("MpiRecv") == 0){
                 int src = boost::lexical_cast<int>(tokens[1]);
                 int tag = boost::lexical_cast<int>(tokens[2]);
-                BaseMatrix* content = get_base_signal(boost::lexical_cast<key_type>(tokens[3]));
+                key_type signal_key = boost::lexical_cast<key_type>(tokens[3]);
+                BaseMatrix* content = get_base_signal(signal_key);
 
                 add_mpi_recv(new MPIRecv(src, tag, content));
 
-         }else if(type_string.compare("MpiWait") == 0){
-                int tag = boost::lexical_cast<int>(tokens[1]);
-
-                add_mpi_wait(new MPIWait(tag));
         }else{
             stringstream ss;
             ss << "Received an operator type that we can't handle: " << type_string;
@@ -233,21 +234,14 @@ void MpiSimulatorChunk::add_op(string op_string){
 void MpiSimulatorChunk::add_mpi_send(MPISend* mpi_send){
     operator_list.push_back(mpi_send);
 
-    mpi_sends[mpi_send->tag] = mpi_send;
+    mpi_sends.push_back(mpi_send);
 }
 
 void MpiSimulatorChunk::add_mpi_recv(MPIRecv* mpi_recv){
     operator_list.push_back(mpi_recv);
 
-    mpi_recvs[mpi_recv->tag] = mpi_recv;
+    mpi_recvs.push_back(mpi_recv);
 }
-
-void MpiSimulatorChunk::add_mpi_wait(MPIWait* mpi_wait){
-    operator_list.push_back(mpi_wait);
-
-    mpi_waits[mpi_wait->tag] = mpi_wait;
-}
-
 
 void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, float period){
     Matrix signal = get_signal(signal_string);
@@ -257,27 +251,6 @@ void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, floa
 
 void MpiSimulatorChunk::add_probe(key_type probe_key, Probe* probe){
     probe_map[probe_key] = probe;
-}
-
-void MpiSimulatorChunk::setup_mpi_waits(){
-
-    map<int, MPIWait*>::iterator wait_it;
-
-    for(wait_it = mpi_waits.begin(); wait_it != mpi_waits.end(); ++wait_it){
-        try{
-            MPISend* send = mpi_sends.at(wait_it->first);
-            wait_it->second->request = send->get_request_pointer();
-        }catch(const out_of_range& e){
-            try{
-                MPIRecv* recv = mpi_recvs.at(wait_it->first);
-                wait_it->second->request = recv->get_request_pointer();
-            }catch(const out_of_range& e){
-                cerr << "Found MPIWait with no matching operator. tag = "
-                     << wait_it->first << "." << endl;
-                throw e;
-            }
-        }
-    }
 }
 
 BaseMatrix* MpiSimulatorChunk::extract_list(string s){
@@ -338,25 +311,16 @@ string MpiSimulatorChunk::to_string() const{
     }
     out << endl;
 
-    map<int, MPISend*>::const_iterator send_it;
+    vector<MPISend*>::const_iterator send_it = mpi_sends.begin();
     out << "** MPISends: **" << endl;
-    for(send_it = mpi_sends.begin(); send_it != mpi_sends.end(); ++send_it){
-        out << "Key: " << send_it->first << endl;
-        out << "Value: " << *(send_it->second) << endl;
+    for(; send_it != mpi_sends.end(); ++send_it){
+        out << "Value: " << **send_it << endl;
     }
 
-    map<int, MPIRecv*>::const_iterator recv_it;
+    vector<MPIRecv*>::const_iterator recv_it = mpi_recvs.begin();
     out << "** MPIRecvs: **" << endl;
-    for(recv_it = mpi_recvs.begin(); recv_it != mpi_recvs.end(); ++recv_it){
-        out << "Key: " << recv_it->first << endl;
-        out << "Value: " << *(recv_it->second) << endl;
-    }
-
-    map<int, MPIWait*>::const_iterator wait_it;
-    out << "** MPIWaits: **" << endl;
-    for(wait_it = mpi_waits.begin(); wait_it != mpi_waits.end(); ++wait_it){
-        out << "Key: " << wait_it->first << endl;
-        out << "Value: " << *(wait_it->second) << endl;
+    for(; recv_it != mpi_recvs.end(); ++recv_it){
+        out << "Value: " << **recv_it << endl;
     }
 
     return out.str();

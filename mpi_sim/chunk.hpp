@@ -17,8 +17,8 @@
 #include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
 
 // key type for various maps in the MpiSimulatorChunk. Keys are typically
-// addresses of python objects.
-typedef unsigned long long int key_type;
+// addresses of python objects, so we need to use long long ints (64 bits)
+typedef long long int key_type;
 
 // An MpiSimulatorChunk represents the portion of a Nengo
 // network that is simulated by a single MPI process.
@@ -40,7 +40,7 @@ public:
     // contain the data required by the simulation, as well as
     // current simulation state. The key must be unique, as it
     // will later be used by operators to get a view of the BaseSignal.
-    void add_base_signal(key_type key, string l, BaseMatrix data);
+    void add_base_signal(key_type key, string l, BaseMatrix* data);
 
     // Look up base signal by key.
     // Base signals are stored in C-format (Row-major).
@@ -82,7 +82,6 @@ public:
     // simulation begins.
     void add_mpi_send(MPISend* mpi_send);
     void add_mpi_recv(MPIRecv* mpi_recv);
-    void add_mpi_wait(MPIWait* mpi_wait);
 
     // *** Probes ***
 
@@ -100,11 +99,6 @@ public:
     void add_probe(key_type probe_key, Probe* probe);
 
     // *** Miscellaneous ***
-
-    // Called after all operators have been added to the chunk.
-    // Makes the MPIWait operators collect the boost.mpi request objects from
-    // their assigned MPISend or MPIRecv operator.
-    void setup_mpi_waits();
 
     // Helper function to extract a BaseMatrix from a string. Assumes
     // the data for the BaseMatrix is encoded in the string as a python list.
@@ -124,9 +118,8 @@ public:
     float dt;
     string label;
 
-    map<int, MPISend*> mpi_sends;
-    map<int, MPIRecv*> mpi_recvs;
-    map<int, MPIWait*> mpi_waits;
+    vector<MPISend*> mpi_sends;
+    vector<MPIRecv*> mpi_recvs;
     map<key_type, Probe*> probe_map;
 
 private:

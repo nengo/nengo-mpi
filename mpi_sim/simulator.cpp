@@ -199,7 +199,7 @@ void MpiSimulator::add_base_signal(int component, key_type key, string label, Ba
     }
 
     if(component == 0){
-        master_chunk->add_base_signal(key, label, *data);
+        master_chunk->add_base_signal(key, label, data);
     }else{
         mpi_interface.add_base_signal(component, key, label, data);
         delete data;

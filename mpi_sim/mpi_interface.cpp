@@ -1,10 +1,115 @@
 #include "mpi_interface.hpp"
 
+string recv_string(int src, int tag, MPI_Comm comm){
+    int size;
+    MPI_Status status;
+
+    // Convention: recv the size of the string, ommitting the c_str's terminating character
+    MPI_Recv(&size, 1, MPI_INT, src, tag, comm, &status);
+
+    char* buffer = new char[size+1];
+    MPI_Recv(buffer, size+1, MPI_CHAR, src, tag, comm, &status);
+
+    string s(buffer);
+    free(buffer);
+
+    return s;
+}
+
+void send_string(string s, int dst, int tag, MPI_Comm comm){
+    int size = s.length();
+
+    // Convention: send the size of the string, ommitting the c_str's terminating character
+    MPI_Send(&size, 1, MPI_INT, dst, tag, comm);
+
+    char* buffer = new char[size+1];
+    strcpy(buffer, s.c_str());
+    MPI_Send(buffer, size+1, MPI_CHAR, dst, tag, comm);
+
+    free(buffer);
+}
+
+float recv_float(int src, int tag, MPI_Comm comm){
+    MPI_Status status;
+
+    float f;
+    MPI_Recv(&f, 1, MPI_FLOAT, src, tag, comm, &status);
+    return f;
+}
+
+void send_float(float f, int dst, int tag, MPI_Comm comm){
+    MPI_Send(&f, 1, MPI_FLOAT, dst, tag, comm);
+}
+
+int recv_int(int src, int tag, MPI_Comm comm){
+    MPI_Status status;
+
+    int i;
+    MPI_Recv(&i, 1, MPI_INT, src, tag, comm, &status);
+    return i;
+}
+
+void send_int(int i, int dst, int tag, MPI_Comm comm){
+    MPI_Send(&i, 1, MPI_INT, dst, tag, comm);
+}
+
+key_type recv_key(int src, int tag, MPI_Comm comm){
+    MPI_Status status;
+
+    key_type i;
+    MPI_Recv(&i, 1, MPI_LONG_LONG_INT, src, tag, comm, &status);
+    return i;
+}
+
+void send_key(key_type i, int dst, int tag, MPI_Comm comm){
+    MPI_Send(&i, 1, MPI_LONG_LONG_INT, dst, tag, comm);
+}
+
+BaseMatrix* recv_matrix(int src, int tag, MPI_Comm comm){
+    MPI_Status status;
+
+    int size1 = recv_int(src, tag, comm);
+    int size2 = recv_int(src, tag, comm);
+
+    floattype* data_buffer = new floattype[size1 * size2];
+    MPI_Recv(data_buffer, size1 * size2, MPI_DOUBLE, src, tag, comm, &status);
+
+    BaseMatrix* matrix = new BaseMatrix(size1, size2);
+
+    // Assumes matrices stored in row-major
+    for(int i = 0; i < size1; i++){
+        for(int j = 0; j < size2; j++){
+            (*matrix)(i, j) = data_buffer[i * size2 + j];
+        }
+    }
+
+    free(data_buffer);
+
+    return matrix;
+}
+
+void send_matrix(BaseMatrix* matrix, int dst, int tag, MPI_Comm comm){
+    int size1 = matrix->size1(), size2 = matrix->size2();
+    send_int(size1, dst, tag, comm);
+    send_int(size2, dst, tag, comm);
+
+    floattype* data_buffer = new floattype[size1 * size2];
+
+    // Assumes matrices stored in row-major
+    for(int i = 0; i < size1; i++){
+        for(int j = 0; j < size2; j++){
+            data_buffer[i * size2 + j] = (*matrix)(i, j) ;
+        }
+    }
+
+    MPI_Send(data_buffer, size1 * size2, MPI_DOUBLE, dst, tag, comm);
+
+    free(data_buffer);
+}
+
 void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int num_chunks){
     master_chunk = chunk;
     num_remote_chunks = num_chunks;
-
-    MPI_Comm everyone;
 
     int argc = 0;
     char** argv;
@@ -17,100 +122,92 @@ void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int n
 
         cout << "Master spawning " << num_remote_chunks << " children..." << endl;
 
+        MPI_Comm inter;
+
         MPI_Comm_spawn(
             "/home/c/celiasmi/e2crawfo/nengo_mpi/nengo_mpi/mpi_sim_worker",
              MPI_ARGV_NULL, num_remote_chunks,
-             MPI_INFO_NULL, 0, MPI_COMM_SELF, &everyone,
+             MPI_INFO_NULL, 0, MPI_COMM_SELF, &inter,
              MPI_ERRCODES_IGNORE);
 
         cout << "Master finished spawning children." << endl;
 
-        mpi::intercommunicator intercomm(everyone, mpi::comm_duplicate);
-        comm = intercomm.merge(false);
+        MPI_Intercomm_merge(inter, false, &comm);
     }
 
     int buflen = 512;
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
 
+    int rank;
+    MPI_Comm_rank(comm, &rank);
+
     cout << "Master host: " << name << endl;
-    cout << "Master rank in merged communicator: " << comm.rank() << " (should be 0)." << endl;
+    cout << "Master rank in merged communicator: " << rank << " (should be 0)." << endl;
 
     float dt = master_chunk->dt;
     string chunk_label;
-
-    int tag = 1;
 
     for(int i = 0; i < num_remote_chunks; i++){
         stringstream s;
         s << "Chunk " << i + 1;
         chunk_label = s.str();
 
-        comm.send(i + 1, tag, chunk_label);
-        comm.send(i + 1, tag, dt);
+        send_string(chunk_label, i+1, setup_tag, comm);
+        send_float(dt, i+1, setup_tag, comm);
     }
 }
 
 void MpiInterface::add_base_signal(int component, key_type key, string label, BaseMatrix* data){
-    int tag = 1;
+    send_int(add_signal_flag, component, setup_tag, comm);
 
-    comm.send(component, tag, add_signal_flag);
-
-    comm.send(component, tag, key);
-    comm.send(component, tag, label);
-    comm.send(component, tag, *data);
+    send_key(key, component, setup_tag, comm);
+    send_string(label, component, setup_tag, comm);
+    send_matrix(data, component, setup_tag, comm);
 }
 
 void MpiInterface::add_op(int component, string op_string){
-    int tag = 1;
+    send_int(add_op_flag, component, setup_tag, comm);
 
-    comm.send(component, tag, add_op_flag);
-
-    comm.send(component, tag, op_string);
+    send_string(op_string, component, setup_tag, comm);
 }
 
 void MpiInterface::add_probe(int component, key_type probe_key, string signal_string, float period){
-    int tag = 1;
+    send_int(add_probe_flag, component, setup_tag, comm);
 
-    comm.send(component, tag, add_probe_flag);
-
-    comm.send(component, tag, probe_key);
-    comm.send(component, tag, signal_string);
-    comm.send(component, tag, period);
+    send_key(probe_key, component, setup_tag, comm);
+    send_string(signal_string, component, setup_tag, comm);
+    send_int(period, component, setup_tag, comm);
 }
 
 void MpiInterface::finalize(){
-    master_chunk->setup_mpi_waits();
-
-    map<int, MPISend*>::iterator send_it;
-    for(send_it = master_chunk->mpi_sends.begin(); send_it != master_chunk->mpi_sends.end(); ++send_it){
-        send_it->second->comm = &comm;
+    vector<MPISend*>::iterator send_it = master_chunk->mpi_sends.begin();
+    for(; send_it != master_chunk->mpi_sends.end(); ++send_it){
+        (*send_it)->set_communicator(comm);
     }
 
-    map<int, MPIRecv*>::iterator recv_it;
-    for(recv_it = master_chunk->mpi_recvs.begin(); recv_it != master_chunk->mpi_recvs.end(); ++recv_it){
-        recv_it->second->comm = &comm;
+    vector<MPIRecv*>::iterator recv_it = master_chunk->mpi_recvs.begin();
+    for(; recv_it != master_chunk->mpi_recvs.end(); ++recv_it){
+        (*recv_it)->set_communicator(comm);
     }
 
-    MPIBarrier* mpi_barrier = new MPIBarrier(&comm);
+    MPIBarrier* mpi_barrier = new MPIBarrier(comm);
     master_chunk->add_op(mpi_barrier);
 
-    int tag = 1;
-
     for(int i = 0; i < num_remote_chunks; i++){
-        comm.send(i + 1, tag, stop_flag);
+        send_int(stop_flag, i+1, setup_tag, comm);
     }
 }
 
 void MpiInterface::run_n_steps(int steps, bool progress){
     cout << "Master sending simulation signal." << endl;
-    broadcast(comm, steps, 0);
+    MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
     cout << "Master starting simulation: " << steps << " steps." << endl;
 
     master_chunk->run_n_steps(steps, progress);
 
-    comm.barrier();
+    MPI_Barrier(comm);
 }
 
 void MpiInterface::gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_data,
@@ -129,17 +226,21 @@ void MpiInterface::gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_
 
         if(chunk_index > 0){
             for(unsigned i = 0; i < probe_count; i++){
-                comm.recv(chunk_index, 3, probe_key);
+                probe_key = recv_key(chunk_index, probe_tag, comm);
 
                 run_dbg("Master receiving probe from chunk " << chunk_index << endl
                         <<" with key " << probe_key << "..." << endl);
 
-                comm.recv(chunk_index, 3, new_data);
+                int data_length = recv_int(chunk_index, probe_tag, comm);
 
                 data = probe_data.at(probe_key);
-
                 data.reserve(data.size() + new_data.size());
-                data.insert(data.end(), new_data.begin(), new_data.end());
+
+                for(int j = 0; j < data_length; j++){
+                    BaseMatrix* matrix = recv_matrix(chunk_index, probe_tag, comm);
+                    data.push_back(matrix);
+                }
+
                 probe_data[probe_key] = data;
             }
         }
@@ -147,7 +248,7 @@ void MpiInterface::gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_
 
     cout << "Master done gathering probe data from children." << endl;
 
-    comm.barrier();
+    MPI_Barrier(comm);
 }
 
 void MpiInterface::finish_simulation(){
