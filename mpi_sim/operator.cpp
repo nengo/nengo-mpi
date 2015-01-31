@@ -141,7 +141,7 @@ void Synapse::operator() (){
 }
 
 void SimLIF::operator() (){
-    dV = (dt / tau_rc) * (J - voltage);
+    dV = -expm1(-dt / tau_rc) * (J - voltage);
     voltage += dV;
     for(unsigned i = 0; i < n_neurons; ++i){
         voltage(i, 0) = voltage(i, 0) < 0 ? 0.0 : voltage(i, 0);
