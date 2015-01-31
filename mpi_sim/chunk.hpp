@@ -26,7 +26,7 @@ class MpiSimulatorChunk{
 
 public:
     MpiSimulatorChunk();
-    MpiSimulatorChunk(string label, float dt);
+    MpiSimulatorChunk(string label, dtype dt);
     const string classname() { return "MpiSimulatorChunk"; }
 
     // Run an integer number of steps. Called by a
@@ -93,7 +93,7 @@ public:
     //                     Specifies what data the probe will record.
     //
     //     period        : How often the signal is sampled.
-    void add_probe(key_type probe_key, string signal_string, float period);
+    void add_probe(key_type probe_key, string signal_string, dtype period);
 
     // Add a pre-created probe to the chunk.
     void add_probe(key_type probe_key, Probe* probe);
@@ -105,7 +105,7 @@ public:
     static BaseMatrix* extract_list(string s);
 
     // Used to pass the time to python functions
-    double* get_time_pointer(){return &time;}
+    dtype* get_time_pointer(){return &time;}
     int get_num_probes(){return probe_map.size();}
 
     string to_string() const;
@@ -115,7 +115,7 @@ public:
         return out;
     }
 
-    float dt;
+    dtype dt;
     string label;
 
     vector<MPISend*> mpi_sends;
@@ -123,7 +123,7 @@ public:
     map<key_type, Probe*> probe_map;
 
 private:
-    double time;
+    dtype time;
     int n_steps;
     map<key_type, BaseMatrix*> signal_map;
     map<key_type, string> signal_labels;

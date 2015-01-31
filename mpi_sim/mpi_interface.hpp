@@ -22,8 +22,8 @@ const int probe_tag = 2;
 string recv_string(int src, int tag, MPI_Comm comm);
 void send_string(string s, int dst, int tag, MPI_Comm comm);
 
-float recv_float(int src, int tag, MPI_Comm comm);
-void send_float(float f, int dst, int tag, MPI_Comm comm);
+dtype recv_dtype(int src, int tag, MPI_Comm comm);
+void send_dtype(dtype d, int dst, int tag, MPI_Comm comm);
 
 int recv_int(int src, int tag, MPI_Comm comm);
 void send_int(int i, int dst, int tag, MPI_Comm comm);
@@ -40,7 +40,7 @@ public:
 
     void add_base_signal(int component, key_type key, string label, BaseMatrix* data);
     void add_op(int component, string op_string);
-    void add_probe(int component, key_type probe_key, string signal_string, float period);
+    void add_probe(int component, key_type probe_key, string signal_string, dtype period);
     void finalize();
 
     void run_n_steps(int steps, bool progress);

@@ -6,7 +6,7 @@ MpiSimulator::MpiSimulator():
     num_components(0), dt(0.001), master_chunk(NULL){
 }
 
-MpiSimulator::MpiSimulator(int num_components, float dt, string out_filename):
+MpiSimulator::MpiSimulator(int num_components, dtype dt, string out_filename):
     num_components(num_components), dt(dt), master_chunk(NULL), spawn(true){
 
     write_to_file = !(out_filename.empty());
@@ -42,7 +42,7 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn):
     num_components = boost::lexical_cast<int>(line);
 
     getline(in_file, line, '\n');
-    dt = boost::lexical_cast<float>(line);
+    dt = boost::lexical_cast<dtype>(line);
 
     master_chunk = new MpiSimulatorChunk("Chunk 0", dt);
 
@@ -88,7 +88,7 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn):
 
             BaseMatrix* data = new BaseMatrix(size1, size2);
             for(int i = 0; it < tokens.end(); it++, i++){
-                (*data)(i / size2, i % size2) = boost::lexical_cast<floattype>(*it);
+                (*data)(i / size2, i % size2) = boost::lexical_cast<dtype>(*it);
             }
 
             add_base_signal(component, key, label, data);

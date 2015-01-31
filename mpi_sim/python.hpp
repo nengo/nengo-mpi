@@ -59,10 +59,10 @@ private:
 
 class PyFunc: public Operator{
 public:
-    PyFunc(bpy::object py_fn, double* t_in);
-    PyFunc(bpy::object py_fn, double* t_in, Matrix input, bpyn::array py_input);
-    PyFunc(bpy::object py_fn, double* t_in, Matrix output);
-    PyFunc(bpy::object py_fn, double* t_in, Matrix input, bpyn::array py_input, Matrix output);
+    PyFunc(bpy::object py_fn, dtype* t_in);
+    PyFunc(bpy::object py_fn, dtype* t_in, Matrix input, bpyn::array py_input);
+    PyFunc(bpy::object py_fn, dtype* t_in, Matrix output);
+    PyFunc(bpy::object py_fn, dtype* t_in, Matrix input, bpyn::array py_input, Matrix output);
 
     void operator()();
     virtual string to_string() const;
@@ -76,7 +76,7 @@ private:
     Matrix input;
     Matrix output;
 
-    double* time;
+    dtype* time;
 
     bpy::object py_fn;
     bpyn::array py_input;

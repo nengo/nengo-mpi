@@ -4,7 +4,7 @@ MpiSimulatorChunk::MpiSimulatorChunk()
     :time(0.0), dt(0.001), n_steps(0){
 }
 
-MpiSimulatorChunk::MpiSimulatorChunk(string label, float dt)
+MpiSimulatorChunk::MpiSimulatorChunk(string label, dtype dt)
     :time(0.0), label(label), dt(dt), n_steps(0){
 }
 
@@ -130,7 +130,7 @@ void MpiSimulatorChunk::add_op(string op_string){
     try{
         if(type_string.compare("Reset") == 0){
                 Matrix dst = get_signal(*(it++));
-                float value = boost::lexical_cast<float>(*(it++));
+                dtype value = boost::lexical_cast<dtype>(*(it++));
 
                 add_op(new Reset(dst, value));
 
@@ -157,9 +157,9 @@ void MpiSimulatorChunk::add_op(string op_string){
 
          }else if(type_string.compare("LIF") == 0){
                 int num_neurons = boost::lexical_cast<int>(tokens[1]);
-                float tau_ref = boost::lexical_cast<float>(tokens[2]);
-                float tau_rc = boost::lexical_cast<float>(tokens[3]);
-                float dt = boost::lexical_cast<float>(tokens[4]);
+                dtype tau_ref = boost::lexical_cast<dtype>(tokens[2]);
+                dtype tau_rc = boost::lexical_cast<dtype>(tokens[3]);
+                dtype dt = boost::lexical_cast<dtype>(tokens[4]);
 
                 Matrix J = get_signal(tokens[5]);
                 Matrix output = get_signal(tokens[6]);
@@ -168,8 +168,8 @@ void MpiSimulatorChunk::add_op(string op_string){
 
          }else if(type_string.compare("LIFRate") == 0){
                 int num_neurons = boost::lexical_cast<int>(tokens[1]);
-                float tau_ref = boost::lexical_cast<float>(tokens[2]);
-                float tau_rc = boost::lexical_cast<float>(tokens[3]);
+                dtype tau_ref = boost::lexical_cast<dtype>(tokens[2]);
+                dtype tau_rc = boost::lexical_cast<dtype>(tokens[3]);
 
                 Matrix J = get_signal(tokens[4]);
                 Matrix output = get_signal(tokens[5]);
@@ -186,7 +186,7 @@ void MpiSimulatorChunk::add_op(string op_string){
 
          }else if(type_string.compare("Sigmoid") == 0){
                 int num_neurons = boost::lexical_cast<int>(tokens[1]);
-                float tau_ref = boost::lexical_cast<float>(tokens[2]);
+                dtype tau_ref = boost::lexical_cast<dtype>(tokens[2]);
 
                 Matrix J = get_signal(tokens[3]);
                 Matrix output = get_signal(tokens[4]);
@@ -243,7 +243,7 @@ void MpiSimulatorChunk::add_mpi_recv(MPIRecv* mpi_recv){
     mpi_recvs.push_back(mpi_recv);
 }
 
-void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, float period){
+void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, dtype period){
     Matrix signal = get_signal(signal_string);
     Probe* probe = new Probe(signal, period);
     probe_map[probe_key] = probe;
@@ -269,7 +269,7 @@ BaseMatrix* MpiSimulatorChunk::extract_list(string s){
         for(it = tokens.begin(); it != tokens.end(); ++it){
             string val = *it;
             boost::trim(val);
-            (*ret)(i, 0) = boost::lexical_cast<float>(val);
+            (*ret)(i, 0) = boost::lexical_cast<dtype>(val);
             i++;
         }
     }catch(const boost::bad_lexical_cast& e){

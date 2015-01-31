@@ -19,7 +19,7 @@ class MpiSimulator{
 
 public:
     MpiSimulator();
-    MpiSimulator(int num_components, float dt, string out_filename);
+    MpiSimulator(int num_components, dtype dt, string out_filename);
     MpiSimulator(string in_filename, bool spawn);
 
     const string classname() { return "MpiSimulator"; }
@@ -51,7 +51,7 @@ public:
 private:
     bool spawn;
     MpiInterface mpi_interface;
-    float dt;
+    dtype dt;
 
     bool write_to_file;
     ofstream* out_file;

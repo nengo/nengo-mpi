@@ -5,20 +5,20 @@
 
 // Constructors
 
-Reset::Reset(Matrix dst, floattype value)
-    :dst(dst), value(value){
+Reset::Reset(Matrix dst, dtype value)
+:dst(dst), value(value){
 
     dummy = ScalarMatrix(dst.size1(), dst.size2(), value);
 }
 
 Copy::Copy(Matrix dst, Matrix src)
-    :dst(dst), src(src){}
+:dst(dst), src(src){}
 
 DotInc::DotInc(Matrix A, Matrix X, Matrix Y)
-    :A(A), X(X), Y(Y){}
+:A(A), X(X), Y(Y){}
 
 ElementwiseInc::ElementwiseInc(Matrix A, Matrix X, Matrix Y)
-    :A(A), X(X), Y(Y){
+:A(A), X(X), Y(Y){
 
     if(A.size1() != Y.size1() || A.size2() != Y.size2() ||
        X.size1() != Y.size1() || X.size2() != Y.size2()){
@@ -39,18 +39,19 @@ ElementwiseInc::ElementwiseInc(Matrix A, Matrix X, Matrix Y)
     }
 }
 
-Synapse::Synapse(Matrix input, Matrix output,
-                 BaseMatrix* numer, BaseMatrix* denom)
+Synapse::Synapse(
+    Matrix input, Matrix output, BaseMatrix* numer, BaseMatrix* denom)
 :input(input), output(output), numer(numer), denom(denom){
 
     for(int i = 0; i < input.size1(); i++){
-        x.push_back(boost::circular_buffer<floattype>(numer->size1()));
-        y.push_back(boost::circular_buffer<floattype>(denom->size1()));
+        x.push_back(boost::circular_buffer<dtype>(numer->size1()));
+        y.push_back(boost::circular_buffer<dtype>(denom->size1()));
     }
 }
 
-SimLIF::SimLIF(int n_neurons, floattype tau_rc, floattype tau_ref,
-               floattype dt, Matrix J, Matrix output)
+SimLIF::SimLIF(
+    int n_neurons, dtype tau_rc, dtype tau_ref,
+    dtype dt, Matrix J, Matrix output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref),
 dt_inv(1.0 / dt), J(J), output(output){
 
@@ -60,10 +61,10 @@ dt_inv(1.0 / dt), J(J), output(output){
     dt_vec = ScalarMatrix(n_neurons, 1, dt);
 }
 
-SimLIFRate::SimLIFRate(int n_neurons, floattype tau_rc,
-                       floattype tau_ref, Matrix J, Matrix output)
-:n_neurons(n_neurons), tau_rc(tau_rc),
-tau_ref(tau_ref), J(J), output(output){
+SimLIFRate::SimLIFRate(
+    int n_neurons, dtype tau_rc,
+    dtype tau_ref, Matrix J, Matrix output)
+:n_neurons(n_neurons), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
 
     j = BaseMatrix(n_neurons, 1);
     one = ScalarMatrix(n_neurons, 1, 1.0);
@@ -72,7 +73,7 @@ tau_ref(tau_ref), J(J), output(output){
 SimRectifiedLinear::SimRectifiedLinear(int n_neurons, Matrix J, Matrix output)
 :n_neurons(n_neurons), J(J), output(output){}
 
-SimSigmoid::SimSigmoid(int n_neurons, float tau_ref, Matrix J, Matrix output)
+SimSigmoid::SimSigmoid(int n_neurons, dtype tau_ref, Matrix J, Matrix output)
 :n_neurons(n_neurons), tau_ref(tau_ref), tau_ref_inv(1.0 / tau_ref), J(J), output(output){}
 
 // Function operator overloads
@@ -155,7 +156,7 @@ void SimLIF::operator() (){
         mult(i, 0) = mult(i, 0) < 0 ? 0.0 : mult(i, 0);
     }
 
-    floattype overshoot;
+    dtype overshoot;
     for(unsigned i = 0; i < n_neurons; ++i){
         voltage(i, 0) *= mult(i, 0);
         if (voltage(i, 0) > 1.0){
@@ -189,7 +190,7 @@ void SimLIFRate::operator() (){
 }
 
 void SimRectifiedLinear::operator() (){
-    float j = 0;
+    dtype j = 0;
     for(unsigned i = 0; i < n_neurons; ++i){
         j = J(i, 0);
         output(i, 0) = j > 0.0 ? j : 0.0;

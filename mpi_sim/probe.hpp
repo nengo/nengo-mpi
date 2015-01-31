@@ -10,7 +10,7 @@ using namespace std;
 
 class Probe {
 public:
-    Probe(Matrix signal, float period);
+    Probe(Matrix signal, dtype period);
     void init_for_simulation(int n_steps);
     void gather(int n_steps);
     vector<BaseMatrix*> get_data();
@@ -26,7 +26,7 @@ public:
 protected:
     vector<BaseMatrix*> data;
     Matrix signal;
-    float period;
+    dtype period;
     int index;
     int step_offset;
 };

@@ -29,16 +29,16 @@ void send_string(string s, int dst, int tag, MPI_Comm comm){
     free(buffer);
 }
 
-float recv_float(int src, int tag, MPI_Comm comm){
+dtype recv_dtype(int src, int tag, MPI_Comm comm){
     MPI_Status status;
 
-    float f;
-    MPI_Recv(&f, 1, MPI_FLOAT, src, tag, comm, &status);
-    return f;
+    double d;
+    MPI_Recv(&d, 1, MPI_DOUBLE, src, tag, comm, &status);
+    return d;
 }
 
-void send_float(float f, int dst, int tag, MPI_Comm comm){
-    MPI_Send(&f, 1, MPI_FLOAT, dst, tag, comm);
+void send_dtype(dtype d, int dst, int tag, MPI_Comm comm){
+    MPI_Send(&d, 1, MPI_DOUBLE, dst, tag, comm);
 }
 
 int recv_int(int src, int tag, MPI_Comm comm){
@@ -71,7 +71,7 @@ BaseMatrix* recv_matrix(int src, int tag, MPI_Comm comm){
     int size1 = recv_int(src, tag, comm);
     int size2 = recv_int(src, tag, comm);
 
-    floattype* data_buffer = new floattype[size1 * size2];
+    dtype* data_buffer = new dtype[size1 * size2];
     MPI_Recv(data_buffer, size1 * size2, MPI_DOUBLE, src, tag, comm, &status);
 
     BaseMatrix* matrix = new BaseMatrix(size1, size2);
@@ -93,7 +93,7 @@ void send_matrix(BaseMatrix* matrix, int dst, int tag, MPI_Comm comm){
     send_int(size1, dst, tag, comm);
     send_int(size2, dst, tag, comm);
 
-    floattype* data_buffer = new floattype[size1 * size2];
+    dtype* data_buffer = new dtype[size1 * size2];
 
     // Assumes matrices stored in row-major
     for(int i = 0; i < size1; i++){
@@ -145,7 +145,7 @@ void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int n
     cout << "Master host: " << name << endl;
     cout << "Master rank in merged communicator: " << rank << " (should be 0)." << endl;
 
-    float dt = master_chunk->dt;
+    dtype dt = master_chunk->dt;
     string chunk_label;
 
     for(int i = 0; i < num_remote_chunks; i++){
@@ -154,7 +154,7 @@ void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int n
         chunk_label = s.str();
 
         send_string(chunk_label, i+1, setup_tag, comm);
-        send_float(dt, i+1, setup_tag, comm);
+        send_dtype(dt, i+1, setup_tag, comm);
     }
 }
 
@@ -172,12 +172,12 @@ void MpiInterface::add_op(int component, string op_string){
     send_string(op_string, component, setup_tag, comm);
 }
 
-void MpiInterface::add_probe(int component, key_type probe_key, string signal_string, float period){
+void MpiInterface::add_probe(int component, key_type probe_key, string signal_string, dtype period){
     send_int(add_probe_flag, component, setup_tag, comm);
 
     send_key(probe_key, component, setup_tag, comm);
     send_string(signal_string, component, setup_tag, comm);
-    send_int(period, component, setup_tag, comm);
+    send_dtype(period, component, setup_tag, comm);
 }
 
 void MpiInterface::finalize(){

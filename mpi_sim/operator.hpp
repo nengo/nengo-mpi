@@ -17,12 +17,12 @@ using namespace std;
 
 namespace ublas = boost::numeric::ublas;
 
-typedef double floattype;
+typedef double dtype;
 
-typedef ublas::unbounded_array<floattype> array_type;
-typedef ublas::matrix<floattype> BaseMatrix;
+typedef ublas::unbounded_array<dtype> array_type;
+typedef ublas::matrix<dtype> BaseMatrix;
 typedef ublas::matrix_slice<BaseMatrix> Matrix;
-typedef ublas::scalar_matrix<floattype> ScalarMatrix;
+typedef ublas::scalar_matrix<dtype> ScalarMatrix;
 
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures will be in an array, and we simply call
@@ -50,7 +50,7 @@ public:
 class Reset: public Operator{
 
 public:
-    Reset(Matrix dst, floattype value);
+    Reset(Matrix dst, dtype value);
     string classname() const { return "Reset"; }
 
     void operator()();
@@ -59,7 +59,7 @@ public:
 protected:
     Matrix dst;
     ScalarMatrix dummy;
-    floattype value;
+    dtype value;
 
 };
 
@@ -133,23 +133,23 @@ protected:
     BaseMatrix* numer;
     BaseMatrix* denom;
 
-    vector< boost::circular_buffer<floattype> > x;
-    vector< boost::circular_buffer<floattype> > y;
+    vector< boost::circular_buffer<dtype> > x;
+    vector< boost::circular_buffer<dtype> > y;
 };
 
 class SimLIF: public Operator{
 public:
-    SimLIF(int n_neuron, floattype tau_rc, floattype tau_ref, floattype dt, Matrix J, Matrix output);
+    SimLIF(int n_neuron, dtype tau_rc, dtype tau_ref, dtype dt, Matrix J, Matrix output);
     string classname() const { return "SimLIF"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    floattype dt;
-    floattype dt_inv;
-    floattype tau_rc;
-    floattype tau_ref;
+    dtype dt;
+    dtype dt_inv;
+    dtype tau_rc;
+    dtype tau_ref;
     int n_neurons;
 
     Matrix J;
@@ -167,15 +167,15 @@ protected:
 class SimLIFRate: public Operator{
 
 public:
-    SimLIFRate(int n_neurons, floattype tau_rc, floattype tau_ref, Matrix J, Matrix output);
+    SimLIFRate(int n_neurons, dtype tau_rc, dtype tau_ref, Matrix J, Matrix output);
     string classname() const { return "SimLIFRate"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    floattype tau_rc;
-    floattype tau_ref;
+    dtype tau_rc;
+    dtype tau_ref;
     int n_neurons;
 
     BaseMatrix j;
@@ -202,7 +202,7 @@ protected:
 
 class SimSigmoid: public Operator{
 public:
-    SimSigmoid(int n_neurons, float tau_ref, Matrix J, Matrix output);
+    SimSigmoid(int n_neurons, dtype tau_ref, Matrix J, Matrix output);
     string classname() const { return "SimSigmoid"; }
 
     void operator()();
@@ -210,8 +210,8 @@ public:
 
 protected:
     int n_neurons;
-    float tau_ref;
-    float tau_ref_inv;
+    dtype tau_ref;
+    dtype tau_ref_inv;
 
     Matrix J;
     Matrix output;

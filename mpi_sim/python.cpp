@@ -13,7 +13,7 @@ BaseMatrix* ndarray_to_matrix(bpyn::array a){
         int size = bpy::extract<int>(a.attr("size"));
         BaseMatrix* ret = new BaseMatrix(size, 1);
         for(unsigned i = 0; i < size; i++){
-            (*ret)(i, 0) = bpy::extract<floattype>(a[i]);
+            (*ret)(i, 0) = bpy::extract<dtype>(a[i]);
         }
 
         return ret;
@@ -38,7 +38,7 @@ BaseMatrix* ndarray_to_matrix(bpyn::array a){
         BaseMatrix* ret = new BaseMatrix(shape[0], shape[1]);
         for(unsigned i = 0; i < shape[0]; i++){
             for(unsigned j = 0; j < shape[1]; j++){
-                (*ret)(i, j) = bpy::extract<floattype>(a[i][j]);
+                (*ret)(i, j) = bpy::extract<dtype>(a[i][j]);
             }
         }
 
@@ -53,7 +53,7 @@ BaseMatrix* list_to_matrix(bpy::list l){
     int length = bpy::len(l);
     BaseMatrix* ret = new BaseMatrix(length, 1);
     for(unsigned i = 0; i < length; i++){
-        (*ret)(i, 0) = bpy::extract<floattype>(l[i]);
+        (*ret)(i, 0) = bpy::extract<dtype>(l[i]);
     }
 
     dbg("Length:" << length);
@@ -69,7 +69,7 @@ PythonMpiSimulator::PythonMpiSimulator(){
 
 PythonMpiSimulator::PythonMpiSimulator(
         bpy::object num_components, bpy::object dt, bpy::object out_filename):
-    mpi_sim(bpy::extract<int>(num_components), bpy::extract<float>(dt), bpy::extract<string>(out_filename)){
+    mpi_sim(bpy::extract<int>(num_components), bpy::extract<dtype>(dt), bpy::extract<string>(out_filename)){
 
     master_chunk = mpi_sim.master_chunk;
 }
@@ -108,8 +108,6 @@ bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::objec
             a = make_array(bpy::make_tuple((*it)->size1(), (*it)->size2()));
             for(unsigned i=0; i < (*it)->size1(); ++i){
                 for(unsigned j=0; j < (*it)->size2(); ++j){
-                    // TODO: make sure this goes in the right direction wrt to storage format
-                    // (col major vs row major)
                     a[i][j] = (**it)(i, j);
                 }
             }
@@ -158,7 +156,7 @@ void PythonMpiSimulator::add_probe(
     int c_component = bpy::extract<int>(component);
     key_type c_probe_key = bpy::extract<key_type>(probe_key);
     string c_signal_string = bpy::extract<string>(signal_string);
-    floattype c_period = bpy::extract<floattype>(period);
+    dtype c_period = bpy::extract<dtype>(period);
 
     mpi_sim.add_probe(c_component, c_probe_key, c_signal_string, c_period);
 }
@@ -166,7 +164,7 @@ void PythonMpiSimulator::add_probe(
 void PythonMpiSimulator::create_PyFunc(bpy::object py_fn, bpy::object t_in){
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    double* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
 
     Operator* sim_py_func = new PyFunc(py_fn, time_pointer);
 
@@ -180,7 +178,7 @@ void PythonMpiSimulator::create_PyFuncI(
     Matrix input_mat = master_chunk->get_signal(input_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    double* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
 
     Operator* sim_py_func = new PyFunc(py_fn, time_pointer, input_mat, py_input);
 
@@ -193,7 +191,7 @@ void PythonMpiSimulator::create_PyFuncO(bpy::object py_fn, bpy::object t_in, bpy
     Matrix output_mat = master_chunk->get_signal(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    double* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
 
     Operator* sim_py_func = new PyFunc(py_fn, time_pointer, output_mat);
 
@@ -212,7 +210,7 @@ void PythonMpiSimulator::create_PyFuncIO(bpy::object py_fn, bpy::object t_in,
     Matrix input_mat = master_chunk->get_signal(input_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    double* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
 
     Operator* sim_py_func = new PyFunc(
         py_fn, time_pointer, input_mat, py_input, output_mat);
@@ -224,25 +222,25 @@ string PythonMpiSimulator::to_string() const{
     return mpi_sim.to_string();
 }
 
-PyFunc::PyFunc(bpy::object py_fn, double* time)
+PyFunc::PyFunc(bpy::object py_fn, dtype* time)
     :py_fn(py_fn), time(time), supply_time(time!=NULL),
      supply_input(false), get_output(false), input(null_matrix, null_slice, null_slice),
      py_input(0.0), output(null_matrix, null_slice, null_slice){
 }
 
-PyFunc::PyFunc(bpy::object py_fn, double* time, Matrix output)
+PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix output)
     :py_fn(py_fn), time(time), supply_time(time!=NULL),
      supply_input(false), get_output(true), input(null_matrix, null_slice, null_slice),
      py_input(0.0), output(output){
 }
 
-PyFunc::PyFunc(bpy::object py_fn, double* time, Matrix input, bpyn::array py_input)
+PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix input, bpyn::array py_input)
     :py_fn(py_fn), time(time), supply_time(time!=NULL),
      supply_input(true), get_output(false), input(input),
      py_input(py_input), output(null_matrix, null_slice, null_slice){
 }
 
-PyFunc::PyFunc(bpy::object py_fn, double* time, Matrix input, bpyn::array py_input, Matrix output)
+PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix input, bpyn::array py_input, Matrix output)
     :py_fn(py_fn), time(time), supply_time(time!=NULL),
      supply_input(true), get_output(true), input(input),
      py_input(py_input), output(output){
@@ -275,10 +273,10 @@ void PyFunc::operator() (){
         if(hasattr(py_output, "ndim")){
             // TODO: currently assuming pyfunc only operate on vectors.
             for(unsigned i = 0; i < output.size1(); ++i){
-                output(i, 0) = bpy::extract<floattype>(py_output[i]);
+                output(i, 0) = bpy::extract<dtype>(py_output[i]);
             }
         }else{
-            output(0, 0) = bpy::extract<floattype>(py_output);
+            output(0, 0) = bpy::extract<dtype>(py_output);
         }
     }
 

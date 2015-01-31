@@ -1,6 +1,6 @@
 #include "probe.hpp"
 
-Probe::Probe(Matrix signal, float period)
+Probe::Probe(Matrix signal, dtype period)
 :signal(signal), period(period), index(0), step_offset(0){
 }
 

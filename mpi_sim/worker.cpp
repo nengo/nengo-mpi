@@ -33,7 +33,7 @@ void start_worker(MPI_Comm comm){
 
     string chunk_label = recv_string(0, setup_tag, comm);
 
-    float dt = recv_float(0, setup_tag, comm);
+    dtype dt = recv_dtype(0, setup_tag, comm);
 
     MpiSimulatorChunk chunk(chunk_label, dt);
 
@@ -42,7 +42,7 @@ void start_worker(MPI_Comm comm){
 
     key_type probe_key;
     string signal_string;
-    float period;
+    dtype period;
 
     while(1){
         s = recv_int(0, setup_tag, comm);
@@ -76,7 +76,7 @@ void start_worker(MPI_Comm comm){
 
             string signal_string = recv_string(0, setup_tag, comm);
 
-            int period = recv_int(0, setup_tag, comm);
+            dtype period = recv_dtype(0, setup_tag, comm);
 
             chunk.add_probe(probe_key, signal_string, period);
 

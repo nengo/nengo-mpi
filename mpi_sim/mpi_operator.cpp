@@ -5,7 +5,7 @@ MPISend::MPISend(int dst, int tag, BaseMatrix* content):
 
     content_data = &(content->data()[0]);
     size = content->size1() * content->size2();
-    buffer = new floattype[size];
+    buffer = new dtype[size];
 }
 
 MPIRecv::MPIRecv(int src, int tag, BaseMatrix* content):
@@ -13,7 +13,7 @@ MPIRecv::MPIRecv(int src, int tag, BaseMatrix* content):
 
     content_data = &(content->data()[0]);
     size = content->size1() * content->size2();
-    buffer = new floattype[size];
+    buffer = new dtype[size];
 }
 
 void MPISend::operator() (){
@@ -22,9 +22,9 @@ void MPISend::operator() (){
         first_call = false;
     }else{
         MPI_Wait(&request, &status);
-
-        memcpy(buffer, content_data, size * sizeof(floattype));
     }
+
+    memcpy(buffer, content_data, size * sizeof(dtype));
 
     MPI_Isend(buffer, size, MPI_DOUBLE, dst, tag, comm, &request);
 
@@ -38,7 +38,7 @@ void MPIRecv::operator() (){
     }else{
         MPI_Wait(&request, &status);
 
-        memcpy(content_data, buffer, size * sizeof(floattype));
+        memcpy(content_data, buffer, size * sizeof(dtype));
     }
 
     MPI_Irecv(buffer, size, MPI_DOUBLE, src, tag, comm, &request);

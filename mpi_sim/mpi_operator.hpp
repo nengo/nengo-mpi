@@ -29,8 +29,8 @@ private:
     MPI_Status status;
 
     BaseMatrix* content;
-    floattype* content_data;
-    floattype* buffer;
+    dtype* content_data;
+    dtype* buffer;
 
     int dst;
 };
@@ -57,8 +57,8 @@ private:
     MPI_Status status;
 
     BaseMatrix* content;
-    floattype* content_data;
-    floattype* buffer;
+    dtype* content_data;
+    dtype* buffer;
 
     int src;
 };
