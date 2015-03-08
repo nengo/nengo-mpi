@@ -12,7 +12,7 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 
-nengo.log(debug=False, path=None)
+nengo.log(debug=True)
 
 
 class Simulator(object):

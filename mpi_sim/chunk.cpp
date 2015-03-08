@@ -81,6 +81,11 @@ Matrix MpiSimulatorChunk::get_signal(key_type key, int shape1, int shape2,
     int start1 = offset / stride1;
     int start2 = offset % stride1;
 
+    dbg("key: " << key << endl);
+    dbg("shape: " << shape1 << ", " << shape2 << endl);
+    dbg("stride: " << stride1 << ", " << stride2 << endl);
+    dbg("offset: " << offset << endl);
+
     return Matrix(*mat, ublas::slice(start1, 1, shape1), ublas::slice(start2, 1, shape2));
 }
 
@@ -198,8 +203,8 @@ void MpiSimulatorChunk::add_op(string op_string){
                 Matrix input = get_signal(tokens[1]);
                 Matrix output = get_signal(tokens[2]);
 
-                BaseMatrix* numerator = extract_list(tokens[3]);
-                BaseMatrix* denominator = extract_list(tokens[4]);
+                BaseMatrix* numerator = extract_float_list(tokens[3]);
+                BaseMatrix* denominator = extract_float_list(tokens[4]);
 
                 add_op(new Synapse(input, output, numerator, denominator));
 
@@ -218,6 +223,18 @@ void MpiSimulatorChunk::add_op(string op_string){
                 BaseMatrix* content = get_base_signal(signal_key);
 
                 add_mpi_recv(new MPIRecv(src, tag, content));
+
+         }else if(type_string.compare("SpaunStimulus") == 0){
+                Matrix output = get_signal(tokens[1]);
+                string stim_seq_str = tokens[2];
+                boost::trim_if(stim_seq_str, boost::is_any_of("[]"));
+                boost::replace_all(stim_seq_str, "\"", "");
+                boost::replace_all(stim_seq_str, "\'", "");
+
+                vector<string> stim_seq;
+                boost::split(stim_seq, stim_seq_str, boost::is_any_of(","));
+
+                add_op(new SpaunStimulus(output, get_time_pointer(), stim_seq));
 
         }else{
             stringstream ss;
@@ -251,34 +268,6 @@ void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, dtyp
 
 void MpiSimulatorChunk::add_probe(key_type probe_key, Probe* probe){
     probe_map[probe_key] = probe;
-}
-
-BaseMatrix* MpiSimulatorChunk::extract_list(string s){
-    // Remove surrounding square brackets
-    boost::trim_if(s, boost::is_any_of("[]"));
-
-    vector<string> tokens;
-    boost::split(tokens, s, boost::is_any_of(","));
-
-    int length = tokens.size();
-    int i = 0;
-    vector<string>::const_iterator it;
-
-    BaseMatrix* ret = new BaseMatrix(length, 1);
-    try{
-        for(it = tokens.begin(); it != tokens.end(); ++it){
-            string val = *it;
-            boost::trim(val);
-            (*ret)(i, 0) = boost::lexical_cast<dtype>(val);
-            i++;
-        }
-    }catch(const boost::bad_lexical_cast& e){
-        cout << "Caught bad lexical cast while extracting list "
-                "with error " << e.what() << endl;
-        terminate();
-    }
-
-    return ret;
 }
 
 string MpiSimulatorChunk::to_string() const{

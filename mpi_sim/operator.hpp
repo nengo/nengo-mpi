@@ -4,12 +4,18 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <iostream>
 
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/storage.hpp>
 #include <boost/numeric/ublas/io.hpp>
+#include <boost/numeric/ublas/operation.hpp>
+
 #include <boost/circular_buffer.hpp>
+
+#include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "debug.hpp"
 
@@ -60,7 +66,6 @@ protected:
     Matrix dst;
     ScalarMatrix dummy;
     dtype value;
-
 };
 
 class Copy: public Operator{
@@ -217,5 +222,8 @@ protected:
     Matrix output;
 };
 
+/* Helper function to extract a BaseMatrix from a string. Assumes
+ * the data for the BaseMatrix is encoded in the string as a python list. */
+BaseMatrix* extract_float_list(string s);
 
 #endif

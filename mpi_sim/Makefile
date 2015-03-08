@@ -18,7 +18,7 @@ else
 	BOOST_LIB=${SCINET_BOOST_LIB}
 endif
 
-OBJS=simulator.o operator.o mpi_operator.o probe.o chunk.o mpi_interface.o
+OBJS=simulator.o operator.o mpi_operator.o custom_ops.o probe.o chunk.o mpi_interface.o
 
 SO_LOC=../nengo_mpi
 
@@ -65,8 +65,9 @@ mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
 mpi_interface.o: mpi_interface.cpp mpi_interface.hpp simulator.hpp
 	mpicxx -std=${STD} -c -o mpi_interface.o -fPIC mpi_interface.cpp -I${BOOST_INC} -I${MPI_INC} ${DEFS}
 
-probe.o: probe.cpp probe.hpp operator.hpp
+probe.o: probe.cpp probe.hpp operator.hpp debug.hpp
 python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
-chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
+chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp custom_ops.hpp probe.hpp debug.hpp
 simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_interface.hpp debug.hpp
+custom_ops.o: custom_ops.cpp custom_ops.hpp operator.hpp debug.hpp

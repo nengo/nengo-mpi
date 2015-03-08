@@ -13,6 +13,9 @@ from nengo.ensemble import Ensemble
 from nengo.node import Node
 from nengo.probe import Probe
 
+from spaun_mpi import SpaunStimulus, build_spaun_stimulus
+from spaun_mpi import SpaunStimulusOperator
+
 import mpi_sim
 
 import numpy as np
@@ -57,7 +60,7 @@ def make_builder(base):
 # track of the operators that are created as part of building the objects, and
 # store that information in a dictionary in the MpiModel. This information
 # is used to assign operators to the correct components.
-# TODO: Find a better way to do this. The current way makes it dangerous to
+# TODO: Find a better way to do this. The current way makes it unwise to
 # import nengo_mpi if you intend to use normal nengo, as the nengo.Builder
 # functions are overwritten as soon as the module is imported.
 with warnings.catch_warnings():
@@ -77,8 +80,17 @@ with warnings.catch_warnings():
     builder.Builder.register(Probe)(
         make_builder(builder.build_probe))
 
+    builder.Builder.register(SpaunStimulus)(
+        make_builder(build_spaun_stimulus))
 
-class DummyNdarray():
+
+class DummyNdarray(object):
+    """
+    A dummy array intended to act as a place holder for an
+    ndarray. Preserves the type, shape, stride and size
+    attributes of the original ndarray, but not its conents.
+    """
+
     def __init__(self, value):
         self.dtype = value.dtype
         self.shape = value.shape
@@ -87,6 +99,11 @@ class DummyNdarray():
 
 
 def adjust_linear_filter(op, synapse, num, den, dt, method='zoh'):
+    """
+    A copy of some of the functionality that gets applied to
+    linear filters in refimpl nengo.
+    """
+
     num, den, _ = cont2discrete(
         (num, den), dt, method=method)
     num = num.flatten()
@@ -151,6 +168,7 @@ class MpiSend(builder.operator.Operator):
     send and the partition that it will be sent to. No makestep is defined,
     as it will never be called.
     """
+
     def __init__(self, dst, tag, signal):
         self.sets = []
         self.incs = []
@@ -168,6 +186,7 @@ class MpiRecv(builder.operator.Operator):
     receive and the partition that it will be received from. No makestep is
     defined, as it will never be called.
     """
+
     def __init__(self, src, tag, signal):
         self.sets = []
         self.incs = []
@@ -275,6 +294,9 @@ class MpiModel(builder.Model):
     specified in terms of the high-level nengo objects like nodes,
     networks and ensembles).
     """
+
+    op_string_delim = ";"
+    signal_string_delim = ":"
 
     def __init__(
             self, num_components, assignments, dt=0.001, label=None,
@@ -504,9 +526,6 @@ class MpiModel(builder.Model):
             op_type = type(op)
 
             if op_type == builder.node.SimPyFunc:
-                logger.debug(
-                    "Component %d: Adding PyFunc operator.", component)
-
                 t_in = op.t_in
                 fn = op.fn
                 x = op.x
@@ -526,7 +545,6 @@ class MpiModel(builder.Model):
                         input_array = x.value
 
                     if op.output is None:
-
                         self.mpi_sim.create_PyFuncI(
                             fn, t_in, signal_to_string(x), input_array)
 
@@ -645,13 +663,16 @@ class MpiModel(builder.Model):
             signal_key = make_key(op.signal)
             op_args = ["MpiRecv", op.src, op.tag, signal_key]
 
+        elif op_type == SpaunStimulusOperator:
+            output = signal_to_string(op.output)
+            op_args = ["SpaunStimulus", output, op.stimulus_sequence]
+
         else:
             raise NotImplementedError(
                 "nengo_mpi cannot handle operator of "
                 "type %s" % str(op_type))
 
-        delim = ';'
-        op_string = delim.join(map(str, op_args))
+        op_string = MpiModel.op_string_delim.join(map(str, op_args))
         op_string = op_string.replace(" ", "")
         op_string = op_string.replace("(", "")
         op_string = op_string.replace(")", "")

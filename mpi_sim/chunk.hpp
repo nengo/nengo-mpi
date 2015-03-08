@@ -1,9 +1,6 @@
 #ifndef NENGO_MPI_CHUNK_HPP
 #define NENGO_MPI_CHUNK_HPP
 
-#include <boost/algorithm/string.hpp>
-#include <boost/lexical_cast.hpp>
-
 #include <map>
 #include <list>
 #include <string>
@@ -12,6 +9,7 @@
 
 #include "operator.hpp"
 #include "mpi_operator.hpp"
+#include "custom_ops.hpp"
 #include "probe.hpp"
 #include "debug.hpp"
 #include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
@@ -103,12 +101,9 @@ public:
 
     // *** Miscellaneous ***
 
-    /* Helper function to extract a BaseMatrix from a string. Assumes
-     * the data for the BaseMatrix is encoded in the string as a python list. */
-    static BaseMatrix* extract_list(string s);
-
     // Used to pass the simulation time to python functions
     dtype* get_time_pointer(){return &time;}
+
     int get_num_probes(){return probe_map.size();}
 
     string to_string() const;

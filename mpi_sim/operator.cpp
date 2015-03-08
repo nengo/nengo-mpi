@@ -1,10 +1,6 @@
-#include <iostream>
-#include <boost/numeric/ublas/operation.hpp>
-
 #include "operator.hpp"
 
 // Constructors
-
 Reset::Reset(Matrix dst, dtype value)
 :dst(dst), value(value){
 
@@ -354,4 +350,32 @@ string SimSigmoid::to_string() const{
     out << output << endl;
 
     return out.str();
+}
+
+BaseMatrix* extract_float_list(string s){
+    // Remove surrounding square brackets
+    boost::trim_if(s, boost::is_any_of("[]"));
+
+    vector<string> tokens;
+    boost::split(tokens, s, boost::is_any_of(","));
+
+    int length = tokens.size();
+    int i = 0;
+    vector<string>::const_iterator it;
+
+    BaseMatrix* ret = new BaseMatrix(length, 1);
+    try{
+        for(it = tokens.begin(); it != tokens.end(); ++it){
+            string val = *it;
+            boost::trim(val);
+            (*ret)(i, 0) = boost::lexical_cast<dtype>(val);
+            i++;
+        }
+    }catch(const boost::bad_lexical_cast& e){
+        cout << "Caught bad lexical cast while extracting list "
+                "with error " << e.what() << endl;
+        terminate();
+    }
+
+    return ret;
 }
