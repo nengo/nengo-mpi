@@ -20,7 +20,7 @@ parser.add_argument(
     help='Length of each stream.')
 
 parser.add_argument(
-    '--d', type=int, default=1,
+    '-d', type=int, default=1,
     help='Number of dimensions in each neural ensemble.')
 
 parser.add_argument(
@@ -28,16 +28,15 @@ parser.add_argument(
     help='Number of neurons per dimension in each neural ensemble.')
 
 parser.add_argument(
-    '--t', type=float, default=1.0,
+    '-t', type=float, default=1.0,
     help='Length of the simulation in seconds.')
 
 parser.add_argument(
     '--mpi', type=int, default=1, help='Whether to use MPI.')
 
 parser.add_argument(
-    '--p', type=int, default=1,
-    help='If using MPI, the number of processors to use '
-         '(components in the partition.')
+    '-p', type=int, default=1,
+    help='If using MPI, the number of processors to use.')
 
 parser.add_argument(
     '--noprog', action='store_true', default=False,
@@ -61,7 +60,7 @@ parser.add_argument(
 args = parser.parse_args()
 print "Parameters are: ", args
 
-name = 'node_to_ensemble'
+name = 'MpiBenchmarkNetwork'
 N = args.npd
 D = args.d
 seed = 10
@@ -97,7 +96,7 @@ ensembles = []
 
 m = nengo.Network(label=name, seed=seed)
 with m:
-    m.config[nengo.Ensemble].neuron_type = nengo.LIFRate()
+    m.config[nengo.Ensemble].neuron_type = nengo.LIF()
     input_node = nengo.Node(output=[0.25] * D)
     input_p = nengo.Probe(input_node, synapse=0.01)
 
@@ -149,11 +148,11 @@ if not save_file:
 
     if probe:
         print "Input node result: "
-        print sim.data[input_p][-5:]
+        print sim.data[input_p][:]
 
         for i, p in enumerate(probes):
             print "Stream %d result: " % i
-            print sim.data[p][-5:]
+            print sim.data[p][:]
 
     num_neurons = N * D * num_streams * stream_length
     print "Total simulation time:", t1 - t0, "seconds"

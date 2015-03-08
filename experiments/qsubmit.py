@@ -11,10 +11,10 @@ which points to the directoy of the most recently run experiment.
 Example:
 
 For a simulation that uses 3 hardware nodes, 20 minutes of wallclock
-time and gives the args ``--p 24 -d 5'' to the nengo script, run the
+time and gives the args ``-p 24 -d 5'' to the nengo script, run the
 command:
 
-python qsubmit.py -n 3 -w '0:20:00' -o '--p 24 -d 5'
+python qsubmit.py -n 3 -w '0:20:00' -o '-p 24 -d 5'
 """
 
 import string
@@ -55,7 +55,7 @@ script_args = args.o
 if args.N:
     num_nodes = args.N
     script_args = (
-        "--p %d --sl %d " % (num_nodes * 8, num_nodes * 8) + script_args)
+        "-p %d --sl %d " % (num_nodes * 8, num_nodes * 8) + script_args)
 else:
     num_nodes = args.n
 
