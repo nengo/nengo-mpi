@@ -30,11 +30,6 @@ BaseMatrix* ndarray_to_matrix(bpyn::array a){
             strides[i] = bpy::extract<int>(python_strides[i]);
         }
 
-        for(unsigned i = 0; i < ndim; i++){
-            dbg("shape: " << shape[i]);
-            dbg("strides: " << strides[i]);
-        }
-
         BaseMatrix* ret = new BaseMatrix(shape[0], shape[1]);
         for(unsigned i = 0; i < shape[0]; i++){
             for(unsigned j = 0; j < shape[1]; j++){
@@ -147,6 +142,9 @@ void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
     int c_component = bpy::extract<int>(component);
     string c_op_string = bpy::extract<string>(op_string);
 
+    dbg("Adding op");
+    dbg("Op string: " << c_op_string);
+
     mpi_sim.add_op(c_component, c_op_string);
 }
 
@@ -175,6 +173,8 @@ void PythonMpiSimulator::create_PyFuncI(
         bpy::object py_fn, bpy::object t_in, bpy::object input, bpyn::array py_input){
 
     string input_signal = bpy::extract<string>(input);
+
+    dbg("Creating PyFuncI. Input signal: " << input_signal);
     Matrix input_mat = master_chunk->get_signal(input_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
@@ -188,6 +188,8 @@ void PythonMpiSimulator::create_PyFuncI(
 void PythonMpiSimulator::create_PyFuncO(bpy::object py_fn, bpy::object t_in, bpy::object output){
 
     string output_signal = bpy::extract<string>(output);
+
+    dbg("Creating PyFuncO. Output signal: " << output_signal);
     Matrix output_mat = master_chunk->get_signal(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
@@ -203,11 +205,15 @@ void PythonMpiSimulator::create_PyFuncIO(bpy::object py_fn, bpy::object t_in,
                                          bpy::object input, bpyn::array py_input,
                                          bpy::object output){
 
-    string output_signal = bpy::extract<string>(output);
-    Matrix output_mat = master_chunk->get_signal(output_signal);
+    dbg("Creating PyFuncIO.");
 
     string input_signal = bpy::extract<string>(input);
+    dbg("Input signal: " << input_signal);
     Matrix input_mat = master_chunk->get_signal(input_signal);
+
+    string output_signal = bpy::extract<string>(output);
+    dbg("Output signal: " << output_signal);
+    Matrix output_mat = master_chunk->get_signal(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
@@ -223,27 +229,29 @@ string PythonMpiSimulator::to_string() const{
 }
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time)
-    :py_fn(py_fn), time(time), supply_time(time!=NULL),
-     supply_input(false), get_output(false), input(null_matrix, null_slice, null_slice),
-     py_input(0.0), output(null_matrix, null_slice, null_slice){
+:py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
+ get_output(false), input(null_matrix, null_slice, null_slice), py_input(0.0),
+ output(null_matrix, null_slice, null_slice){
+
 }
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix output)
-    :py_fn(py_fn), time(time), supply_time(time!=NULL),
-     supply_input(false), get_output(true), input(null_matrix, null_slice, null_slice),
-     py_input(0.0), output(output){
+:py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
+ get_output(true), input(null_matrix, null_slice, null_slice), py_input(0.0), output(output){
+
 }
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix input, bpyn::array py_input)
-    :py_fn(py_fn), time(time), supply_time(time!=NULL),
-     supply_input(true), get_output(false), input(input),
-     py_input(py_input), output(null_matrix, null_slice, null_slice){
+:py_fn(py_fn), time(time), supply_time(time!=NULL),
+ supply_input(true), get_output(false), input(input),
+ py_input(py_input), output(null_matrix, null_slice, null_slice){
+
 }
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix input, bpyn::array py_input, Matrix output)
-    :py_fn(py_fn), time(time), supply_time(time!=NULL),
-     supply_input(true), get_output(true), input(input),
-     py_input(py_input), output(output){
+:py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(true),
+ get_output(true), input(input), py_input(py_input), output(output){
+
 }
 
 void PyFunc::operator() (){
