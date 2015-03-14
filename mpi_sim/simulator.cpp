@@ -2,25 +2,25 @@
 
 char MpiSimulator::delim = '|';
 
-MpiSimulator::MpiSimulator():
-    num_components(0), dt(0.001), master_chunk(NULL){
-}
+MpiSimulator::MpiSimulator()
+:num_components(0), dt(0.001), master_chunk(NULL){}
 
-MpiSimulator::MpiSimulator(int num_components, dtype dt, string out_filename):
-    num_components(num_components), dt(dt), master_chunk(NULL), spawn(true){
+MpiSimulator::MpiSimulator(int num_components, dtype dt, string out_filename)
+:num_components(num_components), dt(dt), master_chunk(NULL), spawn(true){
 
     write_to_file = !(out_filename.empty());
 
     if (write_to_file){
-        out_file = new ofstream(out_filename);
-        (*out_file) << num_components << delim << dt << endl;
+        out_file.open(out_filename);
+        out_file << num_components << delim << dt << endl;
         return;
     }
 
-    master_chunk = new MpiSimulatorChunk("Chunk 0", dt);
+    master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk("Chunk 0", dt));
 
     if(num_components == 1){
-        cout << "Master: Only one chunk supplied. Simulations will not use MPI." << endl;
+        cout << "Master: Only one chunk supplied. "
+             << "Simulations will not use MPI." << endl;
     }else{
         mpi_interface.initialize_chunks(spawn, master_chunk, num_components - 1);
     }
@@ -30,8 +30,8 @@ MpiSimulator::MpiSimulator(int num_components, dtype dt, string out_filename):
     }
 }
 
-MpiSimulator::MpiSimulator(string in_filename, bool spawn):
-    num_components(0), dt(0.0), master_chunk(NULL), spawn(spawn){
+MpiSimulator::MpiSimulator(string in_filename, bool spawn)
+:num_components(0), dt(0.0), master_chunk(NULL), spawn(spawn){
 
     write_to_file = false;
 
@@ -44,10 +44,11 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn):
     getline(in_file, line, '\n');
     dt = boost::lexical_cast<dtype>(line);
 
-    master_chunk = new MpiSimulatorChunk("Chunk 0", dt);
+    master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk("Chunk 0", dt));
 
     if(num_components == 1){
-        cout << "Master: Only one chunk supplied. Simulations will not use MPI." << endl;
+        cout << "Master: Only one chunk supplied. "
+             << "Simulations will not use MPI." << endl;
     }else{
         mpi_interface.initialize_chunks(spawn, master_chunk, num_components - 1);
     }
@@ -86,12 +87,14 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn):
             int size1 = boost::lexical_cast<int>(*(it++));
             int size2 = boost::lexical_cast<int>(*(it++));
 
-            BaseMatrix* data = new BaseMatrix(size1, size2);
+            auto data = unique_ptr<BaseSignal>(new BaseSignal(size1, size2));
+
             for(int i = 0; it < tokens.end(); it++, i++){
                 (*data)(i / size2, i % size2) = boost::lexical_cast<dtype>(*it);
             }
 
-            add_base_signal(component, key, label, data);
+            add_base_signal(component, key, label, move(data));
+
         }else if(cell.compare("OP") == 0){
             getline(line_stream, cell, delim);
             int component = boost::lexical_cast<int>(cell);
@@ -100,6 +103,7 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn):
             string op_string = cell;
 
             add_op(component, op_string);
+
         }else if(cell.compare("PROBE") == 0){
             getline(line_stream, cell, delim);
             int component = boost::lexical_cast<int>(cell);
@@ -124,8 +128,7 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn):
 
 void MpiSimulator::finalize(){
     if (write_to_file){
-        out_file->close();
-        delete out_file;
+        out_file.close();
     }else if(num_components > 1){
         mpi_interface.finalize();
     }
@@ -147,41 +150,37 @@ void MpiSimulator::run_n_steps(int steps, bool progress){
         mpi_interface.finish_simulation();
     }
 
-    vector<BaseMatrix*> new_data;
-    vector<BaseMatrix*> data;
-
-    map<key_type, Probe*>::const_iterator probe_it = master_chunk->probe_map.begin();
-
     // Gather probe data from the master chunk
-    for(; probe_it != master_chunk->probe_map.end(); probe_it++){
-
-        data = probe_data.at(probe_it->first);
-        new_data = probe_it->second->get_data();
+    for(auto& kv: master_chunk->probe_map){
+        auto& data = probe_data.at(kv.first);
+        auto new_data = (kv.second)->harvest_data();
 
         data.reserve(data.size() + new_data.size());
-        data.insert(data.end(), new_data.begin(), new_data.end());
-        probe_data[probe_it->first] = data;
+
+        for(auto& nd : new_data){
+            data.push_back(move(nd));
+        }
     }
 }
 
 vector<key_type> MpiSimulator::get_probe_keys(){
     vector<key_type> keys;
-    map<key_type, vector<BaseMatrix*>>::iterator it;
-    for(it = probe_data.begin(); it != probe_data.end(); it++){
-        keys.push_back(it->first);
+    for(auto const& kv: probe_data){
+        keys.push_back(kv.first);
     }
 
     return keys;
 }
 
-vector<BaseMatrix*> MpiSimulator::get_probe_data(key_type probe_key){
+// TODO: given the current implementation, this should perhaps be called harvest_data
+vector<unique_ptr<BaseSignal>> MpiSimulator::get_probe_data(key_type probe_key){
     if(write_to_file){
         cout << "No probe data to get. Simulator was used to "
                 "write the network to a file." << endl;
-        return vector<BaseMatrix*>();
+        return vector<unique_ptr<BaseSignal>>();
     }
 
-    return probe_data.at(probe_key);
+    return move(probe_data.at(probe_key));
 }
 
 void MpiSimulator::reset(){
@@ -191,25 +190,37 @@ void MpiSimulator::reset(){
     //Send a signal to remote chunks telling them to reset
 }
 
-void MpiSimulator::add_base_signal(int component, key_type key, string label, BaseMatrix* data){
+void MpiSimulator::add_base_signal(
+        int component, key_type key, string label, unique_ptr<BaseSignal> data){
 
     if(write_to_file){
-        (*out_file) << "SIGNAL" << delim << component << delim << key << delim << label << delim << *data << endl;
+        out_file << "SIGNAL" << delim << component << delim << key
+                 << delim << label << delim << *data << endl;
         return;
     }
 
     if(component == 0){
-        master_chunk->add_base_signal(key, label, data);
+        master_chunk->add_base_signal(key, label, move(data));
     }else{
-        mpi_interface.add_base_signal(component, key, label, data);
-        delete data;
+        mpi_interface.add_base_signal(component, key, label, move(data));
     }
+}
+
+SignalView MpiSimulator::get_signal_from_master(string signal_string){
+
+    if(write_to_file){
+        throw runtime_error(
+            "Cannot access signals when simulator is in 'write-to-file'"
+            "mode, as they are never created.");
+    }
+
+    return master_chunk->get_signal_view(signal_string);
 }
 
 void MpiSimulator::add_op(int component, string op_string){
 
     if(write_to_file){
-        (*out_file) << "OP" << delim << component << delim << op_string << endl;
+        out_file << "OP" << delim << component << delim << op_string << endl;
         return;
     }
 
@@ -220,10 +231,24 @@ void MpiSimulator::add_op(int component, string op_string){
     }
 }
 
-void MpiSimulator::add_probe(int component, key_type probe_key, string signal_string, int period){
+void MpiSimulator::add_op_to_master(unique_ptr<Operator> op){
 
     if(write_to_file){
-        (*out_file) << "PROBE" << delim << component << delim << probe_key << delim << signal_string << delim << period << endl;
+        throw runtime_error(
+            "Cannot directly add operator to master when MpiSimulator "
+            "is in 'write-to-file' mode, as such operators cannot be "
+            "serialized.");
+    }
+
+    master_chunk->add_op(move(op));
+}
+
+void MpiSimulator::add_probe(
+        int component, key_type probe_key, string signal_string, int period){
+
+    if(write_to_file){
+        out_file << "PROBE" << delim << component << delim << probe_key
+                 << delim << signal_string << delim << period << endl;
         return;
     }
 
@@ -234,7 +259,7 @@ void MpiSimulator::add_probe(int component, key_type probe_key, string signal_st
     }
 
     probe_counts[component] += 1;
-    probe_data[probe_key] = vector<BaseMatrix*>();
+    probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();
 }
 
 string MpiSimulator::to_string() const{

@@ -15,7 +15,7 @@ using namespace std;
 
 class SpaunStimulus: public Operator{
 public:
-    SpaunStimulus(Matrix output, dtype* time_pointer, vector<string> stim_seq);
+    SpaunStimulus(SignalView output, dtype* time_pointer, vector<string> stim_seq);
     string classname() const {return "SpaunStimulus"; }
 
     void operator() ();
@@ -30,14 +30,22 @@ protected:
     float present_interval;
 
     int image_size;
-    vector<BaseMatrix*> images;
-    BaseMatrix* null_image;
-    Matrix output;
+    vector<unique_ptr<BaseSignal>> images;
+    SignalView output;
 
     int previous_index;
 };
 
-BaseMatrix* do_down_sample(BaseMatrix* image, int new_size);
-map<string, vector<BaseMatrix*> > load_image_data(string filename);
+/*
+ * Down-sample the given image, returning an image whose size is new_size.
+ * new_size should be < the size of the given image.
+ * Currentl downsamples by randomly choosing indices without replacement,
+ * and then sorting. */
+unique_ptr<BaseSignal> do_down_sample(unique_ptr<BaseSignal> image, int new_size);
+
+/*
+ * Load the image data from a file. Returned map associates a label (e.g. "0", "2", "W")
+ * with a vector of images corresponding to that label */
+map<string, vector<unique_ptr<BaseSignal>>> load_image_data(string filename);
 
 #endif

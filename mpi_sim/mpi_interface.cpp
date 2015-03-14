@@ -4,14 +4,15 @@ string recv_string(int src, int tag, MPI_Comm comm){
     int size;
     MPI_Status status;
 
-    // Convention: recv the size of the string, ommitting the c_str's terminating character
+    // Convention: recv the size of the string, ommitting
+    // the c_str's terminating character
     MPI_Recv(&size, 1, MPI_INT, src, tag, comm, &status);
 
-    char* buffer = new char[size+1];
-    MPI_Recv(buffer, size+1, MPI_CHAR, src, tag, comm, &status);
+    unique_ptr<char[]> buffer(new char[size+1]);
 
-    string s(buffer);
-    free(buffer);
+    MPI_Recv(buffer.get(), size+1, MPI_CHAR, src, tag, comm, &status);
+
+    string s(buffer.get());
 
     return s;
 }
@@ -19,20 +20,20 @@ string recv_string(int src, int tag, MPI_Comm comm){
 void send_string(string s, int dst, int tag, MPI_Comm comm){
     int size = s.length();
 
-    // Convention: send the size of the string, ommitting the c_str's terminating character
+    // Convention: send the size of the string, ommitting
+    // the c_str's terminating character
     MPI_Send(&size, 1, MPI_INT, dst, tag, comm);
 
-    char* buffer = new char[size+1];
-    strcpy(buffer, s.c_str());
-    MPI_Send(buffer, size+1, MPI_CHAR, dst, tag, comm);
+    unique_ptr<char[]> buffer(new char[size+1]);
 
-    free(buffer);
+    strcpy(buffer.get(), s.c_str());
+    MPI_Send(buffer.get(), size+1, MPI_CHAR, dst, tag, comm);
 }
 
 dtype recv_dtype(int src, int tag, MPI_Comm comm){
     MPI_Status status;
-
     double d;
+
     MPI_Recv(&d, 1, MPI_DOUBLE, src, tag, comm, &status);
     return d;
 }
@@ -43,8 +44,8 @@ void send_dtype(dtype d, int dst, int tag, MPI_Comm comm){
 
 int recv_int(int src, int tag, MPI_Comm comm){
     MPI_Status status;
-
     int i;
+
     MPI_Recv(&i, 1, MPI_INT, src, tag, comm, &status);
     return i;
 }
@@ -55,8 +56,8 @@ void send_int(int i, int dst, int tag, MPI_Comm comm){
 
 key_type recv_key(int src, int tag, MPI_Comm comm){
     MPI_Status status;
-
     key_type i;
+
     MPI_Recv(&i, 1, MPI_LONG_LONG_INT, src, tag, comm, &status);
     return i;
 }
@@ -65,16 +66,16 @@ void send_key(key_type i, int dst, int tag, MPI_Comm comm){
     MPI_Send(&i, 1, MPI_LONG_LONG_INT, dst, tag, comm);
 }
 
-BaseMatrix* recv_matrix(int src, int tag, MPI_Comm comm){
+unique_ptr<BaseSignal> recv_matrix(int src, int tag, MPI_Comm comm){
     MPI_Status status;
 
     int size1 = recv_int(src, tag, comm);
     int size2 = recv_int(src, tag, comm);
 
-    dtype* data_buffer = new dtype[size1 * size2];
-    MPI_Recv(data_buffer, size1 * size2, MPI_DOUBLE, src, tag, comm, &status);
+    unique_ptr<dtype[]> data_buffer(new dtype[size1 * size2]);
+    MPI_Recv(data_buffer.get(), size1 * size2, MPI_DOUBLE, src, tag, comm, &status);
 
-    BaseMatrix* matrix = new BaseMatrix(size1, size2);
+    auto matrix = unique_ptr<BaseSignal>(new BaseSignal(size1, size2));
 
     // Assumes matrices stored in row-major
     for(int i = 0; i < size1; i++){
@@ -83,17 +84,16 @@ BaseMatrix* recv_matrix(int src, int tag, MPI_Comm comm){
         }
     }
 
-    free(data_buffer);
-
-    return matrix;
+    return move(matrix);
 }
 
-void send_matrix(BaseMatrix* matrix, int dst, int tag, MPI_Comm comm){
+void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm){
+
     int size1 = matrix->size1(), size2 = matrix->size2();
     send_int(size1, dst, tag, comm);
     send_int(size2, dst, tag, comm);
 
-    dtype* data_buffer = new dtype[size1 * size2];
+    unique_ptr<dtype[]> data_buffer(new dtype[size1 * size2]);
 
     // Assumes matrices stored in row-major
     for(int i = 0; i < size1; i++){
@@ -102,12 +102,12 @@ void send_matrix(BaseMatrix* matrix, int dst, int tag, MPI_Comm comm){
         }
     }
 
-    MPI_Send(data_buffer, size1 * size2, MPI_DOUBLE, dst, tag, comm);
-
-    free(data_buffer);
+    MPI_Send(data_buffer.get(), size1 * size2, MPI_DOUBLE, dst, tag, comm);
 }
 
-void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int num_chunks){
+void MpiInterface::initialize_chunks(
+        bool spawn, shared_ptr<MpiSimulatorChunk> chunk, int num_chunks){
+
     master_chunk = chunk;
     num_remote_chunks = num_chunks;
 
@@ -143,7 +143,8 @@ void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int n
     MPI_Comm_rank(comm, &rank);
 
     cout << "Master host: " << name << endl;
-    cout << "Master rank in merged communicator: " << rank << " (should be 0)." << endl;
+    cout << "Master rank in merged communicator: "
+         << rank << " (should be 0)." << endl;
 
     dtype dt = master_chunk->dt;
     string chunk_label;
@@ -158,12 +159,14 @@ void MpiInterface::initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int n
     }
 }
 
-void MpiInterface::add_base_signal(int component, key_type key, string label, BaseMatrix* data){
+void MpiInterface::add_base_signal(
+        int component, key_type key, string label, unique_ptr<BaseSignal> data){
+
     send_int(add_signal_flag, component, setup_tag, comm);
 
     send_key(key, component, setup_tag, comm);
     send_string(label, component, setup_tag, comm);
-    send_matrix(data, component, setup_tag, comm);
+    send_matrix(move(data), component, setup_tag, comm);
 }
 
 void MpiInterface::add_op(int component, string op_string){
@@ -172,7 +175,9 @@ void MpiInterface::add_op(int component, string op_string){
     send_string(op_string, component, setup_tag, comm);
 }
 
-void MpiInterface::add_probe(int component, key_type probe_key, string signal_string, dtype period){
+void MpiInterface::add_probe(
+        int component, key_type probe_key, string signal_string, dtype period){
+
     send_int(add_probe_flag, component, setup_tag, comm);
 
     send_key(probe_key, component, setup_tag, comm);
@@ -181,18 +186,9 @@ void MpiInterface::add_probe(int component, key_type probe_key, string signal_st
 }
 
 void MpiInterface::finalize(){
-    vector<MPISend*>::iterator send_it = master_chunk->mpi_sends.begin();
-    for(; send_it != master_chunk->mpi_sends.end(); ++send_it){
-        (*send_it)->set_communicator(comm);
-    }
 
-    vector<MPIRecv*>::iterator recv_it = master_chunk->mpi_recvs.begin();
-    for(; recv_it != master_chunk->mpi_recvs.end(); ++recv_it){
-        (*recv_it)->set_communicator(comm);
-    }
-
-    MPIBarrier* mpi_barrier = new MPIBarrier(comm);
-    master_chunk->add_op(mpi_barrier);
+    master_chunk->set_communicator(comm);
+    master_chunk->add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
 
     for(int i = 0; i < num_remote_chunks; i++){
         send_int(stop_flag, i+1, setup_tag, comm);
@@ -210,38 +206,34 @@ void MpiInterface::run_n_steps(int steps, bool progress){
     MPI_Barrier(comm);
 }
 
-void MpiInterface::gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_data,
-                                     map<int, int>& probe_counts){
-    key_type probe_key;
-    map<int, int>::iterator count_it;
-    int chunk_index, probe_count;
+void MpiInterface::gather_probe_data(
+        map<key_type, vector<unique_ptr<BaseSignal>>>& probe_data,
+        map<int, int>& probe_counts){
 
     cout << "Master gathering probe data from children..." << endl;
 
-    vector<BaseMatrix*> new_data, data;
+    for(auto& pair : probe_counts){
 
-    for(count_it = probe_counts.begin(); count_it != probe_counts.end(); ++count_it){
-        chunk_index = count_it->first;
-        probe_count = count_it->second;
+        int chunk_index = pair.first;
+        int probe_count = pair.second;
 
         if(chunk_index > 0){
             for(unsigned i = 0; i < probe_count; i++){
-                probe_key = recv_key(chunk_index, probe_tag, comm);
+                key_type probe_key = recv_key(chunk_index, probe_tag, comm);
 
                 run_dbg("Master receiving probe from chunk " << chunk_index << endl
                         <<" with key " << probe_key << "..." << endl);
 
                 int data_length = recv_int(chunk_index, probe_tag, comm);
 
-                data = probe_data.at(probe_key);
-                data.reserve(data.size() + new_data.size());
+                auto& data = probe_data[probe_key];
+                data.reserve(data.size() + data_length);
 
                 for(int j = 0; j < data_length; j++){
-                    BaseMatrix* matrix = recv_matrix(chunk_index, probe_tag, comm);
-                    data.push_back(matrix);
-                }
+                    unique_ptr<BaseSignal> matrix = recv_matrix(chunk_index, probe_tag, comm);
 
-                probe_data[probe_key] = data;
+                    data.push_back(move(matrix));
+                }
             }
         }
     }

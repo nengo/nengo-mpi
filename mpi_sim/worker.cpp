@@ -1,8 +1,10 @@
 #include <iostream>
 #include <string>
+#include <memory>
 
 #include <mpi.h>
 
+#include "chunk.hpp"
 #include "simulator.hpp"
 #include "mpi_interface.hpp"
 
@@ -10,7 +12,7 @@ using namespace std;
 
 // This file can be used in two ways. First, if using nengo_mpi from python, this
 // code is the entry point for the workers that are spawned by the initial process.
-// If using nengo_mpi straight from C++, then this file is the entry point for all
+// If using nengo_mpi straight from C++, then this file is the entry point for ALL
 // processes in the simulation. In that case, the process with rank 0 will create an
 // MpiSimulator object and load a built nengo network from a file specified on the
 // command line, and the rest of the processes will jump straight into start_worker.
@@ -54,9 +56,10 @@ void start_worker(MPI_Comm comm){
 
             string label = recv_string(0, setup_tag, comm);
 
-            BaseMatrix* data = recv_matrix(0, setup_tag, comm);
+            unique_ptr<BaseSignal> data = recv_matrix(0, setup_tag, comm);
 
-            chunk.add_base_signal(key, label, data);
+            chunk.add_base_signal(key, label, move(data));
+
             dbg("Worker " << my_id  << " done receiving signal.");
             dbg("key; " << key);
             dbg("label; " << key);
@@ -91,48 +94,35 @@ void start_worker(MPI_Comm comm){
 
     dbg("Worker setting up MPI operators..");
 
-    vector<MPISend*>::iterator send_it = chunk.mpi_sends.begin();
-    for(; send_it != chunk.mpi_sends.end(); ++send_it){
-        (*send_it)->set_communicator(comm);
-    }
 
-    vector<MPIRecv*>::iterator recv_it = chunk.mpi_recvs.begin();
-    for(; recv_it != chunk.mpi_recvs.end(); ++recv_it){
-        (*recv_it)->set_communicator(comm);
-    }
-
-    MPIBarrier* mpi_barrier = new MPIBarrier(comm);
-    chunk.add_op(mpi_barrier);
+    chunk.set_communicator(comm);
+    chunk.add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
 
     dbg("Worker waiting for signal to start simulation.");
 
     int steps;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
-    cout << "Worker process " << my_id << " got the signal to start simulation: " << steps << " steps." << endl;
+    cout << "Worker process " << my_id
+         << " got the signal to start simulation: " << steps << " steps." << endl;
 
-    dbg("WORKER HERE");
     chunk.run_n_steps(steps, false);
-    dbg("WORKER THERE");
+
     MPI_Barrier(comm);
 
-    map<key_type, Probe*>::iterator probe_it;
-    vector<BaseMatrix*> probe_data;
+    for(auto& pair : chunk.probe_map){
+        key_type key = pair.first;
+        shared_ptr<Probe>& probe = pair.second;
 
-    for(probe_it = chunk.probe_map.begin(); probe_it != chunk.probe_map.end(); ++probe_it){
-        send_key(probe_it->first, 0, probe_tag, comm);
+        send_key(key, 0, probe_tag, comm);
 
-        probe_data = probe_it->second->get_data();
+        vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
 
         send_int(probe_data.size(), 0, probe_tag, comm);
 
-        vector<BaseMatrix*>::iterator data_it = probe_data.begin();
-
-        for(; data_it != probe_data.end(); data_it++){
-            send_matrix(*data_it, 0, probe_tag, comm);
+        for(auto& pd : probe_data){
+            send_matrix(move(pd), 0, probe_tag, comm);
         }
-
-        probe_it->second->clear(true);
     }
 
     MPI_Barrier(comm);
@@ -174,17 +164,13 @@ int main(int argc, char **argv){
             int num_steps = boost::lexical_cast<int>(argv[2]);
             mpi_sim.run_n_steps(num_steps, true);
 
-            vector<key_type> keys = mpi_sim.get_probe_keys();
-            vector<key_type>::iterator keys_it;
+            for(auto& key : mpi_sim.get_probe_keys()){
+                vector<unique_ptr<BaseSignal>> probe_data = mpi_sim.get_probe_data(key);
 
-            for(keys_it = keys.begin(); keys_it < keys.end(); keys_it++){
-                vector<BaseMatrix*> probe_data = mpi_sim.get_probe_data(*keys_it);
-                vector<BaseMatrix*>::iterator pd_it;
+                cout << "Probe data for key: " << key << endl;
 
-                cout << "Probe data for key: " << *keys_it << endl;
-
-                for(pd_it = probe_data.begin(); pd_it < probe_data.end(); pd_it++){
-                    cout << **pd_it << endl;
+                for(auto& pd : probe_data){
+                    cout << *pd << endl;
                 }
             }
         }

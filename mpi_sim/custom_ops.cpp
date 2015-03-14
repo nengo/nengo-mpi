@@ -3,7 +3,7 @@
 
 #include "custom_ops.hpp"
 
-SpaunStimulus::SpaunStimulus(Matrix output, dtype* time_pointer, vector<string> stim_seq)
+SpaunStimulus::SpaunStimulus(SignalView output, dtype* time_pointer, vector<string> stim_seq)
 :output(output), time_pointer(time_pointer), previous_index(-1){
 
     if(stim_seq.empty()){
@@ -30,7 +30,7 @@ SpaunStimulus::SpaunStimulus(Matrix output, dtype* time_pointer, vector<string> 
     string vision_data_loc = getenv("HOME");
     vision_data_loc += "/spaun2.0/_spaun/vision/spaun_vision_data.csv";
 
-    map<string, vector<BaseMatrix*>> image_data = load_image_data(vision_data_loc);
+    auto image_data = load_image_data(vision_data_loc);
 
     int loaded_image_size = image_data.at("0")[0]->size1();
     image_size = output.size1();
@@ -52,45 +52,36 @@ SpaunStimulus::SpaunStimulus(Matrix output, dtype* time_pointer, vector<string> 
 
     srand (time(NULL));
 
-    for(auto label: stim_seq){
+    for(string label: stim_seq){
         if(debug_mapping.find(label) != debug_mapping.end()){
             label = debug_mapping.at(label);
         }
 
-        BaseMatrix* image;
+        unique_ptr<BaseSignal> image;
 
         if(!label.empty() && image_data.find(label) != image_data.end()){
             // Pick a random image with the specified label
-            vector<BaseMatrix*> label_images = image_data.at(label);
+            vector<unique_ptr<BaseSignal>>& label_images = image_data.at(label);
 
             int index = rand() % label_images.size();
 
-            image = new BaseMatrix(*label_images.at(index));
+            image = unique_ptr<BaseSignal>(new BaseSignal(*label_images.at(index)));
 
             if(down_sample){
-                auto new_image = do_down_sample(image, image_size);
-                delete image;
-                image = new_image;
+                image = do_down_sample(move(image), image_size);
             }
         }else{
-            image = new BaseMatrix(ScalarMatrix(image_size, 1, 0.0));
+            image = unique_ptr<BaseSignal>(new BaseSignal(ScalarSignal(image_size, 1, 0.0)));
         }
 
         cout << "Image for label: " << label << endl;
         cout << *image << endl;
 
-        images.push_back(image);
+        images.push_back(move(image));
     }
 }
 
 void SpaunStimulus::operator() (){
-    // This should not have to do work every time step. It should just notice when
-    // the input image should change, and then copy the data into the signal.
-    // The place it should copy the data is ``output''.
-    //
-    // Could just create a matrix out of its own BaseMatrix corresponding to the image that
-    // we want to show, and set the output using that
-
     float index_f = (*time_pointer) / present_interval / pow(2, present_blanks);
     int index = int(index_f);
 
@@ -101,11 +92,11 @@ void SpaunStimulus::operator() (){
 
     if(index != previous_index){
         if(index == num_stimuli){
-            output = ScalarMatrix(image_size, 1, 0.0);
+            output = ScalarSignal(image_size, 1, 0.0);
         }else{
-            // Should have a check somewhere to make sure output is the same size as the
-            // images that we've retrieved
-            output = Matrix(
+            // TODO: Should have a check somewhere to make sure output is
+            // the same size as the images that we've retrieved
+            output = SignalView(
                 *images[index], ublas::slice(0, 1, image_size),
                 ublas::slice(0, 1, 1));
         }
@@ -118,12 +109,12 @@ string SpaunStimulus::to_string() const{
 
 }
 
-map<string, vector<BaseMatrix*>> load_image_data(string filename){
+map<string, vector<unique_ptr<BaseSignal>>> load_image_data(string filename){
+
     ifstream ifs(filename);
 
-    map<string, vector<BaseMatrix*>> image_map;
+    map<string, vector<unique_ptr<BaseSignal>>> image_map;
     string label, data;
-    BaseMatrix* image;
 
     while(ifs.good()){
         getline(ifs, label);
@@ -131,9 +122,9 @@ map<string, vector<BaseMatrix*>> load_image_data(string filename){
 
         getline(ifs, data);
 
-        image = extract_float_list(data);
+        unique_ptr<BaseSignal> image = extract_float_list(data);
 
-        image_map[label].push_back(image);
+        image_map[label].push_back(move(image));
     }
 
     ifs.close();
@@ -141,8 +132,8 @@ map<string, vector<BaseMatrix*>> load_image_data(string filename){
     return image_map;
 }
 
-BaseMatrix* do_down_sample(BaseMatrix* image, int new_size){
-    BaseMatrix* new_image = new BaseMatrix(new_size, 1);
+unique_ptr<BaseSignal> do_down_sample(unique_ptr<BaseSignal> image, int new_size){
+    auto new_image = unique_ptr<BaseSignal>(new BaseSignal(new_size, 1));
 
     // For now, just randomly choose the pixels for the new image from the old image
     srand (time(NULL));

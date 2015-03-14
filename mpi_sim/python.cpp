@@ -4,14 +4,14 @@ bool hasattr(bpy::object obj, string const &attrName) {
       return PyObject_HasAttrString(obj.ptr(), attrName.c_str());
  }
 
-BaseMatrix* ndarray_to_matrix(bpyn::array a){
+unique_ptr<BaseSignal> ndarray_to_matrix(bpyn::array a){
 
     int ndim = bpy::extract<int>(a.attr("ndim"));
 
     if (ndim == 1){
 
         int size = bpy::extract<int>(a.attr("size"));
-        BaseMatrix* ret = new BaseMatrix(size, 1);
+        auto ret = unique_ptr<BaseSignal>(new BaseSignal(size, 1));
         for(unsigned i = 0; i < size; i++){
             (*ret)(i, 0) = bpy::extract<dtype>(a[i]);
         }
@@ -30,7 +30,7 @@ BaseMatrix* ndarray_to_matrix(bpyn::array a){
             strides[i] = bpy::extract<int>(python_strides[i]);
         }
 
-        BaseMatrix* ret = new BaseMatrix(shape[0], shape[1]);
+        auto ret = unique_ptr<BaseSignal>(new BaseSignal(shape[0], shape[1]));
         for(unsigned i = 0; i < shape[0]; i++){
             for(unsigned j = 0; j < shape[1]; j++){
                 (*ret)(i, j) = bpy::extract<dtype>(a[i][j]);
@@ -41,12 +41,12 @@ BaseMatrix* ndarray_to_matrix(bpyn::array a){
     }
 }
 
-BaseMatrix* list_to_matrix(bpy::list l){
+unique_ptr<BaseSignal> list_to_matrix(bpy::list l){
 
     dbg("Extracting matrix from python list:");
 
     int length = bpy::len(l);
-    BaseMatrix* ret = new BaseMatrix(length, 1);
+    auto ret = unique_ptr<BaseSignal>(new BaseSignal(length, 1));
     for(unsigned i = 0; i < length; i++){
         (*ret)(i, 0) = bpy::extract<dtype>(l[i]);
     }
@@ -58,56 +58,60 @@ BaseMatrix* list_to_matrix(bpy::list l){
     return ret;
 }
 
-PythonMpiSimulator::PythonMpiSimulator(){
-    master_chunk = NULL;
-}
+PythonMpiSimulator::PythonMpiSimulator(){}
 
 PythonMpiSimulator::PythonMpiSimulator(
-        bpy::object num_components, bpy::object dt, bpy::object out_filename):
-    mpi_sim(bpy::extract<int>(num_components), bpy::extract<dtype>(dt), bpy::extract<string>(out_filename)){
+        bpy::object num_components, bpy::object dt, bpy::object out_filename){
 
-    master_chunk = mpi_sim.master_chunk;
+    mpi_sim = unique_ptr<MpiSimulator>(
+        new MpiSimulator(
+            bpy::extract<int>(num_components), bpy::extract<dtype>(dt),
+            bpy::extract<string>(out_filename)));
 }
 
 void PythonMpiSimulator::finalize(){
-    mpi_sim.finalize();
+    mpi_sim->finalize();
 }
 
 void PythonMpiSimulator::run_n_steps(bpy::object pysteps, bpy::object progress){
     int c_steps = bpy::extract<int>(pysteps);
     bool c_progress = bpy::extract<bool>(progress);
 
-    mpi_sim.run_n_steps(c_steps, c_progress);
+    mpi_sim->run_n_steps(c_steps, c_progress);
 }
 
-bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::object make_array){
+bpy::object PythonMpiSimulator::get_probe_data(
+        bpy::object probe_key, bpy::object make_array){
+
     key_type c_probe_key = bpy::extract<key_type>(probe_key);
-    vector<BaseMatrix*> data = mpi_sim.get_probe_data(c_probe_key);
+    vector<unique_ptr<BaseSignal>> data = mpi_sim->get_probe_data(c_probe_key);
 
     bpy::list py_list;
-    vector<BaseMatrix*>::const_iterator it;
-    for(it = data.begin(); it != data.end(); ++it){
+
+    for(auto& d: data){
 
         bpy::object a;
-        if((*it)->size1() == 1){
-            a = make_array((*it)->size2());
-            for(unsigned i=0; i < (*it)->size2(); ++i){
-                a[i] = (**it)(0, i);
+
+        if(d->size1() == 1){
+            a = make_array(d->size2());
+            for(unsigned i=0; i < d->size2(); ++i){
+                a[i] = (*d)(0, i);
             }
-        }else if((*it)->size2() == 1){
-            a = make_array((*it)->size1());
-            for(unsigned i=0; i < (*it)->size1(); ++i){
-                a[i] = (**it)(i, 0);
+
+        }else if(d->size2() == 1){
+            a = make_array(d->size1());
+            for(unsigned i=0; i < d->size1(); ++i){
+                a[i] = (*d)(i, 0);
             }
+
         }else{
-            a = make_array(bpy::make_tuple((*it)->size1(), (*it)->size2()));
-            for(unsigned i=0; i < (*it)->size1(); ++i){
-                for(unsigned j=0; j < (*it)->size2(); ++j){
-                    a[i][j] = (**it)(i, j);
+            a = make_array(bpy::make_tuple(d->size1(), d->size2()));
+            for(unsigned i=0; i < d->size1(); ++i){
+                for(unsigned j=0; j < d->size2(); ++j){
+                    a[i][j] = (*d)(i, j);
                 }
             }
         }
-
 
         py_list.append(a);
     }
@@ -116,7 +120,7 @@ bpy::object PythonMpiSimulator::get_probe_data(bpy::object probe_key, bpy::objec
 }
 
 void PythonMpiSimulator::reset(){
-    mpi_sim.reset();
+    mpi_sim->reset();
 }
 
 void PythonMpiSimulator::add_signal(
@@ -125,7 +129,7 @@ void PythonMpiSimulator::add_signal(
     int c_component = bpy::extract<int>(component);
     key_type c_key = bpy::extract<key_type>(key);
     string c_label = bpy::extract<string>(label);
-    BaseMatrix* c_data = ndarray_to_matrix(data);
+    unique_ptr<BaseSignal> c_data = ndarray_to_matrix(data);
 
     dbg("Adding base signal in C++ simulator");
     dbg("Component: "<< c_component);
@@ -135,7 +139,7 @@ void PythonMpiSimulator::add_signal(
     dbg("Value:");
     dbg(*c_data << endl << endl);
 
-    mpi_sim.add_base_signal(c_component, c_key, c_label, c_data);
+    mpi_sim->add_base_signal(c_component, c_key, c_label, move(c_data));
 }
 
 void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
@@ -145,87 +149,84 @@ void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
     dbg("Adding op");
     dbg("Op string: " << c_op_string);
 
-    mpi_sim.add_op(c_component, c_op_string);
+    mpi_sim->add_op(c_component, c_op_string);
 }
 
 void PythonMpiSimulator::add_probe(
-        bpy::object component, bpy::object probe_key, bpy::object signal_string, bpy::object period){
+        bpy::object component, bpy::object probe_key,
+        bpy::object signal_string, bpy::object period){
 
     int c_component = bpy::extract<int>(component);
     key_type c_probe_key = bpy::extract<key_type>(probe_key);
     string c_signal_string = bpy::extract<string>(signal_string);
     dtype c_period = bpy::extract<dtype>(period);
 
-    mpi_sim.add_probe(c_component, c_probe_key, c_signal_string, c_period);
+    mpi_sim->add_probe(c_component, c_probe_key, c_signal_string, c_period);
 }
 
 void PythonMpiSimulator::create_PyFunc(bpy::object py_fn, bpy::object t_in){
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? mpi_sim->get_time_pointer() : NULL;
 
-    Operator* sim_py_func = new PyFunc(py_fn, time_pointer);
-
-    master_chunk->add_op(sim_py_func);
+    mpi_sim->add_op_to_master(unique_ptr<Operator>(new PyFunc(py_fn, time_pointer)));
 }
 
 void PythonMpiSimulator::create_PyFuncI(
-        bpy::object py_fn, bpy::object t_in, bpy::object input, bpyn::array py_input){
+        bpy::object py_fn, bpy::object t_in, bpy::object input,
+        bpyn::array py_input){
 
     string input_signal = bpy::extract<string>(input);
 
     dbg("Creating PyFuncI. Input signal: " << input_signal);
-    Matrix input_mat = master_chunk->get_signal(input_signal);
+    SignalView input_mat = mpi_sim->get_signal_from_master(input_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? mpi_sim->get_time_pointer() : NULL;
 
-    Operator* sim_py_func = new PyFunc(py_fn, time_pointer, input_mat, py_input);
-
-    master_chunk->add_op(sim_py_func);
+    mpi_sim->add_op_to_master(
+        unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, input_mat, py_input)));
 }
 
-void PythonMpiSimulator::create_PyFuncO(bpy::object py_fn, bpy::object t_in, bpy::object output){
+void PythonMpiSimulator::create_PyFuncO(
+        bpy::object py_fn, bpy::object t_in, bpy::object output){
 
     string output_signal = bpy::extract<string>(output);
 
     dbg("Creating PyFuncO. Output signal: " << output_signal);
-    Matrix output_mat = master_chunk->get_signal(output_signal);
+    SignalView output_mat = mpi_sim->get_signal_from_master(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? mpi_sim->get_time_pointer() : NULL;
 
-    Operator* sim_py_func = new PyFunc(py_fn, time_pointer, output_mat);
-
-    master_chunk->add_op(sim_py_func);
+    mpi_sim->add_op_to_master(
+        unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, output_mat)));
 }
 
 
-void PythonMpiSimulator::create_PyFuncIO(bpy::object py_fn, bpy::object t_in,
-                                         bpy::object input, bpyn::array py_input,
-                                         bpy::object output){
+void PythonMpiSimulator::create_PyFuncIO(
+        bpy::object py_fn, bpy::object t_in, bpy::object input,
+        bpyn::array py_input, bpy::object output){
 
     dbg("Creating PyFuncIO.");
 
     string input_signal = bpy::extract<string>(input);
     dbg("Input signal: " << input_signal);
-    Matrix input_mat = master_chunk->get_signal(input_signal);
+    SignalView input_mat = mpi_sim->get_signal_from_master(input_signal);
 
     string output_signal = bpy::extract<string>(output);
     dbg("Output signal: " << output_signal);
-    Matrix output_mat = master_chunk->get_signal(output_signal);
+    SignalView output_mat = mpi_sim->get_signal_from_master(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? master_chunk->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? mpi_sim->get_time_pointer() : NULL;
 
-    Operator* sim_py_func = new PyFunc(
-        py_fn, time_pointer, input_mat, py_input, output_mat);
-
-    master_chunk->add_op(sim_py_func);
+    mpi_sim->add_op_to_master(
+        unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, input_mat, py_input, output_mat)));
 }
 
 string PythonMpiSimulator::to_string() const{
-    return mpi_sim.to_string();
+    return mpi_sim->to_string();
 }
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time)
@@ -235,20 +236,23 @@ PyFunc::PyFunc(bpy::object py_fn, dtype* time)
 
 }
 
-PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix output)
+PyFunc::PyFunc(bpy::object py_fn, dtype* time, SignalView output)
 :py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
- get_output(true), input(null_matrix, null_slice, null_slice), py_input(0.0), output(output){
+ get_output(true), input(null_matrix, null_slice, null_slice),
+ py_input(0.0), output(output){
 
 }
 
-PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix input, bpyn::array py_input)
+PyFunc::PyFunc(bpy::object py_fn, dtype* time, SignalView input, bpyn::array py_input)
 :py_fn(py_fn), time(time), supply_time(time!=NULL),
  supply_input(true), get_output(false), input(input),
  py_input(py_input), output(null_matrix, null_slice, null_slice){
 
 }
 
-PyFunc::PyFunc(bpy::object py_fn, dtype* time, Matrix input, bpyn::array py_input, Matrix output)
+PyFunc::PyFunc(
+    bpy::object py_fn, dtype* time, SignalView input,
+    bpyn::array py_input, SignalView output)
 :py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(true),
  get_output(true), input(input), py_input(py_input), output(output){
 
@@ -304,7 +308,8 @@ string PyFunc::to_string() const{
 BOOST_PYTHON_MODULE(mpi_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
-    bpy::class_<PythonMpiSimulator>("PythonMpiSimulator", bpy::init<bpy::object, bpy::object, bpy::object>())
+    bpy::class_<PythonMpiSimulator, boost::noncopyable>(
+            "PythonMpiSimulator", bpy::init<bpy::object, bpy::object, bpy::object>())
         .def("finalize", &PythonMpiSimulator::finalize)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)

@@ -10,8 +10,7 @@ using namespace std;
 class MPISend: public Operator{
 
 public:
-    MPISend(){};
-    MPISend(int dst, int tag, BaseMatrix* content);
+    MPISend(int dst, int tag, SignalView content);
     string classname() const { return "MPISend"; }
 
     void operator()();
@@ -28,7 +27,7 @@ private:
     MPI_Request request;
     MPI_Status status;
 
-    BaseMatrix* content;
+    SignalView content;
     dtype* content_data;
     dtype* buffer;
 
@@ -38,8 +37,7 @@ private:
 class MPIRecv: public Operator{
 
 public:
-    MPIRecv(){};
-    MPIRecv(int src, int tag, BaseMatrix* content);
+    MPIRecv(int src, int tag, SignalView content);
     string classname() const { return "MPIRecv"; }
 
     void operator()();
@@ -56,7 +54,7 @@ private:
     MPI_Request request;
     MPI_Status status;
 
-    BaseMatrix* content;
+    SignalView content;
     dtype* content_data;
     dtype* buffer;
 
@@ -68,7 +66,6 @@ static const int BARRIER_PERIOD = 50;
 class MPIBarrier: public Operator{
 
 public:
-    MPIBarrier():comm(NULL), step(0){};
     MPIBarrier(MPI_Comm comm):comm(comm), step(0){};
     string classname() const { return "MPIBarrier"; }
 

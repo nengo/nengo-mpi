@@ -1,19 +1,19 @@
 #include "operator.hpp"
 
 // Constructors
-Reset::Reset(Matrix dst, dtype value)
+Reset::Reset(SignalView dst, dtype value)
 :dst(dst), value(value){
 
-    dummy = ScalarMatrix(dst.size1(), dst.size2(), value);
+    dummy = ScalarSignal(dst.size1(), dst.size2(), value);
 }
 
-Copy::Copy(Matrix dst, Matrix src)
+Copy::Copy(SignalView dst, SignalView src)
 :dst(dst), src(src){}
 
-DotInc::DotInc(Matrix A, Matrix X, Matrix Y)
+DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
 :A(A), X(X), Y(Y){}
 
-ElementwiseInc::ElementwiseInc(Matrix A, Matrix X, Matrix Y)
+ElementwiseInc::ElementwiseInc(SignalView A, SignalView X, SignalView Y)
 :A(A), X(X), Y(Y){
 
     if(A.size1() != Y.size1() || A.size2() != Y.size2() ||
@@ -36,40 +36,39 @@ ElementwiseInc::ElementwiseInc(Matrix A, Matrix X, Matrix Y)
 }
 
 Synapse::Synapse(
-    Matrix input, Matrix output, BaseMatrix* numer, BaseMatrix* denom)
+    SignalView input, SignalView output, BaseSignal numer, BaseSignal denom)
 :input(input), output(output), numer(numer), denom(denom){
 
     for(int i = 0; i < input.size1(); i++){
-        x.push_back(boost::circular_buffer<dtype>(numer->size1()));
-        y.push_back(boost::circular_buffer<dtype>(denom->size1()));
+        x.push_back(boost::circular_buffer<dtype>(numer.size1()));
+        y.push_back(boost::circular_buffer<dtype>(denom.size1()));
     }
 }
 
 SimLIF::SimLIF(
     int n_neurons, dtype tau_rc, dtype tau_ref,
-    dtype dt, Matrix J, Matrix output)
+    dtype dt, SignalView J, SignalView output)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref),
 dt_inv(1.0 / dt), J(J), output(output){
 
-    voltage = BaseMatrix(n_neurons, 1, 0.0);
-    refractory_time = BaseMatrix(n_neurons, 1, 0.0);
-    one = ScalarMatrix(n_neurons, 1, 1.0);
-    dt_vec = ScalarMatrix(n_neurons, 1, dt);
+    voltage = BaseSignal(n_neurons, 1, 0.0);
+    refractory_time = BaseSignal(n_neurons, 1, 0.0);
+    one = ScalarSignal(n_neurons, 1, 1.0);
+    dt_vec = ScalarSignal(n_neurons, 1, dt);
 }
 
 SimLIFRate::SimLIFRate(
-    int n_neurons, dtype tau_rc,
-    dtype tau_ref, Matrix J, Matrix output)
+    int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output)
 :n_neurons(n_neurons), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
 
-    j = BaseMatrix(n_neurons, 1);
-    one = ScalarMatrix(n_neurons, 1, 1.0);
+    j = BaseSignal(n_neurons, 1);
+    one = ScalarSignal(n_neurons, 1, 1.0);
 }
 
-SimRectifiedLinear::SimRectifiedLinear(int n_neurons, Matrix J, Matrix output)
+SimRectifiedLinear::SimRectifiedLinear(int n_neurons, SignalView J, SignalView output)
 :n_neurons(n_neurons), J(J), output(output){}
 
-SimSigmoid::SimSigmoid(int n_neurons, dtype tau_ref, Matrix J, Matrix output)
+SimSigmoid::SimSigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output)
 :n_neurons(n_neurons), tau_ref(tau_ref), tau_ref_inv(1.0 / tau_ref), J(J), output(output){}
 
 // Function operator overloads
@@ -123,11 +122,11 @@ void Synapse::operator() (){
         output(i, 0) = 0.0;
 
         for(int j = 0; j < x[i].size(); j++){
-            output(i, 0) += (*numer)(j, 0) * x[i][j];
+            output(i, 0) += numer(j, 0) * x[i][j];
         }
 
         for(int j = 0; j < y[i].size(); j++){
-            output(i, 0) -= (*denom)(j, 0) * y[i][j];
+            output(i, 0) -= denom(j, 0) * y[i][j];
         }
 
         y[i].push_front(output(i, 0));
@@ -271,9 +270,9 @@ string Synapse::to_string() const{
     out << "output:" << endl;
     out << output << endl;
     out << "numer:" << endl;
-    out << *numer << endl;
+    out << numer << endl;
     out << "denom:" << endl;
-    out << *denom << endl;
+    out << denom << endl;
 
     /*
     out << "x & y:" << endl;
@@ -352,23 +351,20 @@ string SimSigmoid::to_string() const{
     return out.str();
 }
 
-BaseMatrix* extract_float_list(string s){
+unique_ptr<BaseSignal> extract_float_list(string s){
     // Remove surrounding square brackets
     boost::trim_if(s, boost::is_any_of("[]"));
 
     vector<string> tokens;
     boost::split(tokens, s, boost::is_any_of(","));
 
-    int length = tokens.size();
-    int i = 0;
-    vector<string>::const_iterator it;
+    unique_ptr<BaseSignal> result(new BaseSignal(tokens.size(), 1));
 
-    BaseMatrix* ret = new BaseMatrix(length, 1);
     try{
-        for(it = tokens.begin(); it != tokens.end(); ++it){
-            string val = *it;
-            boost::trim(val);
-            (*ret)(i, 0) = boost::lexical_cast<dtype>(val);
+        int i = 0;
+        for(string token: tokens){
+            boost::trim(token);
+            (*result)(i, 0) = boost::lexical_cast<dtype>(token);
             i++;
         }
     }catch(const boost::bad_lexical_cast& e){
@@ -377,5 +373,5 @@ BaseMatrix* extract_float_list(string s){
         terminate();
     }
 
-    return ret;
+    return result;
 }

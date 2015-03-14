@@ -6,6 +6,10 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <memory>
+#include <exception>
+#include <string>
+#include <mpi.h>
 
 #include "operator.hpp"
 #include "mpi_operator.hpp"
@@ -35,15 +39,11 @@ public:
     // *** Signals ***
 
     /* Add data to the chunk, in the form of a BaseSignal. All data
-     * in the simulation is stored in BaseSignal, and BaseSignals are an
+     * in the simulation is stored in BaseSignals, and BaseSignals are an
      * analog of a Signal (not but not a SignalView) in the reference impl.
      * The supplied key must be unique, as it will later be used by operators
      * to retrieve a view of the BaseSignal. */
-    void add_base_signal(key_type key, string l, BaseMatrix* data);
-
-    /* Look up base signal by key.
-     * Base signals are stored in C-format (Row-major). */
-    BaseMatrix* get_base_signal(key_type key);
+    void add_base_signal(key_type key, string l, unique_ptr<BaseSignal> signal);
 
     /* Get a ``view'' on the BaseSignal stored at the given key.
      * Most operators work in terms of these views.
@@ -56,14 +56,19 @@ public:
      *
      *     offset          : Index of the element in the base array that
      *                       the view begins at.                         */
-    Matrix get_signal(
+    SignalView get_signal_view(
         key_type key, int shape1, int shape2, int stride1, int stride2, int offset);
 
     /* Get a ``view'' on a stored base signal from a string containing the key
      * of the base signal and parameters of the view.
      * Expected format of signal_string:
      *     key:(shape1, shape2):(stride1, stride2):offset */
-    Matrix get_signal(string signal_string);
+    SignalView get_signal_view(string signal_string);
+
+    /* Get a ``view'' on a stored base signal from a key. Parameters of the view
+     * are derived from the signal itself (so the view will have the same shape
+     * as the signal that it is a view of). */
+    SignalView get_signal_view(key_type key);
 
     // *** Operators ***
 
@@ -74,14 +79,14 @@ public:
      * have already been added to the chunk. Also note that the order in which
      * operators are added to the chunk determines the order they will
      * be executed in at simulation time. */
-    void add_op(Operator* op);
+    void add_op(unique_ptr<Operator> op);
     void add_op(string op_string);
 
     /* Add MPI-related operators. These have to be added separately,
-     * because we need to initiallize them in a special way before the
+     * because we need to initialize them in a special way before the
      * simulation begins. */
-    void add_mpi_send(MPISend* mpi_send);
-    void add_mpi_recv(MPIRecv* mpi_recv);
+    void add_mpi_send(unique_ptr<MPISend> mpi_send);
+    void add_mpi_recv(unique_ptr<MPIRecv> mpi_recv);
 
     // *** Probes ***
 
@@ -97,9 +102,12 @@ public:
     void add_probe(key_type probe_key, string signal_string, dtype period);
 
     // Add a pre-created probe to the chunk.
-    void add_probe(key_type probe_key, Probe* probe);
+    void add_probe(key_type probe_key, shared_ptr<Probe> probe);
 
     // *** Miscellaneous ***
+    //
+    // Set the communicator used by the mpi ops
+    void set_communicator(MPI_Comm comm);
 
     // Used to pass the simulation time to python functions
     dtype* get_time_pointer(){return &time;}
@@ -116,16 +124,23 @@ public:
     dtype dt;
     string label;
 
-    vector<MPISend*> mpi_sends;
-    vector<MPIRecv*> mpi_recvs;
-    map<key_type, Probe*> probe_map;
+    map<key_type, shared_ptr<Probe>> probe_map;
 
 private:
     dtype time;
     int n_steps;
-    map<key_type, BaseMatrix*> signal_map;
+
     map<key_type, string> signal_labels;
+    map<key_type, shared_ptr<BaseSignal>> signal_map;
+
+    // Contains all operators
     list<Operator*> operator_list;
+
+    // Contains non-mpi operators
+    list<unique_ptr<Operator>> operator_store;
+
+    list<unique_ptr<MPISend>> mpi_sends;
+    list<unique_ptr<MPIRecv>> mpi_recvs;
 };
 
 #endif

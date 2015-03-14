@@ -3,6 +3,7 @@
 
 #include <list>
 #include <string>
+#include <memory>
 
 #include <mpi.h>
 
@@ -31,27 +32,33 @@ void send_int(int i, int dst, int tag, MPI_Comm comm);
 key_type recv_key(int src, int tag, MPI_Comm comm);
 void send_key(key_type i, int dst, int tag, MPI_Comm comm);
 
-BaseMatrix* recv_matrix(int src, int tag, MPI_Comm comm);
-void send_matrix(BaseMatrix* matrix, int dst, int tag, MPI_Comm comm);
+unique_ptr<BaseSignal> recv_matrix(int src, int tag, MPI_Comm comm);
+void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm);
 
 class MpiInterface{
 public:
-    void initialize_chunks(bool spawn, MpiSimulatorChunk* chunk, int num_remote_chunks);
+    void initialize_chunks(
+        bool spawn, shared_ptr<MpiSimulatorChunk> chunk, int num_remote_chunks);
 
-    void add_base_signal(int component, key_type key, string label, BaseMatrix* data);
+    void add_base_signal(
+        int component, key_type key, string label, unique_ptr<BaseSignal> data);
     void add_op(int component, string op_string);
-    void add_probe(int component, key_type probe_key, string signal_string, dtype period);
+    void add_probe(
+        int component, key_type probe_key, string signal_string, dtype period);
+
     void finalize();
 
     void run_n_steps(int steps, bool progress);
-    void gather_probe_data(map<key_type, vector<BaseMatrix*> >& probe_data, map<int, int>& probe_counts);
+    void gather_probe_data(
+        map<key_type, vector<unique_ptr<BaseSignal>>>& probe_data,
+        map<int, int>& probe_counts);
 
     void finish_simulation();
 
 private:
     MPI_Comm comm;
     int num_remote_chunks;
-    MpiSimulatorChunk* master_chunk;
+    shared_ptr<MpiSimulatorChunk> master_chunk;
 };
 
 #endif

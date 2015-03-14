@@ -8,9 +8,7 @@
 #include <iostream>
 
 #include "simulator.hpp"
-#include "chunk.hpp"
 #include "operator.hpp"
-#include "mpi_operator.hpp"
 #include "probe.hpp"
 #include "debug.hpp"
 
@@ -21,60 +19,75 @@ namespace bpyn = bpy::numeric;
 
 bool hasattr(bpy::object obj, string const &attrName);
 
-BaseMatrix* ndarray_to_matrix(bpyn::array a);
-BaseMatrix* list_to_matrix(bpy::list l);
+unique_ptr<BaseSignal> ndarray_to_matrix(bpyn::array a);
+unique_ptr<BaseSignal> list_to_matrix(bpy::list l);
 
+/*
+ * PythonMpiSimulator is a python-facing shell for MpiSimulator; it stores
+ * an MpiSimulator, and most of its methods just call the corresponding
+ * methods on that. Lets us keep all the code that requires python in one file. */
 class PythonMpiSimulator{
 public:
     PythonMpiSimulator();
-    PythonMpiSimulator(bpy::object num_components, bpy::object dt, bpy::object out_filename);
+    PythonMpiSimulator(
+        bpy::object num_components, bpy::object dt, bpy::object out_filename);
 
     void finalize();
 
+    /* Methods for contrsolling simulation. */
     void run_n_steps(bpy::object steps, bpy::object progress);
     bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
 
     void reset();
 
-    void add_signal(bpy::object component, bpy::object key,
-                    bpy::object label, bpyn::array data);
+    /* Methods for building simulator. */
+    void add_signal(
+        bpy::object component, bpy::object key, bpy::object label, bpyn::array data);
 
     void add_op(bpy::object component, bpy::object op_string);
 
-    void add_probe(bpy::object component, bpy::object probe_key,  bpy::object signal_string, bpy::object period);
+    void add_probe(
+        bpy::object component, bpy::object probe_key,
+        bpy::object signal_string, bpy::object period);
 
+    /* Methods for creating PyFunc operators. */
     void create_PyFunc(bpy::object py_fn, bpy::object t_in);
-    void create_PyFuncI(bpy::object py_fn, bpy::object t_in,
-                        bpy::object input, bpyn::array py_input);
+
+    void create_PyFuncI(
+        bpy::object py_fn, bpy::object t_in, bpy::object input, bpyn::array py_input);
+
     void create_PyFuncO(bpy::object py_fn, bpy::object t_in, bpy::object output);
-    void create_PyFuncIO(bpy::object py_fn, bpy::object t_in,
-                         bpy::object input, bpyn::array py_input, bpy::object output);
+
+    void create_PyFuncIO(
+        bpy::object py_fn, bpy::object t_in, bpy::object input,
+        bpyn::array py_input, bpy::object output);
 
     string to_string() const;
 
 private:
-    MpiSimulator mpi_sim;
-    MpiSimulatorChunk* master_chunk;
+    unique_ptr<MpiSimulator> mpi_sim;
 };
 
 class PyFunc: public Operator{
 public:
     PyFunc(bpy::object py_fn, dtype* t_in);
-    PyFunc(bpy::object py_fn, dtype* t_in, Matrix input, bpyn::array py_input);
-    PyFunc(bpy::object py_fn, dtype* t_in, Matrix output);
-    PyFunc(bpy::object py_fn, dtype* t_in, Matrix input, bpyn::array py_input, Matrix output);
+    PyFunc(bpy::object py_fn, dtype* t_in, SignalView input, bpyn::array py_input);
+    PyFunc(bpy::object py_fn, dtype* t_in, SignalView output);
+    PyFunc(
+        bpy::object py_fn, dtype* t_in, SignalView input,
+        bpyn::array py_input, SignalView output);
 
     void operator()();
     virtual string to_string() const;
 
     // Used to initialize input and output when their values are not supplied.
-    // The Matrix constructor requires a BaseMatrix.
-    static BaseMatrix null_matrix;
+    // The SignalView constructor requires a BaseSignal.
+    static BaseSignal null_matrix;
     static ublas::slice null_slice;
 
 private:
-    Matrix input;
-    Matrix output;
+    SignalView input;
+    SignalView output;
 
     dtype* time;
 
@@ -87,7 +100,7 @@ private:
     bool get_output;
 };
 
-BaseMatrix PyFunc::null_matrix = BaseMatrix(0,0);
+BaseSignal PyFunc::null_matrix = BaseSignal(0,0);
 ublas::slice PyFunc::null_slice = ublas::slice(0, 0, 0);
 
 #endif

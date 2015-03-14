@@ -1,18 +1,18 @@
 #include "mpi_operator.hpp"
 
-MPISend::MPISend(int dst, int tag, BaseMatrix* content):
+MPISend::MPISend(int dst, int tag, SignalView content):
         dst(dst), tag(tag), content(content), first_call(true){
 
-    content_data = &(content->data()[0]);
-    size = content->size1() * content->size2();
+    content_data = &(content.data().expression().data()[0]);
+    size = content.size1() * content.size2();
     buffer = new dtype[size];
 }
 
-MPIRecv::MPIRecv(int src, int tag, BaseMatrix* content):
+MPIRecv::MPIRecv(int src, int tag, SignalView content):
         src(src), tag(tag), content(content), first_call(true){
 
-    content_data = &(content->data()[0]);
-    size = content->size1() * content->size2();
+    content_data = &(content.data().expression().data()[0]);
+    size = content.size1() * content.size2();
     buffer = new dtype[size];
 }
 
@@ -80,7 +80,7 @@ string MPISend::to_string() const{
     out << "dst: " << dst << endl;
     out << "size: " << size << endl;
     out << "content:" << endl;
-    out << *content << endl;
+    out << content << endl;
 
     out << "buffer:" << endl;
 
@@ -99,7 +99,7 @@ string MPIRecv::to_string() const{
     out << "src: " << src << endl;
     out << "size: " << size << endl;
     out << "content:" << endl;
-    out << *content << endl;
+    out << content << endl;
 
     out << "buffer:" << endl;
 

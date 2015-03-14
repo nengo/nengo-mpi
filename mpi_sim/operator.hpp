@@ -26,19 +26,18 @@ namespace ublas = boost::numeric::ublas;
 typedef double dtype;
 
 typedef ublas::unbounded_array<dtype> array_type;
-typedef ublas::matrix<dtype> BaseMatrix;
-typedef ublas::matrix_slice<BaseMatrix> Matrix;
-typedef ublas::scalar_matrix<dtype> ScalarMatrix;
+typedef ublas::matrix<dtype> BaseSignal;
+typedef ublas::matrix_slice<BaseSignal> SignalView;
+typedef ublas::scalar_matrix<dtype> ScalarSignal;
 
 // Current implementation: Each Operator is essentially a closure.
-// At run time, these closures will be in an array, and we simply call
-// them sequentially. The order they are called in will be determined by python.
-// The () operator is a virtual function, which comes with some overhead.
-// Future optimizations should look at another scheme, either function pointers
-// or, ideally, finding some way to make these functions
-// non-pointers and non-virtual.
+// At run time, these closures are stored in a list, and we call
+// them sequentially each time step. The order they are called in is determined
+// by python the order they are given to us from python.
 //
-// All matrices that are basically vectors are generally assumed to be column vectors.
+// Note that the () operator is a virtual function, which comes with some overhead.
+// Future optimizations should look at another scheme, either function pointers
+// or, ideally, finding some way to make these functions non-pointers and non-virtual.
 
 class Operator{
 
@@ -56,59 +55,59 @@ public:
 class Reset: public Operator{
 
 public:
-    Reset(Matrix dst, dtype value);
+    Reset(SignalView dst, dtype value);
     string classname() const { return "Reset"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix dst;
-    ScalarMatrix dummy;
+    SignalView dst;
+    ScalarSignal dummy;
     dtype value;
 };
 
 class Copy: public Operator{
 public:
-    Copy(Matrix dst, Matrix src);
+    Copy(SignalView dst, SignalView src);
     string classname() const { return "Copy"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix dst;
-    Matrix src;
+    SignalView dst;
+    SignalView src;
 };
 
 // Increment signal Y by dot(A,X)
 class DotInc: public Operator{
 public:
-    DotInc(Matrix A, Matrix X, Matrix Y);
+    DotInc(SignalView A, SignalView X, SignalView Y);
     string classname() const { return "DotInc"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix A;
-    Matrix X;
-    Matrix Y;
+    SignalView A;
+    SignalView X;
+    SignalView Y;
 };
 
 
 class ElementwiseInc: public Operator{
 public:
-    ElementwiseInc(Matrix A, Matrix X, Matrix Y);
+    ElementwiseInc(SignalView A, SignalView X, SignalView Y);
     string classname() const { return "ElementwiseInc"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix A;
-    Matrix X;
-    Matrix Y;
+    SignalView A;
+    SignalView X;
+    SignalView Y;
 
     bool broadcast;
 
@@ -123,20 +122,21 @@ protected:
 class Synapse: public Operator{
 
 public:
-    Synapse(Matrix input, Matrix output, BaseMatrix* numer, BaseMatrix* denom);
+    Synapse(
+        SignalView input, SignalView output,
+        BaseSignal numer, BaseSignal denom);
+
     string classname() const { return "Synapse"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Matrix input;
-    Matrix output;
+    SignalView input;
+    SignalView output;
 
-    // TODO: make these into normal Matrices referring to BaseMatrices stored
-    // inside the chunk
-    BaseMatrix* numer;
-    BaseMatrix* denom;
+    BaseSignal numer;
+    BaseSignal denom;
 
     vector< boost::circular_buffer<dtype> > x;
     vector< boost::circular_buffer<dtype> > y;
@@ -144,7 +144,7 @@ protected:
 
 class SimLIF: public Operator{
 public:
-    SimLIF(int n_neuron, dtype tau_rc, dtype tau_ref, dtype dt, Matrix J, Matrix output);
+    SimLIF(int n_neuron, dtype tau_rc, dtype tau_ref, dtype dt, SignalView J, SignalView output);
     string classname() const { return "SimLIF"; }
 
     void operator()();
@@ -157,22 +157,22 @@ protected:
     dtype tau_ref;
     int n_neurons;
 
-    Matrix J;
-    Matrix output;
+    SignalView J;
+    SignalView output;
 
-    BaseMatrix voltage;
-    BaseMatrix refractory_time;
+    BaseSignal voltage;
+    BaseSignal refractory_time;
 
-    ScalarMatrix dt_vec;
-    BaseMatrix mult;
-    BaseMatrix dV;
-    ScalarMatrix one;
+    ScalarSignal dt_vec;
+    ScalarSignal one;
+    BaseSignal mult;
+    BaseSignal dV;
 };
 
 class SimLIFRate: public Operator{
 
 public:
-    SimLIFRate(int n_neurons, dtype tau_rc, dtype tau_ref, Matrix J, Matrix output);
+    SimLIFRate(int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output);
     string classname() const { return "SimLIFRate"; }
 
     void operator()();
@@ -183,16 +183,16 @@ protected:
     dtype tau_ref;
     int n_neurons;
 
-    BaseMatrix j;
-    ScalarMatrix one;
+    BaseSignal j;
+    ScalarSignal one;
 
-    Matrix J;
-    Matrix output;
+    SignalView J;
+    SignalView output;
 };
 
 class SimRectifiedLinear: public Operator{
 public:
-    SimRectifiedLinear(int n_neurons, Matrix J, Matrix output);
+    SimRectifiedLinear(int n_neurons, SignalView J, SignalView output);
     string classname() const { return "SimRectifiedLinear"; }
 
     void operator()();
@@ -201,13 +201,13 @@ public:
 protected:
     int n_neurons;
 
-    Matrix J;
-    Matrix output;
+    SignalView J;
+    SignalView output;
 };
 
 class SimSigmoid: public Operator{
 public:
-    SimSigmoid(int n_neurons, dtype tau_ref, Matrix J, Matrix output);
+    SimSigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output);
     string classname() const { return "SimSigmoid"; }
 
     void operator()();
@@ -218,12 +218,12 @@ protected:
     dtype tau_ref;
     dtype tau_ref_inv;
 
-    Matrix J;
-    Matrix output;
+    SignalView J;
+    SignalView output;
 };
 
-/* Helper function to extract a BaseMatrix from a string. Assumes
- * the data for the BaseMatrix is encoded in the string as a python list. */
-BaseMatrix* extract_float_list(string s);
+/* Helper function to extract a BaseSignal from a string. Assumes
+ * the data for the BaseSignal is encoded in the string as a python list. */
+unique_ptr<BaseSignal> extract_float_list(string s);
 
 #endif

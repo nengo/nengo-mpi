@@ -1,6 +1,6 @@
 #include "probe.hpp"
 
-Probe::Probe(Matrix signal, dtype period)
+Probe::Probe(SignalView signal, dtype period)
 :signal(signal), period(period), index(0), step_offset(0){
 }
 
@@ -22,7 +22,7 @@ void Probe::init_for_simulation(int n_steps){
     data.reserve(num_samples);
 
     for(unsigned i = 0; i < num_samples; i++){
-        data.push_back(new BaseMatrix(signal));
+        data.push_back(unique_ptr<BaseSignal>(new BaseSignal(signal)));
     }
 }
 
@@ -33,25 +33,19 @@ void Probe::gather(int step){
     }
 }
 
-vector<BaseMatrix*> Probe::get_data(){
-    return data;
+vector<unique_ptr<BaseSignal>> Probe::harvest_data(){
+    auto d = move(data);
+    clear();
+    return d;
 }
 
-void Probe::clear(bool del){
+void Probe::clear(){
     index = 0;
-
-    if(del){
-        vector<BaseMatrix*>::iterator it;
-        for(it = data.begin(); it < data.end(); it++){
-            delete *it;
-        }
-    }
-
     data.clear();
 }
 
 void Probe::reset(){
-    clear(true);
+    clear();
     step_offset = 0;
 }
 
