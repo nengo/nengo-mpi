@@ -58,12 +58,13 @@ void start_worker(MPI_Comm comm){
 
             unique_ptr<BaseSignal> data = recv_matrix(0, setup_tag, comm);
 
-            chunk.add_base_signal(key, label, move(data));
-
             dbg("Worker " << my_id  << " done receiving signal.");
+
             dbg("key; " << key);
             dbg("label; " << key);
             dbg("data; " << *data);
+
+            chunk.add_base_signal(key, label, move(data));
 
         }else if(s == add_op_flag){
             dbg("Worker " << my_id  << " receiving operator.");
