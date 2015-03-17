@@ -43,17 +43,11 @@ unique_ptr<BaseSignal> ndarray_to_matrix(bpyn::array a){
 
 unique_ptr<BaseSignal> list_to_matrix(bpy::list l){
 
-    dbg("Extracting matrix from python list:");
-
     int length = bpy::len(l);
     auto ret = unique_ptr<BaseSignal>(new BaseSignal(length, 1));
     for(unsigned i = 0; i < length; i++){
         (*ret)(i, 0) = bpy::extract<dtype>(l[i]);
     }
-
-    dbg("Length:" << length);
-    dbg("Value:");
-    dbg(*ret << endl);
 
     return ret;
 }
@@ -131,23 +125,12 @@ void PythonMpiSimulator::add_signal(
     string c_label = bpy::extract<string>(label);
     unique_ptr<BaseSignal> c_data = ndarray_to_matrix(data);
 
-    dbg("Adding base signal in C++ simulator");
-    dbg("Component: "<< c_component);
-    dbg("Key: " << c_key);
-    dbg("Label: "<< c_label);
-    dbg("Size: (" << c_data->size1() << ", " << c_data->size2() << ")");
-    dbg("Value:");
-    dbg(*c_data << endl << endl);
-
     mpi_sim->add_base_signal(c_component, c_key, c_label, move(c_data));
 }
 
 void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
     int c_component = bpy::extract<int>(component);
     string c_op_string = bpy::extract<string>(op_string);
-
-    dbg("Adding op");
-    dbg("Op string: " << c_op_string);
 
     mpi_sim->add_op(c_component, c_op_string);
 }

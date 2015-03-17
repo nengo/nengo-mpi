@@ -66,7 +66,6 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn)
         line_stream << line;
         getline(line_stream, cell, delim);
 
-        dbg(line << endl);
         if(cell.compare("SIGNAL") == 0){
             getline(line_stream, cell, delim);
             int component = boost::lexical_cast<int>(cell);
@@ -193,9 +192,12 @@ void MpiSimulator::reset(){
 void MpiSimulator::add_base_signal(
         int component, key_type key, string label, unique_ptr<BaseSignal> data){
 
+    dbg("SIGNAL" << delim << component << delim
+                 << key << delim << label << delim << *data);
+
     if(write_to_file){
-        out_file << "SIGNAL" << delim << component << delim << key
-                 << delim << label << delim << *data << endl;
+        out_file << "SIGNAL" << delim << component << delim
+                 << key << delim << label << delim << *data << endl;
         return;
     }
 
@@ -218,6 +220,8 @@ SignalView MpiSimulator::get_signal_from_master(string signal_string){
 }
 
 void MpiSimulator::add_op(int component, string op_string){
+
+    dbg("OP" << delim << component << delim << op_string);
 
     if(write_to_file){
         out_file << "OP" << delim << component << delim << op_string << endl;
@@ -245,10 +249,12 @@ void MpiSimulator::add_op_to_master(unique_ptr<Operator> op){
 
 void MpiSimulator::add_probe(
         int component, key_type probe_key, string signal_string, int period){
+    dbg("PROBE" << delim << component << delim << probe_key << delim
+                << signal_string << delim << period);
 
     if(write_to_file){
-        out_file << "PROBE" << delim << component << delim << probe_key
-                 << delim << signal_string << delim << period << endl;
+        out_file << "PROBE" << delim << component << delim << probe_key << delim
+                 << signal_string << delim << period << endl;
         return;
     }
 

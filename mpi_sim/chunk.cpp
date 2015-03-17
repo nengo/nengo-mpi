@@ -72,11 +72,6 @@ SignalView MpiSimulatorChunk::get_signal_view(
     int start1 = offset / stride1;
     int start2 = offset % stride1;
 
-    dbg("key: " << key << endl);
-    dbg("shape: " << shape1 << ", " << shape2 << endl);
-    dbg("stride: " << stride1 << ", " << stride2 << endl);
-    dbg("offset: " << offset << endl);
-
     return SignalView(
         *signal_map.at(key), ublas::slice(start1, 1, shape1),
         ublas::slice(start2, 1, shape2));

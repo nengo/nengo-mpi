@@ -46,6 +46,8 @@ void start_worker(MPI_Comm comm){
     string signal_string;
     dtype period;
 
+    dbg("Worker " << my_id  << " receiving network...");
+
     while(1){
         s = recv_int(0, setup_tag, comm);
 
@@ -71,6 +73,8 @@ void start_worker(MPI_Comm comm){
 
             string op_string = recv_string(0, setup_tag, comm);
 
+            dbg("Worker " << my_id  << " done receiving operator.");
+
             chunk.add_op(op_string);
 
         }else if(s == add_probe_flag){
@@ -82,10 +86,12 @@ void start_worker(MPI_Comm comm){
 
             dtype period = recv_dtype(0, setup_tag, comm);
 
+            dbg("Worker " << my_id  << " done receiving probe.");
+
             chunk.add_probe(probe_key, signal_string, period);
 
         }else if(s == stop_flag){
-            dbg("Worker " << my_id  << " done building.");
+            dbg("Worker " << my_id  << " done receiving network.");
             break;
 
         }else{
@@ -93,19 +99,18 @@ void start_worker(MPI_Comm comm){
         }
     }
 
-    dbg("Worker setting up MPI operators..");
-
+    dbg("Worker " << my_id << " setting up MPI operators...");
 
     chunk.set_communicator(comm);
     chunk.add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
 
-    dbg("Worker waiting for signal to start simulation.");
+    dbg("Worker " << my_id << " waiting for signal to start simulation...");
 
     int steps;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
-    cout << "Worker process " << my_id
-         << " got the signal to start simulation: " << steps << " steps." << endl;
+    cout << "Worker " << my_id << " got the signal to start simulation: "
+         << steps << " steps." << endl;
 
     chunk.run_n_steps(steps, false);
 
@@ -160,9 +165,12 @@ int main(int argc, char **argv){
             string filename = argv[1];
             bool spawn = false;
 
+            cout << "Loading network from file: " << filename << endl;
             MpiSimulator mpi_sim(filename, spawn);
 
             int num_steps = boost::lexical_cast<int>(argv[2]);
+
+            cout << "Running simulation for " << num_steps << " steps." << endl;
             mpi_sim.run_n_steps(num_steps, true);
 
             for(auto& key : mpi_sim.get_probe_keys()){
