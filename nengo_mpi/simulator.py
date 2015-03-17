@@ -12,8 +12,6 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 
-nengo.log(debug=True)
-
 
 class Simulator(object):
     """MPI simulator for nengo 2.0."""
