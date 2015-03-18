@@ -58,13 +58,14 @@ public:
         return master_chunk->get_time_pointer();
     }
 
+    dtype dt;
+
 private:
     int num_components;
     shared_ptr<MpiSimulatorChunk> master_chunk;
 
     bool spawn;
     MpiInterface mpi_interface;
-    dtype dt;
 
     bool write_to_file;
     ofstream out_file;

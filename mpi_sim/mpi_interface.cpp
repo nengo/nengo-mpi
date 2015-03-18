@@ -133,6 +133,8 @@ void MpiInterface::initialize_chunks(
         cout << "Master finished spawning children." << endl;
 
         MPI_Intercomm_merge(inter, false, &comm);
+    }else{
+        comm = MPI_COMM_WORLD;
     }
 
     int buflen = 512;

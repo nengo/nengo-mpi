@@ -145,6 +145,9 @@ int main(int argc, char **argv){
 
     if (parent != MPI_COMM_NULL){
         MPI_Comm everyone;
+
+        // We have a parent, so get a communicator that includes the
+        // parent and all children
         MPI_Intercomm_merge(parent, true, &everyone);
         start_worker(everyone);
     }else{
@@ -152,26 +155,39 @@ int main(int argc, char **argv){
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
         if(rank == 0){
-            if(argc < 1){
+            if(argc < 2){
                 cout << "Please specify a file to load" << endl;
                 return 0;
             }
 
-            if(argc < 2){
+            if(argc < 3){
                 cout << "Please specify a simulation length" << endl;
                 return 0;
             }
 
+            int show_progress;
+            if(argc < 4){
+                show_progress = 1;
+            }else{
+                show_progress = boost::lexical_cast<int>(argv[3]);
+            }
+
             string filename = argv[1];
+            float sim_length = boost::lexical_cast<float>(argv[2]);
+
             bool spawn = false;
 
-            cout << "Loading network from file: " << filename << endl;
+            cout << "Loading network from file: " << filename << "." << endl;
+            cout << "Running simulation for " << sim_length << " seconds." << endl;
+
+            cout << "Building network..." << endl;
             MpiSimulator mpi_sim(filename, spawn);
+            cout << "Done building network..." << endl;
 
-            int num_steps = boost::lexical_cast<int>(argv[2]);
+            int num_steps = int(sim_length / mpi_sim.dt);
 
-            cout << "Running simulation for " << num_steps << " steps." << endl;
-            mpi_sim.run_n_steps(num_steps, true);
+            cout << "Running simulation..." << endl;
+            mpi_sim.run_n_steps(num_steps, bool(show_progress));
 
             for(auto& key : mpi_sim.get_probe_keys()){
                 vector<unique_ptr<BaseSignal>> probe_data = mpi_sim.get_probe_data(key);
