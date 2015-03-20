@@ -44,7 +44,7 @@ def top_level_partitioner(network, num_components, assignments=None):
 
     for n in network.networks:
         if network not in assignments:
-            assignments[network] = component
+            assignments[n] = component
             component = (component + 1) % num_components
 
     return assignments
