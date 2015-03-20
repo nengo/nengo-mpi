@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 def top_level_partitioner(network, num_components, assignments=None):
     """
     A partitioner that puts top level subnetworks on different partitions if it
-    can.  Everything inside a top level subnetwork (except nodes) will go on
+    can. Everything inside a top level subnetwork (except nodes) will go on
     the same partition.  Reasonable if your network if split up into
     subnetworks of relatively equal size.
 
-    Ensembles at top level will be handled in the same way. All nodes in the
+    Ensembles at top level will be handled in the same way. All Nodes in the
     network will be put on component 0 (even those inside subnetworks).
 
     Parameters
@@ -144,6 +144,8 @@ class Partitioner(object):
             network, self.num_components, self.assignments,
             *self.args, **self.kwargs)
 
+        print "Component assignment after partitioning: ", assignments
+
         propogate_assignments(network, assignments)
 
         return self.num_components, assignments
@@ -157,8 +159,7 @@ def propogate_assignments(network, assignments):
     If assignments is empty, then all objects will be assigned to the 1st
     component, which has index 0. The intent is to have some partitioning
     algorithm determine some of the assignments before this function is called,
-    and then this function expands those assignments, respecting hierarchical
-    constraints.
+    and then this function propogates those assignments.
 
     Parameters
     ----------
@@ -228,115 +229,3 @@ def propogate_assignments(network, assignments):
     probes = network.all_probes
     probes_in = all([probe in assignments for probe in probes])
     assert probes_in, "Assignments incomplete, missing probes."
-
-
-def apply_partition(model, network, num_components, assignments):
-    """
-    Returns a list of (non-mpi) models, one for each component
-    of the partition. Each model contains the operators assigned
-    to a single component of the partition, extracted from the
-    MpiModel passed in.
-
-    Parameters
-    ----------
-    model: An instance of MpiModel, built using the ref-impl builder,
-        implementing the nengo Network ``network''.
-
-    network: A nengo Network. Ops and signals implementing this network are
-        stored in ``model''.
-
-    num_components: The number of components to divide the network into.
-
-    assignments: A dictionary mapping from objects in the nengo network to
-        component indices, with 0 as the first component. Currently, it
-        must contain every node and ensemble in the network, including
-        those in subnetworks.
-
-    Returns
-    -------
-    models: A list of models, 1 for each component, containing the operators
-        and signals implementing the nengo objects assigned to each component.
-
-    """
-
-    # Initialize component models
-    models = [builder.Model(label="MPI Component %d" % i)
-              for i in range(num_components)]
-
-    for m in models:
-        m.sig = model.sig
-
-        m.send_signals = []
-        m.recv_signals = []
-
-    # Handle nodes and ensembles
-    for obj in network.all_nodes + network.all_ensembles:
-
-        component = assignments[obj]
-
-        for op in model.object_ops[obj]:
-            models[component].add_op(op)
-
-    # Handle probes
-    for probe in network.all_probes:
-
-        component = assignments[probe.target]
-
-        for op in model.object_ops[probe]:
-            models[component].add_op(op)
-
-        models[component].probes.append(probe)
-
-    # Handle connections
-    connections = set(
-        obj for obj in model.object_ops
-        if isinstance(obj, Connection))
-
-    connections = connections | set(network.all_connections)
-
-    for conn in connections:
-        pre_component = assignments[conn.pre_obj]
-        post_component = assignments[conn.post_obj]
-
-        if pre_component == post_component:
-            # conn on a single component
-            m = models[pre_component]
-
-            for op in model.object_ops[conn]:
-                m.add_op(op)
-        else:
-            # conn crosses component boundaries
-
-            if conn.modulatory:
-                raise Exception(
-                    "Connections crossing component boundaries "
-                    "must not be modulatory.")
-
-            if conn.learning_rule_type:
-                raise Exception(
-                    "Connections crossing component boundaries "
-                    "must not have learning rules.")
-
-            if 'synapse_out' in model.sig[conn]:
-                signal = model.sig[conn]['synapse_out']
-            else:
-                raise Exception(
-                    "Connections crossing component boundaries "
-                    "must be filtered so that there is an update.")
-
-            models[pre_component].send_signals.append(
-                (signal, post_component))
-
-            models[post_component].recv_signals.append(
-                (signal, pre_component))
-
-            pre_ops, post_ops = split_connection(
-                model.object_ops[conn], signal)
-
-            for op in pre_ops:
-                models[pre_component].add_op(op)
-
-            for op in post_ops:
-                models[post_component].add_op(op)
-
-    return models
