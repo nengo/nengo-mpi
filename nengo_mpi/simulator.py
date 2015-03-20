@@ -27,7 +27,7 @@ class Simulator(object):
 
         Parameters
         ----------
-        network : nengo.Network instance
+        network : nengo.Network
             A network object to be built and then simulated.
 
         dt : float
@@ -38,7 +38,7 @@ class Simulator(object):
             Note that there are not stochastic operators implemented
             currently, so this parameters does nothing.
 
-        model : nengo.builder.Model instance or None
+        model : nengo.builder.Model
             A model object that contains build artifacts to be simulated.
             Usually the simulator will build this model for you; however,
             if you want to build the network manually, or to inject some
@@ -47,15 +47,13 @@ class Simulator(object):
             or a ``nengo.builder.Model`` instance. If the latter, it
             will be converted into an ``MpiModel''.
 
-        partitioner:
-            An instance of class Partitioner which specifies how to
-            assign nengo objects to MPI processes.
+        partitioner: Partitioner
+            Specifies how to assign nengo objects to MPI processes.
 
-        save_file:
-            Name of a file that will be created, which will store all data
-            added to the Simulator. The simulator can later be reconstructed
-            from this file. If equal to the empty string, then no file
-            is created.
+        save_file: string
+            Name of file that will store all data added to the simulator.
+            The simulator can later be reconstructed from this file. If
+            equal to the empty string, then no file is created.
         """
 
         # Note: seed is not used right now, but one day...

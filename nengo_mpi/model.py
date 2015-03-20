@@ -220,7 +220,7 @@ def make_checked_func(func, t_in, takes_input):
 class MpiSend(builder.operator.Operator):
     """
     MpiSend placeholder operator. Stores the signal that the operator will
-    send and the partition that it will be sent to. No makestep is defined,
+    send and the component that it will be sent to. No makestep is defined,
     as it will never be called.
     """
 
@@ -238,7 +238,7 @@ class MpiSend(builder.operator.Operator):
 class MpiRecv(builder.operator.Operator):
     """
     MpiRecv placeholder operator. Stores the signal that the operator will
-    receive and the partition that it will be received from. No makestep is
+    receive and the component that it will be received from. No makestep is
     defined, as it will never be called.
     """
 
