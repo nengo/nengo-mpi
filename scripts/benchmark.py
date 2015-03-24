@@ -6,7 +6,7 @@ import numpy as np
 import argparse
 
 logger = logging.getLogger(__name__)
-nengo.log(debug=False)
+nengo.log(debug=True)
 
 parser = argparse.ArgumentParser(
     description="Benchmarking script for nengo_mpi.")
@@ -39,15 +39,15 @@ parser.add_argument(
     help='If using MPI, the number of processors to use.')
 
 parser.add_argument(
-    '--noprog', action='store_true', default=False,
+    '--noprog', action='store_true',
     help='Supply to omit the progress bar.')
 
 parser.add_argument(
-    '--noprobe', action='store_true', default=False,
+    '--noprobe', action='store_true',
     help='Supply to omit probing.')
 
 parser.add_argument(
-    '--rand', action='store_true', default=False,
+    '--rand', action='store_true',
     help='Supply to use a (pseudo) random scheme for assigning nengo '
          'object to processors')
 
