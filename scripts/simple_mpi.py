@@ -38,15 +38,19 @@ with m:
     f_p = nengo.Probe(f, 'decoded_output', synapse=0.01)
     g_p = nengo.Probe(g, 'decoded_output', synapse=0.01)
 
-sim_time = 1
+sim_time = .1
 
 if 1:
     import nengo_mpi
     partitioner = nengo_mpi.Partitioner(1)#, {a: 1, b: 2, c: 3, d: 1, e: 3, f: 2, g: 1})
 
+    print "Building model..."
     sim = nengo_mpi.Simulator(m, dt=0.001, partitioner=partitioner)
+    print "Done building model..."
 
+    print "Running model for", sim_time, "seconds..."
     sim.run(sim_time)
+    print "Done running model."
 else:
     sim = nengo.Simulator(m, dt=0.001)
     sim.run(sim_time)
