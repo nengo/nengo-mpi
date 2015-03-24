@@ -28,8 +28,8 @@ DEFS=
 #DEFS=-O3
 
 STD=c++11
-#STD=c++0x
 
+all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG
 all: build
 
 run_debug: DEFS+=-DRUN_DEBUG
