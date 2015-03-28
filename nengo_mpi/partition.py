@@ -1,11 +1,13 @@
 from collections import defaultdict
 import warnings
+import os
 
 import networkx as nx
 import numpy as np
-from nengo.ensemble import Neurons
 
 from heapq import heapify, heappush, heappop
+
+from nengo.ensemble import Neurons
 
 import logging
 logger = logging.getLogger(__name__)
@@ -168,7 +170,7 @@ def greedy_k(S, k, key=None):
 def work_balanced_partitioner(network, num_components, assignments=None):
     """
     Tries to give each processor an equal number of neurons to simulate,
-    and makes no attempt to minimize communication between processors.
+    making no attempt to minimize communication between processors.
 
     Parameters
     ----------
@@ -230,9 +232,9 @@ def is_update(conn):
 def network_to_filter_graph(network):
     """
     Creates a graph from a nengo network, where the nodes are collections
-    of nengo objects that are connect by non-filtered connections, and edges
+    of nengo objects that are connected by non-filtered connections, and edges
     are filtered connections between those components. This is useful for
-    partitioning, we can only send data across connections that contain an
+    partitioning, since we can only send data across connections that contain an
     update operation, which, for now, means they must be filtered.
 
     Parameters
@@ -427,6 +429,96 @@ def spectral_partitioner(network, num_components, assignments=None):
         if n_neurons > neurons_per_component:
             component += 1
             n_neurons = 0
+
+    return assignments
+
+
+def write_metis_input_file(filter_graph, filename):
+
+    with open(filename, 'w') as f:
+        n = filter_graph.number_of_nodes()
+        m = filter_graph.number_of_edges()
+
+        f.write("%d %d 011" % (n, m))
+
+        indices = {node: i+1 for i, node in enumerate(filter_graph.nodes())}
+
+        for u in filter_graph.nodes():
+            f.write('\n')
+
+            vertex_weight = 1
+
+            for obj in u.objects:
+                if hasattr(obj, 'n_neurons'):
+                    vertex_weight += obj.n_neurons
+
+            f.write("%d" % vertex_weight)
+
+            for v, weight_dict in filter_graph[u].iteritems():
+                f.write(" %d %d" % (indices[v], weight_dict['weight']))
+
+
+def read_metis_output_file(filter_graph, n_components, filename):
+    """
+    Read the given file name, assuming it is the output from a run of gpmetis.
+    The format of the file is: n lines (n is the number of nodes), the i-th line
+    giving information about the i-th node. Each line contains a single integer,
+    which gives the component that the i-th node is assigned to. Components are
+    indexed starting from 0.
+    """
+
+    node_assignments = []
+
+    with open(outfile, 'r'):
+        for line in iter(f.readline, ''):
+            node_assignments.append(int(line))
+
+    return node_assignments
+
+
+def metis_input_filename(network):
+    return str(network).replace(' ', '_') + ".metis"
+
+
+def metis_output_filename(network, num_components):
+    return str(network).replace(' ', '_') + ".metis.part." + str(num_components)
+
+
+def metis_partitioner(network, num_components, assignments=None):
+    """
+    If a file with the correct name exists, it loads that file instead of
+    creating a new one.
+    """
+
+    if assignments is not None:
+        assignments = assignments.copy()
+    else:
+        assignments = {}
+
+    if num_components == 1:
+        return {}
+
+    G = network_to_filter_graph(network)
+
+    file_name = metis_input_filename()
+
+    if not os.path.isfile(file_name):
+        print "Writing metis file: %s" % file_name
+        write_metis_input_file(G, file_name)
+
+        print "Launching metis..."
+        # launch metis with written file
+        import subprocess
+        output = subprocess.check_call(['gpmetis', file_name, str(num_components)])
+
+    file_name = metis_output_filename(network, num_components)
+
+    print "Reading metis output file: %s" % file_name
+    node_assignments = read_metis_output_file(G, num_components, file_name)
+
+    for node, component in zip(filter_graph.nodes(), node_assignments):
+        for obj in node.objects:
+            assignments[obj] = component
 
     return assignments
 
