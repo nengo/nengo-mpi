@@ -162,15 +162,18 @@ if not save_file:
     import pandas as pd
     import os
 
-    runtimes_file = "/scratch/c/celiasmi/e2crawfo/benchmark_runtimes.csv"
-    header = not os.path.isfile(runtimes_file)
+    try:
+        runtimes_file = "/scratch/c/celiasmi/e2crawfo/benchmark_runtimes.csv"
+        header = not os.path.isfile(runtimes_file)
 
-    vals = vars(args).copy()
-    vals['runtime'] = t1 - t0
-    vals['num_neurons'] = num_neurons
+        vals = vars(args).copy()
+        vals['runtime'] = t1 - t0
+        vals['num_neurons'] = num_neurons
 
-    now = pd.datetime.now()
-    df = pd.DataFrame(vals, index=pd.date_range(now, periods=1))
+        now = pd.datetime.now()
+        df = pd.DataFrame(vals, index=pd.date_range(now, periods=1))
 
-    with open(runtimes_file, 'a') as f:
-        df.to_csv(f, header=header)
+        with open(runtimes_file, 'a') as f:
+            df.to_csv(f, header=header)
+    except:
+        print "Could not write runtimes files."
