@@ -1,4 +1,3 @@
-# from nengo.base import NengoObject
 from nengo.builder.signal import Signal
 from nengo.builder.operator import Operator
 from nengo.node import Node

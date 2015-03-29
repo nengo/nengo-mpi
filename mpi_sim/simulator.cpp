@@ -5,16 +5,8 @@ char MpiSimulator::delim = '|';
 MpiSimulator::MpiSimulator()
 :num_components(0), dt(0.001), master_chunk(NULL){}
 
-MpiSimulator::MpiSimulator(int num_components, dtype dt, string out_filename)
+MpiSimulator::MpiSimulator(int num_components, dtype dt)
 :num_components(num_components), dt(dt), master_chunk(NULL), spawn(true){
-
-    write_to_file = !(out_filename.empty());
-
-    if (write_to_file){
-        out_file.open(out_filename);
-        out_file << num_components << delim << dt << endl;
-        return;
-    }
 
     master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk("Chunk 0", dt));
 
@@ -31,10 +23,7 @@ MpiSimulator::MpiSimulator(int num_components, dtype dt, string out_filename)
 }
 
 MpiSimulator::MpiSimulator(string in_filename, bool spawn)
-:num_components(0), dt(0.0), master_chunk(NULL), spawn(spawn){
-
-    write_to_file = false;
-
+:num_components(0), dt(0.001), master_chunk(NULL), spawn(spawn){
     ifstream in_file(in_filename);
 
     string line;
@@ -126,21 +115,12 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn)
 }
 
 void MpiSimulator::finalize(){
-    if (write_to_file){
-        out_file.close();
-    }else if(num_components > 1){
+    if(num_components > 1){
         mpi_interface.finalize();
     }
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress){
-
-    if(write_to_file){
-        cout << "Can not simulate. Simulator was used to "
-                "write the network to a file." << endl;
-        return;
-    }
-
     if(num_components == 1){
         master_chunk->run_n_steps(steps, progress);
     }else{
@@ -171,14 +151,7 @@ vector<key_type> MpiSimulator::get_probe_keys(){
     return keys;
 }
 
-// TODO: given the current implementation, this should perhaps be called harvest_data
 vector<unique_ptr<BaseSignal>> MpiSimulator::get_probe_data(key_type probe_key){
-    if(write_to_file){
-        cout << "No probe data to get. Simulator was used to "
-                "write the network to a file." << endl;
-        return vector<unique_ptr<BaseSignal>>();
-    }
-
     return move(probe_data.at(probe_key));
 }
 
@@ -195,12 +168,6 @@ void MpiSimulator::add_base_signal(
     dbg("SIGNAL" << delim << component << delim
                  << key << delim << label << delim << *data);
 
-    if(write_to_file){
-        out_file << "SIGNAL" << delim << component << delim
-                 << key << delim << label << delim << *data << endl;
-        return;
-    }
-
     if(component == 0){
         master_chunk->add_base_signal(key, label, move(data));
     }else{
@@ -209,24 +176,12 @@ void MpiSimulator::add_base_signal(
 }
 
 SignalView MpiSimulator::get_signal_from_master(string signal_string){
-
-    if(write_to_file){
-        throw runtime_error(
-            "Cannot access signals when simulator is in 'write-to-file'"
-            "mode, as they are never created.");
-    }
-
     return master_chunk->get_signal_view(signal_string);
 }
 
 void MpiSimulator::add_op(int component, string op_string){
 
     dbg("OP" << delim << component << delim << op_string);
-
-    if(write_to_file){
-        out_file << "OP" << delim << component << delim << op_string << endl;
-        return;
-    }
 
     if(component == 0){
         master_chunk->add_op(op_string);
@@ -236,27 +191,14 @@ void MpiSimulator::add_op(int component, string op_string){
 }
 
 void MpiSimulator::add_op_to_master(unique_ptr<Operator> op){
-
-    if(write_to_file){
-        throw runtime_error(
-            "Cannot directly add operator to master when MpiSimulator "
-            "is in 'write-to-file' mode, as such operators cannot be "
-            "serialized.");
-    }
-
     master_chunk->add_op(move(op));
 }
 
 void MpiSimulator::add_probe(
         int component, key_type probe_key, string signal_string, int period){
+
     dbg("PROBE" << delim << component << delim << probe_key << delim
                 << signal_string << delim << period);
-
-    if(write_to_file){
-        out_file << "PROBE" << delim << component << delim << probe_key << delim
-                 << signal_string << delim << period << endl;
-        return;
-    }
 
     if(component == 0){
         master_chunk->add_probe(probe_key, signal_string, period);
