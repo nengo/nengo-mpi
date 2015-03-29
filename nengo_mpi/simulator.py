@@ -81,14 +81,21 @@ class Simulator(object):
         print "Finalizing MPI model..."
         self.model.finalize()
 
-        self.mpi_sim = self.model.mpi_sim
-
         # probe -> python list
         self._probe_outputs = self.model.params
 
         self.data = ProbeDict(self._probe_outputs)
 
         print "MPI model ready."
+
+    @property
+    def mpi_sim(self):
+        if not self.model.runnable:
+            raise Exception(
+                "Cannot access C++ simulator of MpiModel, MpiModel is "
+                "not in a runnable state. Likely in write-file mode.")
+
+        return self.model.mpi_sim
 
     def __str__(self):
         return self.mpi_sim.to_string()

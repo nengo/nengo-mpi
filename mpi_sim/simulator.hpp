@@ -21,7 +21,7 @@ class MpiSimulator{
 
 public:
     MpiSimulator();
-    MpiSimulator(int num_components, dtype dt, string out_filename);
+    MpiSimulator(int num_components, dtype dt);
     MpiSimulator(string in_filename, bool spawn);
 
     const string classname() { return "MpiSimulator"; }
@@ -66,9 +66,6 @@ private:
 
     bool spawn;
     MpiInterface mpi_interface;
-
-    bool write_to_file;
-    ofstream out_file;
 
     // Place to store probe data retrieved from worker
     // processes after simulation has finished.

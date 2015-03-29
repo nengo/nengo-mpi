@@ -18,8 +18,6 @@ from nengo.probe import Probe
 from spaun_mpi import SpaunStimulus, build_spaun_stimulus
 from spaun_mpi import SpaunStimulusOperator
 
-import mpi_sim
-
 import numpy as np
 from collections import defaultdict
 import warnings
@@ -337,6 +335,22 @@ def signal_to_string(signal, delim=':'):
     return signal_string
 
 
+def ndarray_to_mpi_string(a):
+    if a.ndim == 0:
+        return "[1, 1]%f" % a
+
+    elif a.ndim == 1:
+        s = "[%d, 1]" % a.size
+        s += ",".join([str(f) for f in a.flatten()])
+        return s
+
+    else:
+        assert a.ndim == 2
+        s = "[%d, %d]" % a.shape
+        s += ",".join([str(f) for f in a.flatten()])
+        return s
+
+
 class MpiModel(builder.Model):
     """
     Output of the Builder, used by the Simulator.
@@ -352,6 +366,7 @@ class MpiModel(builder.Model):
 
     op_string_delim = ";"
     signal_string_delim = ":"
+    outfile_delim = "|"
 
     def __init__(
             self, num_components, assignments, dt=0.001, label=None,
@@ -360,8 +375,16 @@ class MpiModel(builder.Model):
         self.num_components = num_components
         self.assignments = assignments
 
-        self.mpi_sim = mpi_sim.PythonMpiSimulator(
-            num_components, dt, save_file)
+        if save_file:
+            self.save_file = open(save_file, 'w')
+            self.save_file.write(
+                "%s%s%s" % (num_components, MpiModel.outfile_delim, dt))
+        else:
+            self.save_file = None
+
+            import mpi_sim
+            self.mpi_sim = mpi_sim.PythonMpiSimulator(
+                num_components, dt, save_file)
 
         # for each component, stores the keys of the signals that have
         # to be sent and received, respectively
@@ -385,6 +408,10 @@ class MpiModel(builder.Model):
         self._mpi_tag = 0
 
         super(MpiModel, self).__init__(dt, label, decoder_cache)
+
+    @property
+    def runnable(self):
+        return self.save_file is None
 
     def __str__(self):
         return "MpiModel: %s" % self.label
@@ -478,7 +505,16 @@ class MpiModel(builder.Model):
             if A.dtype != np.float64:
                 A = A.astype(np.float64)
 
-            self.mpi_sim.add_signal(component, key, label, A)
+            if self.save_file:
+                data_string = ndarray_to_mpi_string(A)
+                signal_string = MpiModel.outfile_delim.join(
+                    str(i)
+                    for i
+                    in ["SIGNAL", component, key, label, data_string])
+
+                self.save_file.write("\n" + signal_string)
+            else:
+                self.mpi_sim.add_signal(component, key, label, A)
 
             if delete:
                 # Replace the data stored in the signal by a dummy array,
@@ -511,7 +547,8 @@ class MpiModel(builder.Model):
                 probe, self.sig[probe]['in'],
                 sample_every=probe.sample_every)
 
-        self.mpi_sim.finalize()
+        if not self.save_file:
+            self.mpi_sim.finalize()
 
     def from_refimpl_model(self, model):
         """Create an MpiModel from an instance of a refimpl Model."""
@@ -581,6 +618,11 @@ class MpiModel(builder.Model):
             op_type = type(op)
 
             if op_type == builder.node.SimPyFunc:
+                if self.save_file:
+                    raise Exception(
+                        "Cannot create SimPyFunc operator "
+                        "when saving to file.")
+
                 t_in = op.t_in
                 fn = op.fn
                 x = op.x
@@ -616,7 +658,15 @@ class MpiModel(builder.Model):
                         "Component %d: Adding operator with string: %s",
                         component, op_string)
 
-                    self.mpi_sim.add_op(component, op_string)
+                    if self.save_file:
+                        op_string = MpiModel.outfile_delim.join(
+                            str(i)
+                            for i
+                            in ["OP", component, op_string])
+
+                        self.save_file.write("\n" + op_string)
+                    else:
+                        self.mpi_sim.add_op(component, op_string)
 
     def op_to_string(self, op):
         """
@@ -752,6 +802,14 @@ class MpiModel(builder.Model):
             component, str(signal), probe_key,
             signal_string, period)
 
-        self.mpi_sim.add_probe(
-            component, self.probe_keys[probe],
-            signal_string, period)
+        if self.save_file:
+            probe_string = MpiModel.outfile_delim.join(
+                str(i)
+                for i
+                in ["PROBE", component, probe_key, signal_string, period])
+
+            self.save_file.write("\n" + probe_string)
+        else:
+            self.mpi_sim.add_probe(
+                component, self.probe_keys[probe],
+                signal_string, period)

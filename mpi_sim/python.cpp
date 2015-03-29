@@ -55,12 +55,11 @@ unique_ptr<BaseSignal> list_to_matrix(bpy::list l){
 PythonMpiSimulator::PythonMpiSimulator(){}
 
 PythonMpiSimulator::PythonMpiSimulator(
-        bpy::object num_components, bpy::object dt, bpy::object out_filename){
+        bpy::object num_components, bpy::object dt){
 
     mpi_sim = unique_ptr<MpiSimulator>(
         new MpiSimulator(
-            bpy::extract<int>(num_components), bpy::extract<dtype>(dt),
-            bpy::extract<string>(out_filename)));
+            bpy::extract<int>(num_components), bpy::extract<dtype>(dt)));
 }
 
 void PythonMpiSimulator::finalize(){
@@ -292,7 +291,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulator, boost::noncopyable>(
-            "PythonMpiSimulator", bpy::init<bpy::object, bpy::object, bpy::object>())
+            "PythonMpiSimulator", bpy::init<bpy::object, bpy::object>())
         .def("finalize", &PythonMpiSimulator::finalize)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
