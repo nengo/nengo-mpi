@@ -1,13 +1,14 @@
 from collections import defaultdict
 import warnings
 import os
+import subprocess
 
 import networkx as nx
 import numpy as np
+from nengo import Direct, Node, Ensemble
+from nengo.ensemble import Neurons
 
 from heapq import heapify, heappush, heappop
-
-from nengo.ensemble import Neurons
 
 import logging
 logger = logging.getLogger(__name__)
@@ -229,13 +230,26 @@ def is_update(conn):
     return conn.synapse is not None
 
 
-def network_to_filter_graph(network):
+def for_component_0(node):
+    """Returns whether the component must be simulated on process 0."""
+
+    for obj in node.objects:
+        if isinstance(obj, Node) and callable(obj.output):
+            return True
+
+        if isinstance(obj, Ensemble) and isinstance(obj.neuron_type, Direct):
+            return True
+
+    return False
+
+
+def network_to_filter_graph(network, remove_nengo_nodes=False):
     """
     Creates a graph from a nengo network, where the nodes are collections
     of nengo objects that are connected by non-filtered connections, and edges
     are filtered connections between those components. This is useful for
-    partitioning, since we can only send data across connections that contain an
-    update operation, which, for now, means they must be filtered.
+    partitioning, since we can only send data across connections that contain
+    an update operation, which, for now, means they must be filtered.
 
     Parameters
     ----------
@@ -254,28 +268,23 @@ def network_to_filter_graph(network):
 
     node_map = defaultdict(GraphNode)
 
+    f = lambda e: e.ensemble if isinstance(e, Neurons) else e
+
     for conn in network.all_connections:
 
-        pre_obj = conn.pre_obj
-
-        if isinstance(pre_obj, Neurons):
-            pre_obj = pre_obj.ensemble
+        pre_obj = f(conn.pre_obj)
 
         pre_node = node_map[pre_obj]
 
         if pre_node.empty():
             pre_node.add_object(pre_obj)
 
-        post_obj = conn.post_obj
-
-        if isinstance(post_obj, Neurons):
-            post_obj = post_obj.ensemble
+        post_obj = f(conn.post_obj)
 
         post_node = node_map[post_obj]
 
         if post_node.empty():
             post_node.add_object(post_obj)
-
 
         if is_update(conn):
             pre_node.add_output(conn)
@@ -283,12 +292,16 @@ def network_to_filter_graph(network):
         else:
             merge_nodes(node_map, pre_node, post_node)
 
+    # merge together all nodes that have to go on component 0
+    component_0 = filter(for_component_0, node_map.values())
+
+    if component_0:
+        reduce(lambda m, n: merge_nodes(node_map, m, n), component_0)
+
     G = nx.Graph()
 
     update_connections = filter(
         is_update, network.all_connections)
-
-    f = lambda e: e.ensemble if isinstance(e, Neurons) else e
 
     G.add_weighted_edges_from(
         (node_map[f(conn.pre_obj)], node_map[f(conn.post_obj)], conn.size_mid)
@@ -409,7 +422,10 @@ def spectral_partitioner(network, num_components, assignments=None):
 
     ordering = nx.spectral_ordering(G)
 
-    print "Max node size in filter graph: ", max(len(n.objects) for n in G.nodes())
+    print (
+        "Max node size in filter graph: ",
+        max(len(n.objects) for n in G.nodes()))
+
     print (
         "Max node size in filter graph: ",
         max((n.objects for n in G.nodes()), key=lambda x: len(x)))
@@ -434,6 +450,10 @@ def spectral_partitioner(network, num_components, assignments=None):
 
 
 def write_metis_input_file(filter_graph, filename):
+    """
+    Note this this currently relies critically on the order of the nodes
+    in the filter graph...but that should be deterministic.
+    """
 
     with open(filename, 'w') as f:
         n = filter_graph.number_of_nodes()
@@ -458,18 +478,18 @@ def write_metis_input_file(filter_graph, filename):
                 f.write(" %d %d" % (indices[v], weight_dict['weight']))
 
 
-def read_metis_output_file(filter_graph, n_components, filename):
+def read_metis_output_file(filename):
     """
     Read the given file name, assuming it is the output from a run of gpmetis.
-    The format of the file is: n lines (n is the number of nodes), the i-th line
-    giving information about the i-th node. Each line contains a single integer,
-    which gives the component that the i-th node is assigned to. Components are
+    The format of the file is: n lines (n is the number of nodes), the i-th
+    line giving information about the i-th node. Each line contains a single
+    int giving the component that the i-th node is assigned to. Components are
     indexed starting from 0.
     """
 
     node_assignments = []
 
-    with open(outfile, 'r'):
+    with open(filename, 'r') as f:
         for line in iter(f.readline, ''):
             node_assignments.append(int(line))
 
@@ -477,16 +497,22 @@ def read_metis_output_file(filter_graph, n_components, filename):
 
 
 def metis_input_filename(network):
-    return str(network).replace(' ', '_') + ".metis"
+    file_name = str(network).replace(' ', '_')
+    file_name = file_name.replace('>', '')
+    file_name = file_name.replace('<', '')
+    file_name = file_name.replace('\"', '')
+    file_name = file_name.replace('\'', '')
+    return file_name + ".metis"
 
 
 def metis_output_filename(network, num_components):
-    return str(network).replace(' ', '_') + ".metis.part." + str(num_components)
+    return (
+        metis_input_filename(network) + ".part." + str(num_components))
 
 
 def metis_partitioner(network, num_components, assignments=None):
     """
-    If a file with the correct name exists, it loads that file instead of
+    If a file with the correct name exists, load that file instead of
     creating a new one.
     """
 
@@ -508,15 +534,14 @@ def metis_partitioner(network, num_components, assignments=None):
 
         print "Launching metis..."
         # launch metis with written file
-        import subprocess
-        output = subprocess.check_call(['gpmetis', file_name, str(num_components)])
+        subprocess.check_call(['gpmetis', file_name, str(num_components)])
 
     file_name = metis_output_filename(network, num_components)
 
     print "Reading metis output file: %s" % file_name
-    node_assignments = read_metis_output_file(G, num_components, file_name)
+    node_assignments = read_metis_output_file(file_name)
 
-    for node, component in zip(filter_graph.nodes(), node_assignments):
+    for node, component in zip(G.nodes(), node_assignments):
         for obj in node.objects:
             assignments[obj] = component
 
@@ -654,7 +679,7 @@ def propogate_assignments(network, assignments):
         for node in network.nodes:
             # Non-callable nodes can go on arbitrary processes, as long as
             # connections coming from those nodes do not have functions
-            # associated with them. TODO: enforce this rule.
+            # associated with them.
 
             if callable(node.output):
                 assignments[node] = 0
@@ -662,7 +687,16 @@ def propogate_assignments(network, assignments):
                 assignments[node] = assignments[network]
 
         for ensemble in network.ensembles:
-            if ensemble not in assignments:
+            if isinstance(ensemble.neuron_type, Direct):
+                if ensemble in assignments and assignments[ensemble] != 0:
+                    warnings.warn(
+                        "Found Direct-mode ensemble that was assigned to a "
+                        "component other than component 0. Overriding "
+                        "previous assignment.")
+
+                assignments[ensemble] = 0
+
+            elif ensemble not in assignments:
                 assignments[ensemble] = assignments[network]
 
             assignments[ensemble.neurons] = assignments[ensemble]
@@ -738,7 +772,9 @@ def evaluate_partition(network, num_components, assignments):
     print "*" * 10
 
     print "Evaluating partition of network"
-    print "Total number of items: ", len(network.all_nodes + network.all_ensembles)
+    print (
+        "Total number of items: ",
+        len(network.all_nodes + network.all_ensembles))
     print "Mean items per cluster: ", mean_item_count
     print "Standard deviation of items per cluster", item_count_std
     print "Min number of items", np.min(component_item_counts)
