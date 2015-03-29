@@ -1,4 +1,3 @@
-import nengo
 from nengo import builder
 from nengo.simulator import ProbeDict
 import nengo.utils.numpy as npext

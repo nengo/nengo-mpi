@@ -376,8 +376,7 @@ class MpiModel(builder.Model):
             self.save_file = None
 
             import mpi_sim
-            self.mpi_sim = mpi_sim.PythonMpiSimulator(
-                num_components, dt, save_file)
+            self.mpi_sim = mpi_sim.PythonMpiSimulator(num_components, dt)
 
         # for each component, stores the keys of the signals that have
         # to be sent and received, respectively

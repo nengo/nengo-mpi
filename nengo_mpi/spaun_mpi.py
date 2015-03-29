@@ -43,4 +43,3 @@ def build_spaun_stimulus(model, ss):
     model.sig[ss]['out'] = output
 
     model.add_op(SpaunStimulusOperator(output, ss.stimulus_sequence))
-

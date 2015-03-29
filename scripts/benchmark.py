@@ -52,7 +52,7 @@ parser.add_argument(
          'object to processors')
 
 parser.add_argument(
-    '--save', default='',
+    '--save', type=str, default='',
     help="Supply a filename to write the network to (so it can be "
          "later be used by the stand-alone version of nengo_mpi). "
          "In this case, the network will not be simulated.")
@@ -96,7 +96,7 @@ ensembles = []
 
 m = nengo.Network(label=name, seed=seed)
 with m:
-    m.config[nengo.Ensemble].neuron_type = nengo.LIF()
+    m.config[nengo.Ensemble].neuron_type = nengo.LIFRate()
     input_node = nengo.Node(output=[0.25] * D)
     input_p = nengo.Probe(input_node, synapse=0.01)
 
@@ -148,11 +148,11 @@ if not save_file:
 
     if probe:
         print "Input node result: "
-        print sim.data[input_p][:]
+        print sim.data[input_p][-10:]
 
         for i, p in enumerate(probes):
             print "Stream %d result: " % i
-            print sim.data[p][:]
+            print sim.data[p][-10:]
 
     num_neurons = N * D * num_streams * stream_length
     print "Total simulation time:", t1 - t0, "seconds"
