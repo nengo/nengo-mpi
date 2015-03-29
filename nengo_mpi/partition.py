@@ -243,7 +243,7 @@ def for_component_0(node):
     return False
 
 
-def network_to_filter_graph(network, remove_nengo_nodes=False):
+def network_to_filter_graph(network):
     """
     Creates a graph from a nengo network, where the nodes are collections
     of nengo objects that are connected by non-filtered connections, and edges
@@ -257,6 +257,9 @@ def network_to_filter_graph(network, remove_nengo_nodes=False):
     """
 
     def merge_nodes(node_map, a, b):
+        if a == b:
+            return
+
         a.objects = a.objects.union(b.objects)
         a.inputs = a.inputs.union(b.inputs)
         a.outputs = a.outputs.union(b.outputs)
@@ -296,16 +299,22 @@ def network_to_filter_graph(network, remove_nengo_nodes=False):
     component_0 = filter(for_component_0, node_map.values())
 
     if component_0:
-        reduce(lambda m, n: merge_nodes(node_map, m, n), component_0)
+        reduce(lambda u, v: merge_nodes(node_map, u, v), component_0)
 
     G = nx.Graph()
 
     update_connections = filter(
         is_update, network.all_connections)
 
-    G.add_weighted_edges_from(
-        (node_map[f(conn.pre_obj)], node_map[f(conn.post_obj)], conn.size_mid)
-        for conn in update_connections)
+    for conn in update_connections:
+        pre_node = node_map[f(conn.pre_obj)]
+        post_node = node_map[f(conn.post_obj)]
+
+        if pre_node != post_node:
+            if G.has_edge(pre_node, post_node):
+                G[pre_node][post_node]['weight'] += conn.size_mid
+            else:
+                G.add_edge(pre_node, post_node, weight=conn.size_mid)
 
     return G
 
@@ -466,7 +475,7 @@ def write_metis_input_file(filter_graph, filename):
         for u in filter_graph.nodes():
             f.write('\n')
 
-            vertex_weight = 1
+            vertex_weight = 0
 
             for obj in u.objects:
                 if hasattr(obj, 'n_neurons'):
@@ -526,7 +535,7 @@ def metis_partitioner(network, num_components, assignments=None):
 
     G = network_to_filter_graph(network)
 
-    file_name = metis_input_filename()
+    file_name = metis_input_filename(network)
 
     if not os.path.isfile(file_name):
         print "Writing metis file: %s" % file_name
