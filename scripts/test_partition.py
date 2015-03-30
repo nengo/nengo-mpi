@@ -44,15 +44,11 @@ with model:
     B_p = nengo.Probe(B.output, synapse=0.03)
     C_p = nengo.Probe(C.output, synapse=0.03)
 
-from nengo_mpi.partition import good_partitioner
+from nengo_mpi.partition import metis_partitioner
 
 print "Partitioning network..."
-partitions = good_partitioner(model, 3)
+assignments = metis_partitioner(model, 3)
 
-for i, p in enumerate(partitions):
-    print "Part ", i
-
-    for node in p:
-        print node
+print assignments
 
 print "Done partitioning."

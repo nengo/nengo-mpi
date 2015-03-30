@@ -193,12 +193,17 @@ def work_balanced_partitioner(network, num_components, assignments=None):
     if num_components == 1:
         return {}
 
+    G = network_to_filter_graph(network)
+
     components, sizes = greedy_k(
-        network.all_ensembles, num_components, key=lambda e: e.n_neurons)
+        G.nodes(), num_components,
+        key=lambda n: sum(
+            e.n_neurons for e in n.objects if hasattr(e, 'n_neurons')))
 
     for i, c in enumerate(components):
-        for e in c:
-            assignments[e] = i
+        for n in c:
+            for obj in n.objects:
+                assignments[obj] = i
 
     return assignments
 
@@ -228,6 +233,10 @@ class GraphNode(object):
 
 def is_update(conn):
     return conn.synapse is not None
+
+
+def neurons2ensemble(e):
+    return e.ensemble if isinstance(e, Neurons) else e
 
 
 def for_component_0(node):
@@ -271,18 +280,16 @@ def network_to_filter_graph(network):
 
     node_map = defaultdict(GraphNode)
 
-    f = lambda e: e.ensemble if isinstance(e, Neurons) else e
-
     for conn in network.all_connections:
 
-        pre_obj = f(conn.pre_obj)
+        pre_obj = neurons2ensemble(conn.pre_obj)
 
         pre_node = node_map[pre_obj]
 
         if pre_node.empty():
             pre_node.add_object(pre_obj)
 
-        post_obj = f(conn.post_obj)
+        post_obj = neurons2ensemble(conn.post_obj)
 
         post_node = node_map[post_obj]
 
@@ -307,8 +314,8 @@ def network_to_filter_graph(network):
         is_update, network.all_connections)
 
     for conn in update_connections:
-        pre_node = node_map[f(conn.pre_obj)]
-        post_node = node_map[f(conn.post_obj)]
+        pre_node = node_map[neurons2ensemble(conn.pre_obj)]
+        post_node = node_map[neurons2ensemble(conn.post_obj)]
 
         if pre_node != post_node:
             if G.has_edge(pre_node, post_node):
@@ -431,14 +438,6 @@ def spectral_partitioner(network, num_components, assignments=None):
 
     ordering = nx.spectral_ordering(G)
 
-    print (
-        "Max node size in filter graph: ",
-        max(len(n.objects) for n in G.nodes()))
-
-    print (
-        "Max node size in filter graph: ",
-        max((n.objects for n in G.nodes()), key=lambda x: len(x)))
-
     neurons_per_component = float(neuron_counts[network]) / num_components
 
     component = 0
@@ -541,9 +540,9 @@ def metis_partitioner(network, num_components, assignments=None):
         print "Writing metis file: %s" % file_name
         write_metis_input_file(G, file_name)
 
-        print "Launching metis..."
-        # launch metis with written file
-        subprocess.check_call(['gpmetis', file_name, str(num_components)])
+    print "Launching metis..."
+    # launch metis with written file
+    subprocess.check_call(['gpmetis', file_name, str(num_components)])
 
     file_name = metis_output_filename(network, num_components)
 
@@ -651,7 +650,8 @@ class Partitioner(object):
             network, self.num_components, self.assignments,
             *self.args, **self.kwargs)
 
-        print "Component assignment after partitioning: ", assignments
+        evaluate_partition(
+            network, self.num_components, assignments)
 
         propogate_assignments(network, assignments)
 
@@ -747,7 +747,34 @@ def propogate_assignments(network, assignments):
     assert probes_in, "Assignments incomplete, missing probes."
 
 
-def evaluate_partition(network, num_components, assignments):
+def evaluate_partition(
+        network, num_components, assignments, filter_graph=None):
+
+    print "*" * 80
+
+    if filter_graph is None:
+        filter_graph = network_to_filter_graph(network)
+
+    key = lambda n: sum(
+        e.n_neurons for e in n.objects if hasattr(e, 'n_neurons'))
+
+    graph_node_n_neurons = [key(n) for n in filter_graph.nodes()]
+    graph_node_n_items = [len(n.objects) for n in filter_graph.nodes()]
+
+    print "Filter graph statistics:"
+    print "Number of nodes: ", filter_graph.number_of_nodes()
+    print "Number of edges: ", filter_graph.number_of_edges()
+
+    print "Mean neurons per filter graph node: ", np.mean(graph_node_n_neurons)
+    print "Std of neurons per filter graph node", np.std(graph_node_n_neurons)
+    print "Min number of neurons", np.min(graph_node_n_neurons)
+    print "Max number of neurons", np.max(graph_node_n_neurons)
+
+    print "Mean items per filter graph node: ", np.mean(graph_node_n_items)
+    print "Std of items per filter graph node", np.std(graph_node_n_items)
+    print "Min number of items", np.min(graph_node_n_items)
+    print "Max number of items", np.max(graph_node_n_items)
+
     component_neuron_counts = [0] * num_components
     component_item_counts = [0] * num_components
 
@@ -763,7 +790,7 @@ def evaluate_partition(network, num_components, assignments):
     mean_neuron_count = np.mean(component_neuron_counts)
     neuron_count_std = np.std(component_neuron_counts)
 
-    print "*" * 80
+    print "*" * 20
     print "Evaluating partition of network"
 
     print "Total number of neurons: ", count_neurons(network)[network]
@@ -780,24 +807,23 @@ def evaluate_partition(network, num_components, assignments):
 
     print "*" * 10
 
-    print "Evaluating partition of network"
     print (
-        "Total number of items: ",
+        "Total number of nengo items (nodes and ensembles): ",
         len(network.all_nodes + network.all_ensembles))
     print "Mean items per cluster: ", mean_item_count
     print "Standard deviation of items per cluster", item_count_std
     print "Min number of items", np.min(component_item_counts)
     print "Max number of items", np.max(component_item_counts)
-    print (
-        "Number of empty partitions",
-        num_components - np.count_nonzero(component_item_counts))
 
     communication_weight = 0
     total_weight = 0
 
     for conn in network.all_connections:
         if is_update(conn):
-            if assignments[conn.pre_obj] != assignments[conn.post_obj]:
+            pre_obj = neurons2ensemble(conn.pre_obj)
+            post_obj = neurons2ensemble(conn.post_obj)
+
+            if assignments[pre_obj] != assignments[post_obj]:
                 communication_weight += conn.size_mid
 
             total_weight += conn.size_mid
