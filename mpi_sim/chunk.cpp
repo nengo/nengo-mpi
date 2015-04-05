@@ -4,13 +4,19 @@ MpiSimulatorChunk::MpiSimulatorChunk()
     :time(0.0), dt(0.001), n_steps(0){
 }
 
-MpiSimulatorChunk::MpiSimulatorChunk(string label, dtype dt)
-    :time(0.0), label(label), dt(dt), n_steps(0){
+MpiSimulatorChunk::MpiSimulatorChunk(int component, string label, dtype dt)
+    :component(component), time(0.0), label(label), dt(dt), n_steps(0){
 }
 
 void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
     cout << label << ": running " << steps << " steps." << endl;
+
+    if(component == 0){
+        sim_log.prep_for_simulation(log_filename, steps);
+    }else{
+        sim_log.prep_for_simulation();
+    }
 
     for(auto& kv: probe_map){
         (kv.second)->init_for_simulation(steps);
@@ -21,6 +27,8 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
     if(progress){
         eta.start();
     }
+
+    int FLUSH_PROBES_EVERY = 20;
 
     for(unsigned step = 0; step < steps; ++step){
 
@@ -40,7 +48,13 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         if(progress){
             ++eta;
         }
+
+        if(step % FLUSH_PROBES_EVERY == 0){
+            flush_probes();
+        }
     }
+
+    flush_probes();
 
     for(auto& send: mpi_sends){
         send->complete();
@@ -264,6 +278,14 @@ void MpiSimulatorChunk::add_probe(key_type probe_key, shared_ptr<Probe> probe){
     probe_map[probe_key] = probe;
 }
 
+void MpiSimulatorChunk::set_simulation_log(SimulationLog sl){
+    sim_log = sl;
+}
+
+void MpiSimulatorChunk::set_log_filename(string lf){
+    log_filename = lf;
+}
+
 void MpiSimulatorChunk::set_communicator(MPI_Comm comm){
     for(auto& send: mpi_sends){
         send->set_communicator(comm);
@@ -271,6 +293,12 @@ void MpiSimulatorChunk::set_communicator(MPI_Comm comm){
 
     for(auto& recv: mpi_recvs){
         recv->set_communicator(comm);
+    }
+}
+
+void MpiSimulatorChunk::flush_probes(){
+    for(auto& kv : probe_map){
+        sim_log.write(kv.first, (kv.second)->harvest_data());
     }
 }
 

@@ -37,8 +37,7 @@ void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm)
 
 class MpiInterface{
 public:
-    void initialize_chunks(
-        bool spawn, shared_ptr<MpiSimulatorChunk> chunk, int num_remote_chunks);
+    shared_ptr<MpiSimulatorChunk> initialize_chunks(bool spawn, int num_chunks, dtype dt);
 
     void add_base_signal(
         int component, key_type key, string label, unique_ptr<BaseSignal> data);
@@ -46,7 +45,7 @@ public:
     void add_probe(
         int component, key_type probe_key, string signal_string, dtype period);
 
-    void finalize();
+    void finalize(vector<string> probe_info);
 
     void run_n_steps(int steps, bool progress);
     void gather_probe_data(

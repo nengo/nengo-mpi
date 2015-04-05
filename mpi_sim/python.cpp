@@ -66,11 +66,14 @@ void PythonMpiSimulator::finalize(){
     mpi_sim->finalize();
 }
 
-void PythonMpiSimulator::run_n_steps(bpy::object pysteps, bpy::object progress){
+void PythonMpiSimulator::run_n_steps(
+        bpy::object pysteps, bpy::object progress, bpy::object log_filename){
+
     int c_steps = bpy::extract<int>(pysteps);
     bool c_progress = bpy::extract<bool>(progress);
+    string c_log_filename = bpy::extract<string>(log_filename);
 
-    mpi_sim->run_n_steps(c_steps, c_progress);
+    mpi_sim->run_n_steps(c_steps, c_progress, c_log_filename);
 }
 
 bpy::object PythonMpiSimulator::get_probe_data(

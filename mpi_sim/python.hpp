@@ -35,7 +35,7 @@ public:
     void finalize();
 
     /* Methods for contrsolling simulation. */
-    void run_n_steps(bpy::object steps, bpy::object progress);
+    void run_n_steps(bpy::object steps, bpy::object progress, bpy::object log_filename);
     bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
 
     void reset();

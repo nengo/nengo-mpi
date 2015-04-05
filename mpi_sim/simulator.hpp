@@ -30,7 +30,7 @@ public:
     // Must be called before run_n_steps.
     void finalize();
 
-    void run_n_steps(int steps, bool progress);
+    void run_n_steps(int steps, bool progress, string log_filename);
     vector<key_type> get_probe_keys();
     vector<unique_ptr<BaseSignal>> get_probe_data(key_type probe_key);
 
@@ -74,6 +74,11 @@ private:
     // Map from a source index to number of probes. Used to gather
     // probe data from remote chunks after simulation.
     map<int, int> probe_counts;
+
+    // Store the probe info so that we can scatter it to all
+    // the other processes, which will allow all processes to
+    // build the HDF5 output file correctly.
+    vector<string> probe_info;
 };
 
 #endif

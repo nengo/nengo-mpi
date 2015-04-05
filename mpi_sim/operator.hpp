@@ -19,6 +19,7 @@
 
 #include "debug.hpp"
 
+
 using namespace std;
 
 namespace ublas = boost::numeric::ublas;
@@ -29,6 +30,10 @@ typedef ublas::unbounded_array<dtype> array_type;
 typedef ublas::matrix<dtype> BaseSignal;
 typedef ublas::matrix_slice<BaseSignal> SignalView;
 typedef ublas::scalar_matrix<dtype> ScalarSignal;
+
+/* Type of keys for various maps in the MpiSimulatorChunk. Keys are typically
+ * addresses of python objects, so we need to use long long ints (64 bits). */
+typedef long long int key_type;
 
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures are stored in a list, and we call

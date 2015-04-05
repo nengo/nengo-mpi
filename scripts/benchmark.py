@@ -57,6 +57,11 @@ parser.add_argument(
          "later be used by the stand-alone version of nengo_mpi). "
          "In this case, the network will not be simulated.")
 
+parser.add_argument(
+    '--mpi-log', type=str, default='', dest='mpi_log',
+    help="Supply a filename to write the results of the simulation "
+         "to, if an MPI simulation is performed.")
+
 args = parser.parse_args()
 print "Parameters are: ", args
 
@@ -71,6 +76,7 @@ stream_length = args.sl
 extra_partitions = args.p - 1
 
 use_mpi = args.mpi
+mpi_log = args.mpi_log
 
 save_file = args.save
 
@@ -143,7 +149,12 @@ if not save_file:
     import time
 
     t0 = time.time()
-    sim.run(sim_time, progress_bar)
+
+    if use_mpi:
+        sim.run(sim_time, progress_bar, mpi_log)
+    else:
+        sim.run(sim_time, progress_bar)
+
     t1 = time.time()
 
     if probe:

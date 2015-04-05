@@ -15,12 +15,9 @@
 #include "mpi_operator.hpp"
 #include "custom_ops.hpp"
 #include "probe.hpp"
+#include "sim_log.hpp"
 #include "debug.hpp"
 #include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
-
-/* Type of keys for various maps in the MpiSimulatorChunk. Keys are typically
- * addresses of python objects, so we need to use long long ints (64 bits). */
-typedef long long int key_type;
 
 /* An MpiSimulatorChunk represents the portion of a Nengo
  * network that is simulated by a single MPI process. */
@@ -28,7 +25,7 @@ class MpiSimulatorChunk{
 
 public:
     MpiSimulatorChunk();
-    MpiSimulatorChunk(string label, dtype dt);
+    MpiSimulatorChunk(int component, string label, dtype dt);
     const string classname() { return "MpiSimulatorChunk"; }
 
     /* Run an integer number of steps. Called by a
@@ -105,7 +102,12 @@ public:
     void add_probe(key_type probe_key, shared_ptr<Probe> probe);
 
     // *** Miscellaneous ***
-    //
+
+    // Set the simulation log object which records the results of the simulation
+    void set_simulation_log(SimulationLog sl);
+    void set_log_filename(string lf);
+    void flush_probes();
+
     // Set the communicator used by the mpi ops
     void set_communicator(MPI_Comm comm);
 
@@ -129,6 +131,10 @@ public:
 private:
     dtype time;
     int n_steps;
+    int component;
+
+    SimulationLog sim_log;
+    string log_filename;
 
     map<key_type, string> signal_labels;
     map<key_type, shared_ptr<BaseSignal>> signal_map;

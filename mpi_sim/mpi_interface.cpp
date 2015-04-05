@@ -4,8 +4,8 @@ string recv_string(int src, int tag, MPI_Comm comm){
     int size;
     MPI_Status status;
 
-    // Convention: recv the size of the string, ommitting
-    // the c_str's terminating character
+    // Convention: After this call ``size'' gives the size of
+    // the string, not including the c_str's terminating character
     MPI_Recv(&size, 1, MPI_INT, src, tag, comm, &status);
 
     unique_ptr<char[]> buffer(new char[size+1]);
@@ -105,11 +105,10 @@ void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm)
     MPI_Send(data_buffer.get(), size1 * size2, MPI_DOUBLE, dst, tag, comm);
 }
 
-void MpiInterface::initialize_chunks(
-        bool spawn, shared_ptr<MpiSimulatorChunk> chunk, int num_chunks){
+shared_ptr<MpiSimulatorChunk> MpiInterface::initialize_chunks(bool spawn, int num_chunks, dtype dt){
 
-    master_chunk = chunk;
-    num_remote_chunks = num_chunks;
+    master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt));
+    num_remote_chunks = num_chunks - 1;
 
     int argc = 0;
     char** argv;
@@ -148,7 +147,6 @@ void MpiInterface::initialize_chunks(
     cout << "Master rank in merged communicator: "
          << rank << " (should be 0)." << endl;
 
-    dtype dt = master_chunk->dt;
     string chunk_label;
 
     for(int i = 0; i < num_remote_chunks; i++){
@@ -159,6 +157,8 @@ void MpiInterface::initialize_chunks(
         send_string(chunk_label, i+1, setup_tag, comm);
         send_dtype(dt, i+1, setup_tag, comm);
     }
+
+    return master_chunk;
 }
 
 void MpiInterface::add_base_signal(
@@ -187,14 +187,17 @@ void MpiInterface::add_probe(
     send_dtype(period, component, setup_tag, comm);
 }
 
-void MpiInterface::finalize(){
-
-    master_chunk->set_communicator(comm);
-    master_chunk->add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
-
+void MpiInterface::finalize(vector<string> probe_info){
     for(int i = 0; i < num_remote_chunks; i++){
         send_int(stop_flag, i+1, setup_tag, comm);
     }
+
+    SimulationLog sim_log(
+        num_remote_chunks+1, probe_info, master_chunk->dt, comm);
+
+    master_chunk->set_simulation_log(sim_log);
+    master_chunk->set_communicator(comm);
+    master_chunk->add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
 }
 
 void MpiInterface::run_n_steps(int steps, bool progress){

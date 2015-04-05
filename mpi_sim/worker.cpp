@@ -17,7 +17,9 @@ using namespace std;
 // MpiSimulator object and load a built nengo network from a file specified on the
 // command line, and the rest of the processes will jump straight into start_worker.
 
-// comm: The communicator for the worker to communicate on.
+// comm: The communicator for the worker to communicate on. Must
+// be an intracommunicator involving all processes, with the master
+// process having rank 0.
 void start_worker(MPI_Comm comm){
 
     int my_id, num_procs;
@@ -37,7 +39,7 @@ void start_worker(MPI_Comm comm){
 
     dtype dt = recv_dtype(0, setup_tag, comm);
 
-    MpiSimulatorChunk chunk(chunk_label, dt);
+    MpiSimulatorChunk chunk(my_id, chunk_label, dt);
 
     int s = 0;
     string op_string;
@@ -99,8 +101,11 @@ void start_worker(MPI_Comm comm){
         }
     }
 
-    dbg("Worker " << my_id << " setting up MPI operators...");
+    dbg("Worker " << my_id << " setting up simulation log...");
+    SimulationLog sim_log(num_procs, my_id, dt, comm);
+    chunk.set_simulation_log(sim_log);
 
+    dbg("Worker " << my_id << " setting up MPI operators...");
     chunk.set_communicator(comm);
     chunk.add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
 
@@ -172,6 +177,13 @@ int main(int argc, char **argv){
                 show_progress = boost::lexical_cast<int>(argv[3]);
             }
 
+            string log_filename;
+            if(argc < 5){
+                log_filename = "";
+            }else{
+                log_filename = argv[4];
+            }
+
             string filename = argv[1];
             float sim_length = boost::lexical_cast<float>(argv[2]);
 
@@ -187,7 +199,11 @@ int main(int argc, char **argv){
             int num_steps = int(sim_length / mpi_sim.dt);
 
             cout << "Running simulation..." << endl;
-            mpi_sim.run_n_steps(num_steps, bool(show_progress));
+            if(log_filename.compare("") != 0){
+                cout << "Logging simulation results to " << log_filename << endl;
+            }
+
+            mpi_sim.run_n_steps(num_steps, bool(show_progress), log_filename);
 
             for(auto& key : mpi_sim.get_probe_keys()){
                 vector<unique_ptr<BaseSignal>> probe_data = mpi_sim.get_probe_data(key);

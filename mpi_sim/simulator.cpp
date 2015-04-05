@@ -8,13 +8,13 @@ MpiSimulator::MpiSimulator()
 MpiSimulator::MpiSimulator(int num_components, dtype dt)
 :num_components(num_components), dt(dt), master_chunk(NULL), spawn(true){
 
-    master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk("Chunk 0", dt));
-
     if(num_components == 1){
         cout << "Master: Only one chunk supplied. "
              << "Simulations will not use MPI." << endl;
+
+        master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt));
     }else{
-        mpi_interface.initialize_chunks(spawn, master_chunk, num_components - 1);
+        master_chunk = mpi_interface.initialize_chunks(spawn, num_components, dt);
     }
 
     for(int i = 0; i < num_components; i++){
@@ -33,13 +33,12 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn)
     getline(in_file, line, '\n');
     dt = boost::lexical_cast<dtype>(line);
 
-    master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk("Chunk 0", dt));
-
     if(num_components == 1){
         cout << "Master: Only one chunk supplied. "
              << "Simulations will not use MPI." << endl;
+        master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt));
     }else{
-        mpi_interface.initialize_chunks(spawn, master_chunk, num_components - 1);
+        master_chunk = mpi_interface.initialize_chunks(spawn, num_components, dt);
     }
 
     for(int i = 0; i < num_components; i++){
@@ -116,11 +115,17 @@ MpiSimulator::MpiSimulator(string in_filename, bool spawn)
 
 void MpiSimulator::finalize(){
     if(num_components > 1){
-        mpi_interface.finalize();
+        mpi_interface.finalize(probe_info);
+    }else{
+        SimulationLog sim_log(probe_info, master_chunk->dt);
+        master_chunk->set_simulation_log(sim_log);
     }
 }
 
-void MpiSimulator::run_n_steps(int steps, bool progress){
+void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
+
+    master_chunk->set_log_filename(log_filename);
+
     if(num_components == 1){
         master_chunk->run_n_steps(steps, progress);
     }else{
@@ -197,8 +202,14 @@ void MpiSimulator::add_op_to_master(unique_ptr<Operator> op){
 void MpiSimulator::add_probe(
         int component, key_type probe_key, string signal_string, int period){
 
-    dbg("PROBE" << delim << component << delim << probe_key << delim
-                << signal_string << delim << period);
+    stringstream ss;
+
+    ss << "PROBE" << delim << component << delim << probe_key << delim
+                  << signal_string << delim << period;
+
+    probe_info.push_back(ss.str());
+
+    dbg(ss.str());
 
     if(component == 0){
         master_chunk->add_probe(probe_key, signal_string, period);
