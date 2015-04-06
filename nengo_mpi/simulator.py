@@ -78,7 +78,7 @@ class Simulator(object):
         builder.Builder.build(self.model, network)
 
         print "Finalizing MPI model..."
-        self.model.finalize()
+        self.model.finalize_build()
 
         # probe -> python list
         self._probe_outputs = self.model.params

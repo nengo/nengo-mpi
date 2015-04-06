@@ -8,6 +8,7 @@
 #include <iostream>
 
 #include "simulator.hpp"
+#include "mpi_simulator.hpp"
 #include "operator.hpp"
 #include "probe.hpp"
 #include "debug.hpp"
@@ -29,12 +30,11 @@ unique_ptr<BaseSignal> list_to_matrix(bpy::list l);
 class PythonMpiSimulator{
 public:
     PythonMpiSimulator();
-    PythonMpiSimulator(
-        bpy::object num_components, bpy::object dt);
+    PythonMpiSimulator(bpy::object num_components, bpy::object dt);
 
-    void finalize();
+    void finalize_build();
 
-    /* Methods for contrsolling simulation. */
+    /* Methods for controlling simulation. */
     void run_n_steps(bpy::object steps, bpy::object progress, bpy::object log_filename);
     bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
 
@@ -65,7 +65,7 @@ public:
     string to_string() const;
 
 private:
-    unique_ptr<MpiSimulator> mpi_sim;
+    unique_ptr<Simulator> sim;
 };
 
 class PyFunc: public Operator{

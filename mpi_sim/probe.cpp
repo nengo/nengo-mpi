@@ -1,10 +1,10 @@
 #include "probe.hpp"
 
 Probe::Probe(SignalView signal, dtype period)
-:signal(signal), period(period), index(0), step_offset(0){
+:signal(signal), period(period), data_index(0), time_index(0){
 }
 
-void Probe::init_for_simulation(int n_steps){
+void Probe::init_for_simulation(int n_steps, int fe){
 
     if(!data.empty()){
         stringstream error;
@@ -14,10 +14,23 @@ void Probe::init_for_simulation(int n_steps){
         throw logic_error(error.str());
     }
 
-    step_offset = index;
-    index = 0;
+    time_index = data_index;
+    data_index = 0;
+
+    buffer.reset();
+
+    flush_every = fe;
+    if(flush_every > 0){
+        buffer = shared_ptr<dtype>(new dtype[signal.size1() * flush_every]);
+    }else{
+        buffer = shared_ptr<dtype>(NULL);
+    }
 
     int num_samples = (int) floor(n_steps / period);
+
+    if(flush_every > 0){
+        num_samples = min(num_samples, flush_every);
+    }
 
     data.reserve(num_samples);
 
@@ -27,10 +40,33 @@ void Probe::init_for_simulation(int n_steps){
 }
 
 void Probe::gather(int step){
-    if(fmod(step + step_offset, period) < 1){
-        *(data[index]) = signal;
-        index++;
+    if(fmod(step + time_index, period) < 1){
+        *(data[data_index]) = signal;
+        data_index++;
     }
+}
+
+shared_ptr<dtype> Probe::flush_to_buffer(int &n_rows){
+    if(flush_every <= 0){
+        throw logic_error(
+            "Calling flush_to_buffer, but Probe has flush_every <= 0.");
+    }
+
+    int n_cols = data[0]->size1();
+
+    int idx = 0;
+    for(int i = 0; i < data_index; i++){
+        for(int j = 0; j < n_cols; j++){
+            buffer.get()[idx] = (*data[i])(j, 0);
+            idx++;
+        }
+    }
+
+    n_rows = data_index;
+
+    data_index = 0;
+
+    return buffer;
 }
 
 vector<unique_ptr<BaseSignal>> Probe::harvest_data(){
@@ -40,13 +76,13 @@ vector<unique_ptr<BaseSignal>> Probe::harvest_data(){
 }
 
 void Probe::clear(){
-    index = 0;
+    data_index = 0;
     data.clear();
 }
 
 void Probe::reset(){
     clear();
-    step_offset = 0;
+    time_index = 0;
 }
 
 string Probe::to_string() const{
@@ -55,8 +91,8 @@ string Probe::to_string() const{
     out << "period: " << period << endl;
     out << "size: " << data.size() << endl;
     out << "signal: " << signal << endl;
-    out << "index: " << index << endl;
-    out << "step_offset: " << step_offset << endl;
+    out << "data_index: " << data_index << endl;
+    out << "time_index: " << time_index << endl;
 
     out << "data: " << endl;
     for(unsigned i = 0; i < data.size(); i++){

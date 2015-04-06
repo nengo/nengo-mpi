@@ -24,7 +24,7 @@ else
 	BOOST_LIB=${SCINET_BOOST_LIB}
 endif
 
-OBJS=simulator.o operator.o mpi_operator.o custom_ops.o probe.o chunk.o mpi_interface.o sim_log.o
+OBJS=simulator.o operator.o mpi_operator.o custom_ops.o probe.o chunk.o mpi_simulator.o sim_log.o utils.o
 
 SO_LOC=${HOME}/nengo_mpi/nengo_mpi
 
@@ -53,7 +53,7 @@ clean:
 mpi_sim_worker: worker.o ${OBJS}
 	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} ${DEFS} -std=${STD} -L${BOOST_LIB} -lm -lhdf5
 
-worker.o: worker.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
+worker.o: worker.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp utils.hpp debug.hpp
 
 # ********* mpi_sim.so *************
 
@@ -61,11 +61,12 @@ mpi_sim: ${OBJS} python.o
 	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared ${DEFS} -std=${STD} -L${BOOST_LIB} -lm -L${PYTHON_LIB} -lboost_python -lhdf5
 
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
-mpi_interface.o: mpi_interface.cpp mpi_interface.hpp simulator.hpp
+mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
 probe.o: probe.cpp probe.hpp operator.hpp debug.hpp
 python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
 chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp custom_ops.hpp probe.hpp debug.hpp sim_log.hpp
-simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_interface.hpp debug.hpp
+simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_simulator.hpp debug.hpp
 custom_ops.o: custom_ops.cpp custom_ops.hpp operator.hpp debug.hpp
-sim_log.o: operator.hpp debug.hpp
+sim_log.o: sim_log.cpp operator.hpp debug.hpp
+utils.o: utils.cpp utils.hpp debug.hpp

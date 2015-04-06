@@ -13,13 +13,20 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
     cout << label << ": running " << steps << " steps." << endl;
 
     if(component == 0){
-        sim_log.prep_for_simulation(log_filename, steps);
+        sim_log->prep_for_simulation(log_filename, steps);
     }else{
-        sim_log.prep_for_simulation();
+        sim_log->prep_for_simulation();
+    }
+
+    int flush_every;
+    if(sim_log->is_ready()){
+        flush_every = FLUSH_PROBES_EVERY;
+    }else{
+        flush_every = 0;
     }
 
     for(auto& kv: probe_map){
-        (kv.second)->init_for_simulation(steps);
+        (kv.second)->init_for_simulation(steps, flush_every);
     }
 
     ez::ezETAProgressBar eta(steps);
@@ -28,9 +35,11 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         eta.start();
     }
 
-    int FLUSH_PROBES_EVERY = 20;
-
     for(unsigned step = 0; step < steps; ++step){
+        if(step % FLUSH_PROBES_EVERY == 0 && step != 0){
+            cout << "Component " << component << " beginning step: " << step << ", flushing probes." << endl;
+            flush_probes();
+        }
 
         // Update time before calling operators, as refimpl does
         n_steps++;
@@ -47,10 +56,6 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
         if(progress){
             ++eta;
-        }
-
-        if(step % FLUSH_PROBES_EVERY == 0){
-            flush_probes();
         }
     }
 
@@ -271,6 +276,7 @@ void MpiSimulatorChunk::add_mpi_recv(unique_ptr<MPIRecv> mpi_recv){
 
 void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, dtype period){
     SignalView signal = get_signal_view(signal_string);
+
     probe_map[probe_key] = shared_ptr<Probe>(new Probe(signal, period));
 }
 
@@ -278,12 +284,16 @@ void MpiSimulatorChunk::add_probe(key_type probe_key, shared_ptr<Probe> probe){
     probe_map[probe_key] = probe;
 }
 
-void MpiSimulatorChunk::set_simulation_log(SimulationLog sl){
-    sim_log = sl;
+void MpiSimulatorChunk::set_simulation_log(unique_ptr<SimulationLog> sl){
+    sim_log = move(sl);
 }
 
 void MpiSimulatorChunk::set_log_filename(string lf){
     log_filename = lf;
+}
+
+void MpiSimulatorChunk::close_simulation_log(){
+    sim_log->close();
 }
 
 void MpiSimulatorChunk::set_communicator(MPI_Comm comm){
@@ -297,8 +307,20 @@ void MpiSimulatorChunk::set_communicator(MPI_Comm comm){
 }
 
 void MpiSimulatorChunk::flush_probes(){
-    for(auto& kv : probe_map){
-        sim_log.write(kv.first, (kv.second)->harvest_data());
+    if(sim_log->is_ready()){
+        for(auto& kv : probe_map){
+            int n_rows;
+            shared_ptr<dtype> buffer = (kv.second)->flush_to_buffer(n_rows);
+
+            try{
+                sim_log->write(kv.first, buffer, n_rows);
+            }catch(out_of_range& e){
+                stringstream msg;
+                msg << "Trying to write to simulation log on component " << component << " using "
+                       "invalid probe key: " << kv.first << "." << endl;
+                throw out_of_range(msg.str());
+            }
+        }
     }
 }
 

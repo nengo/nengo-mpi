@@ -330,16 +330,16 @@ def signal_to_string(signal, delim=':'):
 
 def ndarray_to_mpi_string(a):
     if a.ndim == 0:
-        return "[1, 1]%f" % a
+        return "[1,1]%f" % a
 
     elif a.ndim == 1:
-        s = "[%d, 1]" % a.size
+        s = "[%d,1]" % a.size
         s += ",".join([str(f) for f in a.flatten()])
         return s
 
     else:
         assert a.ndim == 2
-        s = "[%d, %d]" % a.shape
+        s = "[%d,%d]" % a.shape
         s += ",".join([str(f) for f in a.flatten()])
         return s
 
@@ -523,7 +523,7 @@ class MpiModel(builder.Model):
         """
         self.object_ops[self._object_context[-1]].append(op)
 
-    def finalize(self):
+    def finalize_build(self):
         """
         Called once the Builder has finished running. Adds operators
         and probes to the mpi simulator. The signals should already have
@@ -540,7 +540,7 @@ class MpiModel(builder.Model):
                 sample_every=probe.sample_every)
 
         if not self.save_file:
-            self.mpi_sim.finalize()
+            self.mpi_sim.finalize_build()
 
     def from_refimpl_model(self, model):
         """Create an MpiModel from an instance of a refimpl Model."""

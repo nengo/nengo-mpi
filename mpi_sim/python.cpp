@@ -54,16 +54,20 @@ unique_ptr<BaseSignal> list_to_matrix(bpy::list l){
 
 PythonMpiSimulator::PythonMpiSimulator(){}
 
-PythonMpiSimulator::PythonMpiSimulator(
-        bpy::object num_components, bpy::object dt){
+PythonMpiSimulator::PythonMpiSimulator(bpy::object num_components, bpy::object dt){
 
-    mpi_sim = unique_ptr<MpiSimulator>(
-        new MpiSimulator(
-            bpy::extract<int>(num_components), bpy::extract<dtype>(dt)));
+    int c_num_components = bpy::extract<int>(num_components);
+    dtype c_dt = bpy::extract<dtype>(dt);
+
+    if(c_num_components == 1){
+        sim = unique_ptr<Simulator>(new Simulator(c_dt));
+    }else{
+        sim = unique_ptr<Simulator>(new MpiSimulator(c_num_components, c_dt));
+    }
 }
 
-void PythonMpiSimulator::finalize(){
-    mpi_sim->finalize();
+void PythonMpiSimulator::finalize_build(){
+    sim->finalize_build();
 }
 
 void PythonMpiSimulator::run_n_steps(
@@ -73,14 +77,14 @@ void PythonMpiSimulator::run_n_steps(
     bool c_progress = bpy::extract<bool>(progress);
     string c_log_filename = bpy::extract<string>(log_filename);
 
-    mpi_sim->run_n_steps(c_steps, c_progress, c_log_filename);
+    sim->run_n_steps(c_steps, c_progress, c_log_filename);
 }
 
 bpy::object PythonMpiSimulator::get_probe_data(
         bpy::object probe_key, bpy::object make_array){
 
     key_type c_probe_key = bpy::extract<key_type>(probe_key);
-    vector<unique_ptr<BaseSignal>> data = mpi_sim->get_probe_data(c_probe_key);
+    vector<unique_ptr<BaseSignal>> data = sim->get_probe_data(c_probe_key);
 
     bpy::list py_list;
 
@@ -116,7 +120,7 @@ bpy::object PythonMpiSimulator::get_probe_data(
 }
 
 void PythonMpiSimulator::reset(){
-    mpi_sim->reset();
+    sim->reset();
 }
 
 void PythonMpiSimulator::add_signal(
@@ -127,14 +131,14 @@ void PythonMpiSimulator::add_signal(
     string c_label = bpy::extract<string>(label);
     unique_ptr<BaseSignal> c_data = ndarray_to_matrix(data);
 
-    mpi_sim->add_base_signal(c_component, c_key, c_label, move(c_data));
+    sim->add_base_signal(c_component, c_key, c_label, move(c_data));
 }
 
 void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
     int c_component = bpy::extract<int>(component);
     string c_op_string = bpy::extract<string>(op_string);
 
-    mpi_sim->add_op(c_component, c_op_string);
+    sim->add_op(c_component, c_op_string);
 }
 
 void PythonMpiSimulator::add_probe(
@@ -146,15 +150,15 @@ void PythonMpiSimulator::add_probe(
     string c_signal_string = bpy::extract<string>(signal_string);
     dtype c_period = bpy::extract<dtype>(period);
 
-    mpi_sim->add_probe(c_component, c_probe_key, c_signal_string, c_period);
+    sim->add_probe(c_component, c_probe_key, c_signal_string, c_period);
 }
 
 void PythonMpiSimulator::create_PyFunc(bpy::object py_fn, bpy::object t_in){
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? mpi_sim->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
 
-    mpi_sim->add_op_to_master(unique_ptr<Operator>(new PyFunc(py_fn, time_pointer)));
+    sim->add_op(unique_ptr<Operator>(new PyFunc(py_fn, time_pointer)));
 }
 
 void PythonMpiSimulator::create_PyFuncI(
@@ -164,12 +168,12 @@ void PythonMpiSimulator::create_PyFuncI(
     string input_signal = bpy::extract<string>(input);
 
     dbg("Creating PyFuncI. Input signal: " << input_signal);
-    SignalView input_mat = mpi_sim->get_signal_from_master(input_signal);
+    SignalView input_mat = sim->get_signal(input_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? mpi_sim->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
 
-    mpi_sim->add_op_to_master(
+    sim->add_op(
         unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, input_mat, py_input)));
 }
 
@@ -179,12 +183,12 @@ void PythonMpiSimulator::create_PyFuncO(
     string output_signal = bpy::extract<string>(output);
 
     dbg("Creating PyFuncO. Output signal: " << output_signal);
-    SignalView output_mat = mpi_sim->get_signal_from_master(output_signal);
+    SignalView output_mat = sim->get_signal(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? mpi_sim->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
 
-    mpi_sim->add_op_to_master(
+    sim->add_op(
         unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, output_mat)));
 }
 
@@ -197,21 +201,21 @@ void PythonMpiSimulator::create_PyFuncIO(
 
     string input_signal = bpy::extract<string>(input);
     dbg("Input signal: " << input_signal);
-    SignalView input_mat = mpi_sim->get_signal_from_master(input_signal);
+    SignalView input_mat = sim->get_signal(input_signal);
 
     string output_signal = bpy::extract<string>(output);
     dbg("Output signal: " << output_signal);
-    SignalView output_mat = mpi_sim->get_signal_from_master(output_signal);
+    SignalView output_mat = sim->get_signal(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? mpi_sim->get_time_pointer() : NULL;
+    dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
 
-    mpi_sim->add_op_to_master(
+    sim->add_op(
         unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, input_mat, py_input, output_mat)));
 }
 
 string PythonMpiSimulator::to_string() const{
-    return mpi_sim->to_string();
+    return sim->to_string();
 }
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time)
@@ -295,7 +299,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulator, boost::noncopyable>(
             "PythonMpiSimulator", bpy::init<bpy::object, bpy::object>())
-        .def("finalize", &PythonMpiSimulator::finalize)
+        .def("finalize_build", &PythonMpiSimulator::finalize_build)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
         .def("reset", &PythonMpiSimulator::reset)

@@ -18,21 +18,33 @@ using namespace std;
 struct HDF5Dataset{
     HDF5Dataset(){};
 
-    HDF5Dataset(string n, hid_t d, hid_t dspace)
-        :parallel(false), dset_id(d), dataspace_id(dspace),
-         plist_id(H5P_DEFAULT), name(n), row_offset(0){};
+    HDF5Dataset(string n, int n_cols, hid_t d, hid_t dspace)
+        :parallel(false), name(n), n_cols(n_cols), dset_id(d),
+         dataspace_id(dspace), plist_id(H5P_DEFAULT), row_offset(0){};
 
-    HDF5Dataset(string n, hid_t d, hid_t dspace, hid_t p)
-        :parallel(true), dset_id(d), dataspace_id(dspace),
-         plist_id(p), name(n), row_offset(0){};
+    HDF5Dataset(string n, int n_cols, hid_t d, hid_t dspace, hid_t p)
+        :parallel(true), name(n), n_cols(n_cols), dset_id(d),
+         dataspace_id(dspace), plist_id(p), row_offset(0){};
+
+    void close(){
+        H5Dclose(dset_id);
+        H5Sclose(dataspace_id);
+
+        if(parallel){
+            H5Pclose(plist_id);
+        }
+    }
 
     bool parallel;
+
+    string name;
+
+    int n_cols;
 
     hid_t dset_id;
     hid_t dataspace_id;
     hid_t plist_id;
 
-    string name;
     int row_offset;
 };
 
@@ -53,43 +65,58 @@ class SimulationLog{
 public:
     SimulationLog(){};
 
-    // Used when only one component being used
     SimulationLog(vector<string> probe_strings, dtype dt);
+    SimulationLog(dtype dt);
 
-    // Called by master
-    SimulationLog(int num_components, vector<string> probe_info, dtype dt, MPI_Comm comm);
-    void prep_for_simulation(string filename, int num_steps);
-
-    // Called by workers
-    SimulationLog(int num_components, int component, dtype dt, MPI_Comm comm);
-    void prep_for_simulation();
+    virtual void prep_for_simulation(string filename, int num_steps);
+    virtual void prep_for_simulation();
 
     bool is_ready(){return ready_for_simulation;};
 
     void store_probe_info(vector<string> probe_strings);
-    void setup_hdf5(string filename, int num_steps);
-    void write(key_type probe_key, vector<unique_ptr<BaseSignal>> data);
+    virtual void setup_hdf5(string filename, int num_steps);
+    void write(key_type probe_key, shared_ptr<dtype> buffer, int n_rows);
     void close();
 
-private:
+    bool is_closed(){return closed;};
+
+protected:
     bool ready_for_simulation;
 
-    int num_components;
-    int component;
     dtype dt;
-    MPI_Comm comm;
 
-    int mpi_rank;
-    int mpi_size;
-
-    //string filename;
     hid_t file_id;
 
     vector<ProbeInfo> probe_info;
 
     map<key_type, HDF5Dataset> dset_map;
     vector<HDF5Dataset> datasets;
+    bool closed;
 };
+
+class ParallelSimulationLog: public SimulationLog{
+public:
+    ParallelSimulationLog(){};
+
+    // Called by master
+    ParallelSimulationLog(int num_components, vector<string> probe_info, dtype dt, MPI_Comm comm);
+    void prep_for_simulation(string filename, int num_steps);
+
+    // Called by workers
+    ParallelSimulationLog(int num_components, int component, dtype dt, MPI_Comm comm);
+    void prep_for_simulation();
+
+    void setup_hdf5(string filename, int num_steps);
+
+protected:
+    int num_components;
+    int component;
+    MPI_Comm comm;
+
+    int mpi_rank;
+    int mpi_size;
+};
+
 
 vector<string> bcast_recv_probe_info(MPI_Comm comm);
 void bcast_send_probe_info(vector<string> probe_info, MPI_Comm comm);

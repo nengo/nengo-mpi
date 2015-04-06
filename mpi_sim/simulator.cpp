@@ -1,141 +1,102 @@
 #include "simulator.hpp"
 
-char MpiSimulator::delim = '|';
+char Simulator::delim = '|';
 
-MpiSimulator::MpiSimulator()
-:num_components(0), dt(0.001), master_chunk(NULL){}
+Simulator::Simulator()
+:Simulator(0.001){}
 
-MpiSimulator::MpiSimulator(int num_components, dtype dt)
-:num_components(num_components), dt(dt), master_chunk(NULL), spawn(true){
-
-    if(num_components == 1){
-        cout << "Master: Only one chunk supplied. "
-             << "Simulations will not use MPI." << endl;
-
-        master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt));
-    }else{
-        master_chunk = mpi_interface.initialize_chunks(spawn, num_components, dt);
-    }
-
-    for(int i = 0; i < num_components; i++){
-        probe_counts[i] = 0;
-    }
+Simulator::Simulator(dtype dt)
+:dt(dt), chunk(NULL){
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt));
 }
 
-MpiSimulator::MpiSimulator(string in_filename, bool spawn)
-:num_components(0), dt(0.001), master_chunk(NULL), spawn(spawn){
-    ifstream in_file(in_filename);
+void Simulator::add_base_signal(
+        key_type key, string label, unique_ptr<BaseSignal> data){
 
-    string line;
-    getline(in_file, line, delim);
-    num_components = boost::lexical_cast<int>(line);
+    dbg("SIGNAL" << delim << key << delim << label << delim << *data);
 
-    getline(in_file, line, '\n');
-    dt = boost::lexical_cast<dtype>(line);
-
-    if(num_components == 1){
-        cout << "Master: Only one chunk supplied. "
-             << "Simulations will not use MPI." << endl;
-        master_chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt));
-    }else{
-        master_chunk = mpi_interface.initialize_chunks(spawn, num_components, dt);
-    }
-
-    for(int i = 0; i < num_components; i++){
-        probe_counts[i] = 0;
-    }
-
-    string cell;
-
-    dbg("Loading nengo network from file.");
-
-    while(getline(in_file, line, '\n')){
-        stringstream line_stream;
-        line_stream << line;
-        getline(line_stream, cell, delim);
-
-        if(cell.compare("SIGNAL") == 0){
-            getline(line_stream, cell, delim);
-            int component = boost::lexical_cast<int>(cell);
-
-            getline(line_stream, cell, delim);
-            key_type key = boost::lexical_cast<key_type>(cell);
-
-            getline(line_stream, cell, delim);
-            string label = cell;
-
-            getline(line_stream, cell, delim);
-
-            vector<string> tokens;
-            boost::trim_if(cell, boost::is_any_of(",()[]"));
-            boost::split(tokens, cell, boost::is_any_of(",()[]"), boost::token_compress_on);
-
-            vector<string>::iterator it = tokens.begin();
-            int size1 = boost::lexical_cast<int>(*(it++));
-            int size2 = boost::lexical_cast<int>(*(it++));
-
-            auto data = unique_ptr<BaseSignal>(new BaseSignal(size1, size2));
-
-            for(int i = 0; it < tokens.end(); it++, i++){
-                (*data)(i / size2, i % size2) = boost::lexical_cast<dtype>(*it);
-            }
-
-            add_base_signal(component, key, label, move(data));
-
-        }else if(cell.compare("OP") == 0){
-            getline(line_stream, cell, delim);
-            int component = boost::lexical_cast<int>(cell);
-
-            getline(line_stream, cell, delim);
-            string op_string = cell;
-
-            add_op(component, op_string);
-
-        }else if(cell.compare("PROBE") == 0){
-            getline(line_stream, cell, delim);
-            int component = boost::lexical_cast<int>(cell);
-
-            getline(line_stream, cell, delim);
-            key_type probe_key = boost::lexical_cast<key_type>(cell);
-
-            getline(line_stream, cell, delim);
-            string signal_string = cell;
-
-            getline(line_stream, cell, delim);
-            int period = boost::lexical_cast<int>(cell);
-
-            add_probe(component, probe_key, signal_string, period);
-        }
-    }
-
-    in_file.close();
-
-    finalize();
+    chunk->add_base_signal(key, label, move(data));
 }
 
-void MpiSimulator::finalize(){
-    if(num_components > 1){
-        mpi_interface.finalize(probe_info);
-    }else{
-        SimulationLog sim_log(probe_info, master_chunk->dt);
-        master_chunk->set_simulation_log(sim_log);
+void Simulator::add_base_signal(
+        int component, key_type key, string label, unique_ptr<BaseSignal> data){
+
+    if(component != 0){
+        throw logic_error(
+            "Adding signal with non-zero component to non-mpi simulator.");
     }
+
+    add_base_signal(key, label, move(data));
 }
 
-void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
+void Simulator::add_op(string op_string){
 
-    master_chunk->set_log_filename(log_filename);
+    dbg("OP" << delim << delim << op_string);
 
-    if(num_components == 1){
-        master_chunk->run_n_steps(steps, progress);
-    }else{
-        mpi_interface.run_n_steps(steps, progress);
-        mpi_interface.gather_probe_data(probe_data, probe_counts);
-        mpi_interface.finish_simulation();
+    chunk->add_op(op_string);
+}
+
+void Simulator::add_op(int component, string op_string){
+    if(component != 0){
+        throw logic_error(
+            "Adding operator with non-zero component to non-mpi simulator.");
     }
 
-    // Gather probe data from the master chunk
-    for(auto& kv: master_chunk->probe_map){
+    add_op(op_string);
+}
+
+void Simulator::add_probe(
+        key_type probe_key, string signal_string, dtype period){
+
+    stringstream ss;
+
+    ss << "PROBE" << delim << 0 << delim << probe_key << delim
+                  << signal_string << delim << period;
+
+    probe_info.push_back(ss.str());
+
+    dbg(ss.str());
+
+    chunk->add_probe(probe_key, signal_string, period);
+    probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();
+}
+
+void Simulator::add_probe(
+        int component, key_type probe_key, string signal_string, dtype period){
+
+    if(component != 0){
+        throw logic_error(
+            "Adding probe with non-zero component to non-mpi simulator.");
+    }
+
+    add_probe(probe_key, signal_string, period);
+}
+
+SignalView Simulator::get_signal(string signal_string){
+    return chunk->get_signal_view(signal_string);
+}
+
+void Simulator::add_op(unique_ptr<Operator> op){
+    chunk->add_op(move(op));
+}
+
+void Simulator::finalize_build(){
+
+    chunk->set_simulation_log(
+        unique_ptr<SimulationLog>(new SimulationLog(probe_info, dt)));
+}
+
+void Simulator::run_n_steps(int steps, bool progress, string log_filename){
+
+    chunk->set_log_filename(log_filename);
+    chunk->run_n_steps(steps, progress);
+
+    gather_probe_data();
+}
+
+void Simulator::gather_probe_data(){
+    // Gather probe data from the chunk
+    for(auto& kv: chunk->probe_map){
         auto& data = probe_data.at(kv.first);
         auto new_data = (kv.second)->harvest_data();
 
@@ -147,7 +108,11 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     }
 }
 
-vector<key_type> MpiSimulator::get_probe_keys(){
+vector<unique_ptr<BaseSignal>> Simulator::get_probe_data(key_type probe_key){
+    return move(probe_data.at(probe_key));
+}
+
+vector<key_type> Simulator::get_probe_keys(){
     vector<key_type> keys;
     for(auto const& kv: probe_data){
         keys.push_back(kv.first);
@@ -156,79 +121,19 @@ vector<key_type> MpiSimulator::get_probe_keys(){
     return keys;
 }
 
-vector<unique_ptr<BaseSignal>> MpiSimulator::get_probe_data(key_type probe_key){
-    return move(probe_data.at(probe_key));
-}
-
-void MpiSimulator::reset(){
+void Simulator::reset(){
     // TODO
     //Clear probe data
-    //Tell master chunk to reset
     //Send a signal to remote chunks telling them to reset
 }
 
-void MpiSimulator::add_base_signal(
-        int component, key_type key, string label, unique_ptr<BaseSignal> data){
-
-    dbg("SIGNAL" << delim << component << delim
-                 << key << delim << label << delim << *data);
-
-    if(component == 0){
-        master_chunk->add_base_signal(key, label, move(data));
-    }else{
-        mpi_interface.add_base_signal(component, key, label, move(data));
-    }
-}
-
-SignalView MpiSimulator::get_signal_from_master(string signal_string){
-    return master_chunk->get_signal_view(signal_string);
-}
-
-void MpiSimulator::add_op(int component, string op_string){
-
-    dbg("OP" << delim << component << delim << op_string);
-
-    if(component == 0){
-        master_chunk->add_op(op_string);
-    }else{
-        mpi_interface.add_op(component, op_string);
-    }
-}
-
-void MpiSimulator::add_op_to_master(unique_ptr<Operator> op){
-    master_chunk->add_op(move(op));
-}
-
-void MpiSimulator::add_probe(
-        int component, key_type probe_key, string signal_string, int period){
-
-    stringstream ss;
-
-    ss << "PROBE" << delim << component << delim << probe_key << delim
-                  << signal_string << delim << period;
-
-    probe_info.push_back(ss.str());
-
-    dbg(ss.str());
-
-    if(component == 0){
-        master_chunk->add_probe(probe_key, signal_string, period);
-    }else{
-        mpi_interface.add_probe(component, probe_key, signal_string, period);
-    }
-
-    probe_counts[component] += 1;
-    probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();
-}
-
-string MpiSimulator::to_string() const{
+string Simulator::to_string() const{
     stringstream out;
 
-    out << "<MpiSimulator" << endl;
+    out << "<Simulator" << endl;
 
-    out << "num_components: " << num_components << endl;
-    out << "**master chunk**" << endl;
-    out << *master_chunk << endl;
+    out << "**chunk**" << endl;
+    out << *chunk << endl;
 
     return out.str();
 }

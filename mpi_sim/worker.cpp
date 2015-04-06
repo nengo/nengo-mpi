@@ -6,7 +6,7 @@
 
 #include "chunk.hpp"
 #include "simulator.hpp"
-#include "mpi_interface.hpp"
+#include "utils.hpp"
 
 using namespace std;
 
@@ -102,8 +102,10 @@ void start_worker(MPI_Comm comm){
     }
 
     dbg("Worker " << my_id << " setting up simulation log...");
-    SimulationLog sim_log(num_procs, my_id, dt, comm);
-    chunk.set_simulation_log(sim_log);
+    auto sim_log = unique_ptr<SimulationLog>(
+        new ParallelSimulationLog(num_procs, my_id, dt, comm));
+
+    chunk.set_simulation_log(move(sim_log));
 
     dbg("Worker " << my_id << " setting up MPI operators...");
     chunk.set_communicator(comm);
@@ -138,12 +140,83 @@ void start_worker(MPI_Comm comm){
 
     MPI_Barrier(comm);
 
+    chunk.close_simulation_log();
+
     MPI_Finalize();
+}
+
+void start_master(int argc, char **argv){
+    if(argc < 2){
+        cout << "Please specify a file to load" << endl;
+        return;
+    }
+
+    if(argc < 3){
+        cout << "Please specify a simulation length" << endl;
+        return;
+    }
+
+    int show_progress;
+    if(argc < 4){
+        show_progress = 1;
+    }else{
+        show_progress = boost::lexical_cast<int>(argv[3]);
+    }
+
+    string log_filename;
+    if(argc < 5){
+        log_filename = "";
+    }else{
+        log_filename = argv[4];
+    }
+
+    string filename = argv[1];
+    float sim_length = boost::lexical_cast<float>(argv[2]);
+
+    cout << "Loading network from file: " << filename << "." << endl;
+    cout << "Running simulation for " << sim_length << " second(s)." << endl;
+
+    cout << "Building network..." << endl;
+    unique_ptr<Simulator> sim = create_simulator_from_file(filename);
+    cout << "Done building network..." << endl;
+
+    cout << "dt: " << sim->dt << endl;
+    int num_steps = int(sim_length / sim->dt);
+
+    cout << "Num steps: " << num_steps << endl;
+    cout << "Running simulation..." << endl;
+    if(log_filename.compare("") != 0){
+        cout << "Logging simulation results to " << log_filename << endl;
+    }
+
+    sim->run_n_steps(num_steps, bool(show_progress), log_filename);
+
+    /*
+    for(auto& key : sim->get_probe_keys()){
+        vector<unique_ptr<BaseSignal>> probe_data = sim->get_probe_data(key);
+
+        cout << "Probe data for key: " << key << endl;
+
+        for(auto& pd : probe_data){
+            cout << *pd << endl;
+        }
+    }
+    */
 }
 
 int main(int argc, char **argv){
 
     MPI_Init(&argc, &argv);
+
+    int mpi_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+
+    if(mpi_size == 1){
+        MPI_Finalize();
+
+        start_master(argc, argv);
+        return 0;
+    }
 
     MPI_Comm parent;
     MPI_Comm_get_parent(&parent);
@@ -160,62 +233,8 @@ int main(int argc, char **argv){
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
         if(rank == 0){
-            if(argc < 2){
-                cout << "Please specify a file to load" << endl;
-                return 0;
-            }
-
-            if(argc < 3){
-                cout << "Please specify a simulation length" << endl;
-                return 0;
-            }
-
-            int show_progress;
-            if(argc < 4){
-                show_progress = 1;
-            }else{
-                show_progress = boost::lexical_cast<int>(argv[3]);
-            }
-
-            string log_filename;
-            if(argc < 5){
-                log_filename = "";
-            }else{
-                log_filename = argv[4];
-            }
-
-            string filename = argv[1];
-            float sim_length = boost::lexical_cast<float>(argv[2]);
-
-            bool spawn = false;
-
-            cout << "Loading network from file: " << filename << "." << endl;
-            cout << "Running simulation for " << sim_length << " seconds." << endl;
-
-            cout << "Building network..." << endl;
-            MpiSimulator mpi_sim(filename, spawn);
-            cout << "Done building network..." << endl;
-
-            int num_steps = int(sim_length / mpi_sim.dt);
-
-            cout << "Running simulation..." << endl;
-            if(log_filename.compare("") != 0){
-                cout << "Logging simulation results to " << log_filename << endl;
-            }
-
-            mpi_sim.run_n_steps(num_steps, bool(show_progress), log_filename);
-
-            for(auto& key : mpi_sim.get_probe_keys()){
-                vector<unique_ptr<BaseSignal>> probe_data = mpi_sim.get_probe_data(key);
-
-                cout << "Probe data for key: " << key << endl;
-
-                for(auto& pd : probe_data){
-                    cout << *pd << endl;
-                }
-            }
-        }
-        else{
+            start_master(argc, argv);
+        }else{
             start_worker(MPI_COMM_WORLD);
         }
     }
