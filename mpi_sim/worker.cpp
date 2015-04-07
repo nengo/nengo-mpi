@@ -123,18 +123,20 @@ void start_worker(MPI_Comm comm){
 
     MPI_Barrier(comm);
 
-    for(auto& pair : chunk.probe_map){
-        key_type key = pair.first;
-        shared_ptr<Probe>& probe = pair.second;
+    if(!chunk.is_logging()){
+        for(auto& pair : chunk.probe_map){
+            key_type key = pair.first;
+            shared_ptr<Probe>& probe = pair.second;
 
-        send_key(key, 0, probe_tag, comm);
+            send_key(key, 0, probe_tag, comm);
 
-        vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
+            vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
 
-        send_int(probe_data.size(), 0, probe_tag, comm);
+            send_int(probe_data.size(), 0, probe_tag, comm);
 
-        for(auto& pd : probe_data){
-            send_matrix(move(pd), 0, probe_tag, comm);
+            for(auto& pd : probe_data){
+                send_matrix(move(pd), 0, probe_tag, comm);
+            }
         }
     }
 
@@ -191,32 +193,22 @@ void start_master(int argc, char **argv){
 
     sim->run_n_steps(num_steps, bool(show_progress), log_filename);
 
-    /*
-    for(auto& key : sim->get_probe_keys()){
-        vector<unique_ptr<BaseSignal>> probe_data = sim->get_probe_data(key);
+    if(filename.size() == 0){
+        for(auto& key : sim->get_probe_keys()){
+            vector<unique_ptr<BaseSignal>> probe_data = sim->get_probe_data(key);
 
-        cout << "Probe data for key: " << key << endl;
+            cout << "Probe data for key: " << key << endl;
 
-        for(auto& pd : probe_data){
-            cout << *pd << endl;
+            for(auto& pd : probe_data){
+                cout << *pd << endl;
+            }
         }
     }
-    */
 }
 
 int main(int argc, char **argv){
 
     MPI_Init(&argc, &argv);
-
-    int mpi_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-
-    if(mpi_size == 1){
-        MPI_Finalize();
-
-        start_master(argc, argv);
-        return 0;
-    }
 
     MPI_Comm parent;
     MPI_Comm_get_parent(&parent);
@@ -229,6 +221,16 @@ int main(int argc, char **argv){
         MPI_Intercomm_merge(parent, true, &everyone);
         start_worker(everyone);
     }else{
+        int mpi_size;
+        MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+
+        if(mpi_size == 1){
+            MPI_Finalize();
+
+            start_master(argc, argv);
+            return 0;
+        }
+
         int rank;
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 

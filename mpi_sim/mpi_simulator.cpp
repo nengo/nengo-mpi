@@ -24,9 +24,6 @@ MpiSimulator::MpiSimulator(int num_components, dtype dt, bool spawn)
 
 MpiSimulator::~MpiSimulator(){
     // TODO: send a flag to workers, telling them to clean up and exit
-    chunk->close_simulation_log();
-
-    MPI_Finalize();
 }
 
 void MpiSimulator::init_mpi(){
@@ -162,9 +159,14 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
 
     MPI_Barrier(comm);
 
-    gather_probe_data();
+    if(!chunk->is_logging()){
+        gather_probe_data();
+    }
 
     MPI_Barrier(comm);
+
+    chunk->close_simulation_log();
+    MPI_Finalize();
 }
 
 void MpiSimulator::gather_probe_data(){
@@ -183,7 +185,7 @@ void MpiSimulator::gather_probe_data(){
                 key_type probe_key = recv_key(chunk_index, probe_tag, comm);
 
                 run_dbg("Master receiving probe from chunk " << chunk_index << endl
-                        <<" with key " << probe_key << "..." << endl);
+                        << " with key " << probe_key << "..." << endl);
 
                 int data_length = recv_int(chunk_index, probe_tag, comm);
 

@@ -19,7 +19,7 @@
 #include "debug.hpp"
 #include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
 
-const int FLUSH_PROBES_EVERY = 100;
+const int FLUSH_PROBES_EVERY = 1000;
 
 /* An MpiSimulatorChunk represents the portion of a Nengo
  * network that is simulated by a single MPI process. */
@@ -108,6 +108,7 @@ public:
     // Set the simulation log object which records the results of the simulation
     void set_simulation_log(unique_ptr<SimulationLog> sl);
     void set_log_filename(string lf);
+    bool is_logging();
     void close_simulation_log();
 
     void flush_probes();

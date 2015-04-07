@@ -91,7 +91,11 @@ void Simulator::run_n_steps(int steps, bool progress, string log_filename){
     chunk->set_log_filename(log_filename);
     chunk->run_n_steps(steps, progress);
 
-    gather_probe_data();
+    if(!chunk->is_logging()){
+        gather_probe_data();
+    }
+
+    chunk->close_simulation_log();
 }
 
 void Simulator::gather_probe_data(){
@@ -109,6 +113,11 @@ void Simulator::gather_probe_data(){
 }
 
 vector<unique_ptr<BaseSignal>> Simulator::get_probe_data(key_type probe_key){
+    if(chunk->is_logging()){
+        throw logic_error(
+            "Calling get_probe_data, but probe data has all been written to file");
+    }
+
     return move(probe_data.at(probe_key));
 }
 

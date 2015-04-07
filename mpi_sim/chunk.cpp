@@ -292,6 +292,15 @@ void MpiSimulatorChunk::set_log_filename(string lf){
     log_filename = lf;
 }
 
+bool MpiSimulatorChunk::is_logging(){
+    if(sim_log){
+        return sim_log->is_ready();
+    }else{
+        throw logic_error(
+            "Calling chunk.is_logging when the chunk does not have logger object.");
+    }
+}
+
 void MpiSimulatorChunk::close_simulation_log(){
     sim_log->close();
 }

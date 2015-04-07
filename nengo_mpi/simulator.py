@@ -105,13 +105,14 @@ class Simulator(object):
         print "Simulating MPI model for %d steps..." % steps
         self.mpi_sim.run_n_steps(steps, progress_bar, log_filename)
 
-        for probe, probe_key in self.model.probe_keys.items():
-            data = self.mpi_sim.get_probe_data(probe_key, np.empty)
+        if not log_filename:
+            for probe, probe_key in self.model.probe_keys.items():
+                data = self.mpi_sim.get_probe_data(probe_key, np.empty)
 
-            if probe not in self._probe_outputs:
-                self.model._probe_outputs[probe] = data
-            else:
-                self._probe_outputs[probe].extend(data)
+                if probe not in self._probe_outputs:
+                    self.model._probe_outputs[probe] = data
+                else:
+                    self._probe_outputs[probe].extend(data)
 
         self.n_steps += steps
 

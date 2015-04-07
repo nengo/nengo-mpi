@@ -2,12 +2,12 @@
 
 
 SimulationLog::SimulationLog(vector<string> probe_strings, dtype dt)
-:dt(dt), ready_for_simulation(false), closed(false){
+:dt(dt), ready_for_simulation(false), closed(true){
     store_probe_info(probe_strings);
 }
 
 SimulationLog::SimulationLog(dtype dt)
-:dt(dt), ready_for_simulation(false), closed(false){}
+:dt(dt), ready_for_simulation(false), closed(true){}
 
 void SimulationLog::store_probe_info(vector<string> probe_strings){
     for(string s : probe_strings){
@@ -234,6 +234,8 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
 
         datasets.push_back(d);
     }
+
+    closed = false;
 }
 
 vector<string> bcast_recv_probe_info(MPI_Comm comm){

@@ -22,9 +22,7 @@ public:
 
     Simulator();
     Simulator(dtype dt);
-    virtual ~Simulator(){
-        chunk->close_simulation_log();
-    }
+    virtual ~Simulator(){};
 
     const virtual string classname() { return "Simulator"; }
 

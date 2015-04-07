@@ -43,10 +43,6 @@ parser.add_argument(
     help='Supply to omit the progress bar.')
 
 parser.add_argument(
-    '--noprobe', action='store_true',
-    help='Supply to omit probing.')
-
-parser.add_argument(
     '--rand', action='store_true',
     help='Supply to use a (pseudo) random scheme for assigning nengo '
          'object to processors')
@@ -83,7 +79,6 @@ save_file = args.save
 sim_time = args.t
 
 progress_bar = not args.noprog
-probe = not args.noprobe
 
 random_partitions = args.rand
 
@@ -132,9 +127,8 @@ with m:
             ensembles[-1][-1], ensembles[-1][0],
             function=lambda x: np.zeros(D))
 
-        if probe:
-            probes.append(
-                nengo.Probe(ensemble, 'decoded_output', synapse=0.01))
+        probes.append(
+            nengo.Probe(ensemble, 'decoded_output', synapse=0.01))
 
 if use_mpi:
     import nengo_mpi
@@ -157,7 +151,7 @@ if not save_file:
 
     t1 = time.time()
 
-    if probe:
+    if not mpi_log:
         print "Input node result: "
         print sim.data[input_p][-10:]
 
