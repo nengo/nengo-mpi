@@ -686,9 +686,6 @@ class Partitioner(object):
             network, self.num_components, self.assignments,
             *self.args, **self.kwargs)
 
-        evaluate_partition(
-            network, self.num_components, assignments)
-
         propogate_assignments(network, assignments)
 
         return self.num_components, assignments
