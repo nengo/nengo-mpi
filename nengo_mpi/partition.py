@@ -213,9 +213,13 @@ class GraphNode(object):
         self.objects = set()
         self.inputs = set()
         self.outputs = set()
+        self.n_neurons = 0
 
     def add_object(self, obj):
         self.objects.add(obj)
+
+        if hasattr(obj, 'n_neuron'):
+            self.n_neurons += obj.n_neurons
 
     def add_input(self, i):
         self.inputs.add(i)
@@ -229,6 +233,22 @@ class GraphNode(object):
     def __str__(self):
         s = ",".join(str(o) for o in self.objects)
         return s
+
+    def assign_to_component(self, assignments, component):
+        for obj in self.objects:
+            assignments[obj] = component
+
+    def merge(self, other):
+        if self == other:
+            return
+
+        for obj in other.objects:
+            if hasattr(obj, 'n_neuron'):
+                self.n_neurons += obj.n_neurons
+
+        self.objects = self.objects.union(other.objects)
+        self.inputs = self.inputs.union(other.inputs)
+        self.outputs = self.outputs.union(other.outputs)
 
 
 def is_update(conn):
@@ -266,12 +286,7 @@ def network_to_filter_graph(network):
     """
 
     def merge_nodes(node_map, a, b):
-        if a == b:
-            return
-
-        a.objects = a.objects.union(b.objects)
-        a.inputs = a.inputs.union(b.inputs)
-        a.outputs = a.outputs.union(b.outputs)
+        a.merge(b)
 
         for obj in b.objects:
             node_map[obj] = a
@@ -432,27 +447,48 @@ def spectral_partitioner(network, num_components, assignments=None):
     if num_components == 1:
         return {}
 
-    G = network_to_filter_graph(network)
+    import pdb
+    pdb.set_trace()
 
-    neuron_counts = count_neurons(network)
+    G = network_to_filter_graph(network)
 
     ordering = nx.spectral_ordering(G)
 
-    neurons_per_component = float(neuron_counts[network]) / num_components
+    total_neurons = sum(
+        e.n_neurons
+        for e in network.all_ensembles
+        if not isinstance(e.neurons, Direct))
 
-    component = 0
-    n_neurons = 0
+    component_0 = filter(for_component_0, G.nodes())
+    for node in component_0:
+        total_neurons -= node.n_neurons
+        node.assign_to_component(assignments, 0)
 
-    for gnode in ordering:
-        for obj in gnode.objects:
-            assignments[obj] = component
+    ordering = filter(lambda n: not for_component_0(n), ordering)
 
-            if hasattr(obj, 'n_neurons'):
-                n_neurons += obj.n_neurons
+    component = 1
+    neurons_per_component = float(total_neurons) / num_components
 
-        if n_neurons > neurons_per_component:
-            component += 1
-            n_neurons = 0
+    while ordering:
+        next_index = max(
+            range(len(ordering)),
+            key=lambda i: ordering[i].n_neurons)
+
+        component_n_neurons = 0
+        while component_n_neurons < neurons_per_component:
+            ordering[next_index].assign_to_component(
+                assignments, component)
+
+            component_n_neurons += ordering[next_index].n_neurons
+
+            del ordering[next_index]
+
+            if next_index > len(ordering):
+                next_index = len(ordering) - 1
+
+        component += 1
+
+    print assignments
 
     return assignments
 
