@@ -88,12 +88,9 @@ with warnings.catch_warnings():
 
         remove_conns = []
 
-        # make a copy
-        connections = network.connections + []
-
-        for conn in connections:
+        for conn in network.connections:
             if isinstance(conn.pre_obj, Node):
-                if conn.pre_slice is not None:
+                if conn.pre_slice != slice(None):
                     if conn.function is None:
                         transform = full_transform(conn)
 
@@ -110,8 +107,11 @@ with warnings.catch_warnings():
 
                         remove_conns.append(conn)
 
-        network.connections = filter(
-            lambda c: c not in remove_conns, network.connections)
+        if remove_conns:
+            network.objects[Connection] = filter(
+                lambda c: c not in remove_conns, network.connections)
+
+            network.connections = network.objects[Connection]
 
         return builder.build_network(model, network)
 
@@ -323,23 +323,27 @@ def signal_to_string(signal, delim=':'):
         make_key(signal), shape, strides, signal.offset]
 
     signal_string = delim.join(map(str, signal_args))
+    signal_string = signal_string.replace(" ", "")
+    signal_string = signal_string.replace("(", "")
+    signal_string = signal_string.replace(")", "")
+
     return signal_string
 
 
 def ndarray_to_mpi_string(a):
     if a.ndim == 0:
-        return "[1,1]%f" % a
+        s = "[1,1]%f" % a
 
     elif a.ndim == 1:
         s = "[%d,1]" % a.size
         s += ",".join([str(f) for f in a.flatten()])
-        return s
 
     else:
         assert a.ndim == 2
         s = "[%d,%d]" % a.shape
         s += ",".join([str(f) for f in a.flatten()])
-        return s
+
+    return s
 
 
 class MpiModel(builder.Model):
