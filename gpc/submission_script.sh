@@ -1,3 +1,6 @@
+# A sample submission script for submitting a job on gpc.
+
+
 #!/bin/bash
 # MOAB/Torque submission script for SciNet GPC 
 #
