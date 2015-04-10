@@ -4,12 +4,15 @@ from nengo_mpi.model import MpiModel
 from nengo_mpi.simulator import Simulator
 
 from nengo.builder.signal import Signal
-from nengo.builder.operator import DotInc, Reset, Copy
+from nengo.builder.operator import DotInc, ElementwiseInc, Reset, Copy
 from nengo.builder.node import SimPyFunc
 from nengo.builder.neurons import SimNeurons
+from nengo.builder.synapses import SimSynapse
 
-from nengo.neurons import (AdaptiveLIF, AdaptiveLIFRate, Izhikevich, LIF,
-                                   LIFRate, RectifiedLinear, Sigmoid)
+from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
+# from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
+
+from nengo.synapses import LinearFilter, Lowpass, Alpha
 
 from nengo.simulator import ProbeDict
 import nengo.utils.numpy as npext
@@ -30,14 +33,16 @@ class SignalProbe(object):
 
 class TestSimulator(Simulator):
     """
-    Dummy simulator for testing C++ operators.
+    Simulator for testing C++ operators.
 
     Parameters
     ----------
 
-    operators: a set of python operators.
+    operators: list
+        List of python operators.
 
-
+    signal_probes: list
+        List of SignalProbes.
     """
 
     def __init__(
@@ -219,7 +224,6 @@ def test_lif(Simulator):
     probes = [SignalProbe(output)]
 
     sim = Simulator([op, input_func], probes)
-
     sim.run(1.0)
 
     spikes = sim.data[probes[0]] / (1.0 / sim.dt)
@@ -231,11 +235,11 @@ def test_lif(Simulator):
     print sim_rates
     print math_rates
 
-    assert np.allclose(np.squeeze(sim_rates), math_rates, atol=2, rtol=0.02)
+    assert np.allclose(np.squeeze(sim_rates), math_rates, atol=1, rtol=0.02)
 
 
-def test_neurons(Simulator, neurons, builder):
-    """Test that the dynamic lif model approximately matches the rates."""
+def test_neurons(Simulator, neurons):
+    """Test that the mpi version of a neuron model matches the ref-impl version."""
 
     n_neurons = 40
 
@@ -245,64 +249,138 @@ def test_neurons(Simulator, neurons, builder):
     op = SimNeurons(neurons=neurons, J=J, output=output)
 
     input = np.arange(-2, 2, .1)
-
     input_func = SimPyFunc(J, lambda: input, False, None)
 
     probes = [SignalProbe(output)]
 
     sim = Simulator([op, input_func], probes)
-
     sim.run(0.2)
 
     sim_rates = sim.data[probes[0]]
-
     math_rates = neurons.rates(
         input, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
 
-    assert np.allclose(np.squeeze(sim_rates), math_rates, atol=2, rtol=0.02)
+    print sim_rates
+    print math_rates
+
+    assert np.allclose(
+        np.squeeze(sim_rates), math_rates, atol=0.0001, rtol=0.02)
 
 
-def test_lif_rate(Simulator, plt):
-    """Test that the dynamic model approximately matches the rates."""
-    n_neurons = 40
-    tau_rc = 0.02
-    tau_ref = 0.002
-    dt = 0.001
+def test_filter(Simulator):
+    D = 1
 
-    J = np.arange(-2, 2, .1)
+    input = Signal(np.zeros(D), 'input')
+    output = Signal(np.zeros(D), 'output')
 
-    def make_random():
-        return J
+    synapse = SimSynapse(input, output, Lowpass(0.05))
 
-    def init_func(sim_chunk):
-        A = np.zeros(n_neurons)
-        B = np.zeros(n_neurons)
+    np.random.seed(1)
+    input_sequence = np.random.random(2000)
 
-        sim_chunk.add_signal(0, A)
-        sim_chunk.add_signal(1, B)
+    def make_func(input_sequence):
+        def f():
+            return input_sequence.next()
+        return f
 
-        sim_chunk.mpi_chunk.create_PyFuncO(0, make_random, False)
-        sim_chunk.mpi_chunk.create_SimLIFRate(
-            n_neurons, tau_rc, tau_ref, dt, 0, 1)
-        sim_chunk.add_probe(1, 1)
+    input_func = SimPyFunc(input, lambda: 1, False, None)
 
-    sim = Simulator(init_func)
-    sim.run(1.0)
+    probes = [SignalProbe(output)]
 
-    output = sim.data[1]
-    sim_rates = output[-1, :]
+    sim = Simulator([synapse, input_func], probes)
+    sim.run(0.2)
 
-    lif = nengo.LIF(tau_rc=tau_rc, tau_ref=tau_ref)
-    math_rates = lif.rates(
-        J, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
+    print sim.data[probes[0]]
 
-    plt.plot(J, sim_rates, label='sim')
-    plt.plot(J, math_rates, label='math')
-    plt.legend(loc='best')
-    plt.savefig('mpi.test_operators.test_lif_rate.pdf')
-    plt.close()
 
-    assert np.allclose(np.squeeze(sim_rates), math_rates, atol=1, rtol=0.02)
+def test_element_wise_inc(Simulator):
+    M = 3
+    N = 2
+
+    X = Signal(3 * np.ones(1), 'X')
+    A = Signal(2 * np.ones((M, 1)), 'A')
+    Y = Signal(np.zeros((M, 1)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((M, 1)), 'X')
+    A = Signal(2 * np.ones(1), 'A')
+    Y = Signal(np.zeros((M, 1)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones(1), 'X')
+    A = Signal(2 * np.ones((1, N)), 'A')
+    Y = Signal(np.zeros((M, 1)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((1, N)), 'X')
+    A = Signal(2 * np.ones(1), 'A')
+    Y = Signal(np.zeros((M, 1)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((M, 1)), 'X')
+    A = Signal(2 * np.ones((M, 1)), 'A')
+    Y = Signal(np.zeros((M, 1)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((1, N)), 'X')
+    A = Signal(2 * np.ones((1, N)), 'A')
+    Y = Signal(np.zeros((1, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones(1), 'X')
+    A = Signal(2 * np.ones((M, N)), 'A')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((M, N)), 'X')
+    A = Signal(2 * np.ones(1), 'A')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((M, N)), 'X')
+    A = Signal(2 * np.ones((M, N)), 'A')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((M, 1)), 'X')
+    A = Signal(2 * np.ones((1, N)), 'A')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((M, 1)), 'X')
+    A = Signal(2 * np.ones((M, N)), 'A')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((M, N)), 'X')
+    A = Signal(2 * np.ones((M, 1)), 'A')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((1, N)), 'X')
+    A = Signal(2 * np.ones((M, N)), 'A')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((M, N)), 'X')
+    A = Signal(2 * np.ones((1, N)), 'A')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+    X = Signal(3 * np.ones((1, 1)), 'X')
+    A = Signal(2 * np.ones((1, 1)), 'A')
+    Y = Signal(np.zeros((1, 1)), 'Y')
+    test_ewi_helper(Simulator, A, X, Y, 6)
+
+
+def test_ewi_helper(Simulator, A, X, Y, reference):
+    ewi = ElementwiseInc(A, X, Y)
+
+    probes = [SignalProbe(Y)]
+
+    sim = Simulator([ewi, Reset(Y)], probes)
+    sim.run(0.2)
+    assert np.allclose(reference, sim.data[probes[0]][-1])
 
 
 #if __name__ == "__main__":
@@ -310,7 +388,11 @@ def test_lif_rate(Simulator, plt):
 #    pytest.main([__file__, '-v'])
 
 if __name__ == "__main__":
-    #test_dot_inc(TestSimulator)
-    #test_random_dot_inc(TestSimulator)
+    test_dot_inc(TestSimulator)
+    test_random_dot_inc(TestSimulator)
     test_lif(TestSimulator)
-    #test_lif_neurons()
+    test_neurons(TestSimulator, LIFRate())
+    test_neurons(TestSimulator, RectifiedLinear())
+    test_neurons(TestSimulator, Sigmoid())
+    #test_filter(TestSimulator)
+    test_element_wise_inc(TestSimulator)
