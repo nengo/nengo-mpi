@@ -7,6 +7,7 @@ import networkx as nx
 import numpy as np
 from nengo import Direct, Node, Ensemble
 from nengo.ensemble import Neurons
+from nengo.utils.builder import find_all_io
 
 from heapq import heapify, heappush, heappop
 
@@ -447,9 +448,6 @@ def spectral_partitioner(network, num_components, assignments=None):
     if num_components == 1:
         return {}
 
-    import pdb
-    pdb.set_trace()
-
     G = network_to_filter_graph(network)
 
     ordering = nx.spectral_ordering(G)
@@ -701,6 +699,14 @@ def propogate_assignments(network, assignments):
     algorithm determine some of the assignments before this function is called,
     and then this function propogates those assignments.
 
+    Also does a small amount of validation, making sure that certain types of
+    objects are assigned to the master component (component 0).
+
+    These objects are:
+        1. Nodes with callable outputs.
+        2. Ensembles of Direct neurons.
+        3. Any node that is the source of a Connection that has a function.
+
     Parameters
     ----------
     network: The network we are partitioning.
@@ -716,17 +722,33 @@ def propogate_assignments(network, assignments):
     Nothing, but ``assignments'' is modified.
 
     """
-    def helper(network, assignments):
-
+    def helper(network, assignments, outputs):
+        """
+        outputs: a dict mapping each nengo objects to its output connections.
+        """
         for node in network.nodes:
-            # Non-callable nodes can go on arbitrary processes, as long as
-            # connections coming from those nodes do not have functions
-            # associated with them.
-
             if callable(node.output):
+                if node in assignments and assignments[node] != 0:
+                    warnings.warn(
+                        "Found Node with callable output was assigned to a "
+                        "component other than component 0. Overriding "
+                        "previous assignment.")
+
                 assignments[node] = 0
-            elif node not in assignments:
-                assignments[node] = assignments[network]
+
+            else:
+                if any([conn.function is not None for conn in outputs[node]]):
+                    if node in assignments and assignments[node] != 0:
+                        warnings.warn(
+                            "Found Node with an output connection whose "
+                            "function is not None, which is assigned to a "
+                            "component other than component 0. Overriding "
+                            "previous assignment.")
+
+                    assignments[node] = 0
+
+                else:
+                    assignments[node] = assignments[network]
 
         for ensemble in network.ensembles:
             if isinstance(ensemble.neuron_type, Direct):
@@ -747,7 +769,7 @@ def propogate_assignments(network, assignments):
             if n not in assignments:
                 assignments[n] = assignments[network]
 
-            helper(n, assignments)
+            helper(n, assignments, outputs)
 
     def probe_helper(network, assignments):
         # TODO: properly handle probes that target connections
@@ -761,7 +783,9 @@ def propogate_assignments(network, assignments):
     assignments[network] = 0
 
     try:
-        helper(network, assignments)
+        _, outputs = find_all_io(network.all_connections)
+
+        helper(network, assignments, outputs)
         probe_helper(network, assignments)
     except KeyError:
         # Nengo tests require a value error to be raised in these cases.

@@ -21,6 +21,7 @@ from spaun_mpi import SpaunStimulusOperator
 import numpy as np
 from collections import defaultdict
 import warnings
+from itertools import chain
 
 import logging
 logger = logging.getLogger(__name__)
@@ -92,25 +93,22 @@ with warnings.catch_warnings():
 
         for conn in connections:
             if isinstance(conn.pre_obj, Node):
-                if conn.function is not None:
-                    raise Exception(
-                        "nengo_mpi does not allow connections emenating "
-                        "from Nodes to have functions.")
-
                 if conn.pre_slice is not None:
-                    transform = full_transform(conn)
+                    if conn.function is None:
+                        transform = full_transform(conn)
 
-                    with network:
-                        Connection(
-                            conn.pre_obj, conn.post_obj, synapse=conn.synapse,
-                            transform=transform, solver=conn.solver,
-                            learning_rule_type=conn.learning_rule_type,
-                            modulatory=conn.modulatory,
-                            eval_points=conn.eval_points,
-                            scale_eval_points=conn.scale_eval_points,
-                            seed=conn.seed)
+                        with network:
+                            Connection(
+                                conn.pre_obj, conn.post_obj,
+                                synapse=conn.synapse,
+                                transform=transform, solver=conn.solver,
+                                learning_rule_type=conn.learning_rule_type,
+                                modulatory=conn.modulatory,
+                                eval_points=conn.eval_points,
+                                scale_eval_points=conn.scale_eval_points,
+                                seed=conn.seed)
 
-                    remove_conns.append(conn)
+                        remove_conns.append(conn)
 
         network.connections = filter(
             lambda c: c not in remove_conns, network.connections)
@@ -467,7 +465,8 @@ class MpiModel(builder.Model):
                 # Have to add the signal to both components, so can't delete it
                 # the first time.
                 self.add_signal(pre_component, signal, delete=False)
-                self.add_signal(post_component, signal, delete=self.free_memory)
+                self.add_signal(
+                    post_component, signal, delete=self.free_memory)
 
                 self.add_ops(pre_component, pre_ops)
                 self.add_ops(post_component, post_ops)
@@ -520,8 +519,7 @@ class MpiModel(builder.Model):
     def add_op(self, op):
         """
         Records that the operator was added as part of building
-        the object that is on the top of _object_context stack,
-        and then uses refimpl add_op to finish adding the op.
+        the object that is on the top of _object_context stack.
         """
         self.object_ops[self._object_context[-1]].append(op)
 
@@ -532,6 +530,13 @@ class MpiModel(builder.Model):
         been added by this point; they are added to MPI as soon as they
         are built and then deleted from the python level, to save memory.
         """
+
+        # Do this to throw an exception in case of an invalid graph.
+        all_ops = list(chain(
+            *[self.component_ops[component]
+              for component in range(self.num_components)]))
+        dg = operator_depencency_graph(all_ops)
+        [node for node in toposort(dg) if hasattr(node, 'make_step')]
 
         for component in range(self.num_components):
             self.add_ops_to_mpi(component)
