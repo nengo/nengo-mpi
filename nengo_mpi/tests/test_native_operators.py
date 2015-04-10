@@ -12,13 +12,28 @@ from nengo.builder.synapses import SimSynapse
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 # from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
 
-from nengo.synapses import LinearFilter, Lowpass, Alpha
+from nengo.synapses import Lowpass  # , LinearFilter, Alpha
 
 from nengo.simulator import ProbeDict
 import nengo.utils.numpy as npext
 
 import numpy as np
 from collections import defaultdict
+
+
+def Mpi2Simulator(*args, **kwargs):
+    return TestSimulator(*args, **kwargs)
+
+
+def pytest_funcarg__Simulator(request):
+    """The Simulator class being tested."""
+    return Mpi2Simulator
+
+
+def pytest_generate_tests(metafunc):
+    if "neuron_type" in metafunc.funcargnames:
+        metafunc.parametrize(
+            "neuron_type", [LIFRate, Sigmoid, RectifiedLinear])
 
 
 class SignalProbe(object):
@@ -103,15 +118,6 @@ class TestSimulator(Simulator):
         super(TestSimulator, self).run(time_in_seconds, False, "")
 
 
-def Mpi2Simulator(*args, **kwargs):
-    return TestSimulator(*args, **kwargs)
-
-
-def pytest_funcarg__Simulator(request):
-    """The Simulator class being tested."""
-    return Mpi2Simulator
-
-
 def test_dot_inc(Simulator):
     seed = 1
     np.random.seed(seed)
@@ -163,9 +169,9 @@ def test_reset(Simulator):
 
     A = Signal(np.ones((D, D)), 'A')
     X = Signal(np.ones(D), 'X')
-    Y = Signal(reset_val * np.ones(D), 'Y')
+    Y = Signal(np.zeros(D), 'Y')
 
-    ops = [Reset(Y), DotInc(A, X, Y)]
+    ops = [Reset(Y, reset_val), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
     sim = Simulator(ops, probes)
 
@@ -184,18 +190,13 @@ def test_copy(Simulator):
 
     C = Signal(copy_val * np.ones(D))
 
-    ops = [Copy(C, Y), DotInc(A, X, Y)]
+    ops = [Copy(Y, C), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
     sim = Simulator(ops, probes)
 
     sim.run(0.05)
 
     assert np.allclose(D + copy_val, sim.data[probes[0]])
-
-
-testable_neuron_types = [LIF, LIFRate, Sigmoid, RectifiedLinear]
-
-neuron_builders = []
 
 
 def test_lif(Simulator):
@@ -238,8 +239,12 @@ def test_lif(Simulator):
     assert np.allclose(np.squeeze(sim_rates), math_rates, atol=1, rtol=0.02)
 
 
-def test_neurons(Simulator, neurons):
-    """Test that the mpi version of a neuron model matches the ref-impl version."""
+def test_neurons(Simulator, neuron_type):
+    """
+    Test that the mpi version of a neuron
+    model matches the ref-impl version.
+    """
+    neurons = neuron_type()
 
     n_neurons = 40
 
@@ -300,80 +305,80 @@ def test_element_wise_inc(Simulator):
     X = Signal(3 * np.ones(1), 'X')
     A = Signal(2 * np.ones((M, 1)), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, 1)), 'X')
     A = Signal(2 * np.ones(1), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones(1), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((1, N)), 'X')
     A = Signal(2 * np.ones(1), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, 1)), 'X')
     A = Signal(2 * np.ones((M, 1)), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((1, N)), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((1, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones(1), 'X')
     A = Signal(2 * np.ones((M, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones(1), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones((M, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, 1)), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, 1)), 'X')
     A = Signal(2 * np.ones((M, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones((M, 1)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((1, N)), 'X')
     A = Signal(2 * np.ones((M, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((1, 1)), 'X')
     A = Signal(2 * np.ones((1, 1)), 'A')
     Y = Signal(np.zeros((1, 1)), 'Y')
-    test_ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(Simulator, A, X, Y, 6)
 
 
-def test_ewi_helper(Simulator, A, X, Y, reference):
+def ewi_helper(Simulator, A, X, Y, reference):
     ewi = ElementwiseInc(A, X, Y)
 
     probes = [SignalProbe(Y)]
@@ -383,16 +388,6 @@ def test_ewi_helper(Simulator, A, X, Y, reference):
     assert np.allclose(reference, sim.data[probes[0]][-1])
 
 
-#if __name__ == "__main__":
-#    nengo.log(debug=True)
-#    pytest.main([__file__, '-v'])
-
 if __name__ == "__main__":
-    test_dot_inc(TestSimulator)
-    test_random_dot_inc(TestSimulator)
-    test_lif(TestSimulator)
-    test_neurons(TestSimulator, LIFRate())
-    test_neurons(TestSimulator, RectifiedLinear())
-    test_neurons(TestSimulator, Sigmoid())
-    #test_filter(TestSimulator)
-    test_element_wise_inc(TestSimulator)
+    nengo.log(debug=True)
+    pytest.main([__file__, '-v'])

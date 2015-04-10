@@ -787,9 +787,9 @@ def propogate_assignments(network, assignments):
 
         helper(network, assignments, outputs)
         probe_helper(network, assignments)
-    except KeyError:
+    except KeyError as e:
         # Nengo tests require a value error to be raised in these cases.
-        raise ValueError("Invalid Partition")
+        raise ValueError("Invalid Partition. Error: " + e.message)
 
     nodes = network.all_nodes
     nodes_in = all([node in assignments for node in nodes])
