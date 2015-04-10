@@ -96,7 +96,10 @@ void ElementwiseInc::operator() (){
     if(broadcast){
         int A_i = 0, A_j = 0, X_i = 0, X_j = 0;
 
-        for(int Y_i = 0;Y_i < Y.size1(); Y_i++){
+        for(int Y_i = 0; Y_i < Y.size1(); Y_i++){
+            A_j = 0;
+            X_j = 0;
+
             for(int Y_j = 0;Y_j < Y.size2(); Y_j++){
                 Y(Y_i, Y_j) += A(A_i, A_j) * X(X_i, X_j);
                 A_j += A_col_stride;

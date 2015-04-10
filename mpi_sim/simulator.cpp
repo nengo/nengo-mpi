@@ -13,7 +13,7 @@ Simulator::Simulator(dtype dt)
 void Simulator::add_base_signal(
         key_type key, string label, unique_ptr<BaseSignal> data){
 
-    dbg("SIGNAL" << delim << key << delim << label << delim << *data);
+    dbg("SIGNAL" << delim << 0 << delim << key << delim << label << delim << *data);
 
     chunk->add_base_signal(key, label, move(data));
 }
@@ -31,7 +31,7 @@ void Simulator::add_base_signal(
 
 void Simulator::add_op(string op_string){
 
-    dbg("OP" << delim << delim << op_string);
+    dbg("OP" << delim << 0 << delim << op_string);
 
     chunk->add_op(op_string);
 }

@@ -121,9 +121,11 @@ SignalView MpiSimulatorChunk::get_signal_view(string signal_string){
 
         return get_signal_view(key, shape1, shape2, stride1, stride2, offset);
     }catch(const boost::bad_lexical_cast& e){
-        cout << "Caught bad lexical cast while extracting signal from string "
-                "with error " << e.what() << endl;
-        terminate();
+        stringstream msg;
+        msg << "Caught bad lexical cast while extracting signal from string "
+                "with error: " << e.what() << endl;
+        msg << "The signal string was: " << signal_string << endl;
+        throw logic_error(msg.str());
     }
 }
 
@@ -260,6 +262,8 @@ void MpiSimulatorChunk::add_op(string op_string){
         stringstream msg;
         msg << "Caught bad lexical cast while extracting operator from string "
                "with error " << e.what() << endl;
+        msg << "The operator string was: " << op_string << endl;
+
         throw runtime_error(msg.str());
     }
 }
