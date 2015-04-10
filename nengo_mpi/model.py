@@ -363,7 +363,7 @@ class MpiModel(builder.Model):
 
     def __init__(
             self, num_components, assignments, dt=0.001, label=None,
-            decoder_cache=NoDecoderCache(), save_file=""):
+            decoder_cache=NoDecoderCache(), save_file="", free_memory=True):
 
         self.num_components = num_components
         self.assignments = assignments
@@ -398,6 +398,8 @@ class MpiModel(builder.Model):
         self.object_ops = defaultdict(list)
 
         self._mpi_tag = 0
+
+        self.free_memory = free_memory
 
         super(MpiModel, self).__init__(dt, label, decoder_cache)
 
@@ -465,7 +467,7 @@ class MpiModel(builder.Model):
                 # Have to add the signal to both components, so can't delete it
                 # the first time.
                 self.add_signal(pre_component, signal, delete=False)
-                self.add_signal(post_component, signal, delete=True)
+                self.add_signal(post_component, signal, delete=self.free_memory)
 
                 self.add_ops(pre_component, pre_ops)
                 self.add_ops(post_component, post_ops)
@@ -473,7 +475,7 @@ class MpiModel(builder.Model):
     def add_ops(self, component, ops):
         for op in ops:
             for signal in op.all_signals:
-                self.add_signal(component, signal)
+                self.add_signal(component, signal, delete=self.free_memory)
 
         self.component_ops[component].extend(ops)
 
@@ -581,8 +583,8 @@ class MpiModel(builder.Model):
                 builder.operator.PreserveValue(signal))
 
         dg = operator_depencency_graph(self.component_ops[component])
-        step_order = [node for node in toposort(dg)
-                      if hasattr(node, 'make_step')]
+        step_order = [
+            node for node in toposort(dg) if hasattr(node, 'make_step')]
 
         for signal, tag, dst in send_signals:
             mpi_send = MpiSend(dst, tag, signal)

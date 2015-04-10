@@ -110,7 +110,7 @@ class Simulator(object):
                 data = self.mpi_sim.get_probe_data(probe_key, np.empty)
 
                 if probe not in self._probe_outputs:
-                    self.model._probe_outputs[probe] = data
+                    self._probe_outputs[probe] = data
                 else:
                     self._probe_outputs[probe].extend(data)
 

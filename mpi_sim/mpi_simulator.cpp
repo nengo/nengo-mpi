@@ -11,7 +11,7 @@ MpiSimulator::MpiSimulator(int num_components, dtype dt, bool spawn)
 
     if(num_components < 2){
         throw logic_error(
-            "Trying to use MpiSimulator, but fewer than 2 components in use."
+            "Trying to use MpiSimulator, but fewer than 2 components in use. "
             "Use regular Simulator instead.");
     }
 
