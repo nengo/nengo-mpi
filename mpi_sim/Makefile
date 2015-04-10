@@ -3,31 +3,33 @@ HOST=$(shell uname --nodename)
 ifneq (, $(findstring bgq,$(HOST)))
 	#on bgq
 	CXX=mpicxx
-	BOOST_INC=${SCINET_BOOST_INC}
-	BOOST_LIB=${SCINET_BOOST_LIB}
-	PYTHON_INC=${SCINET_PYTHON_INC}/python2.7
-	PYTHON_LIB=${SCINET_PYTHON_LIB}
-	HDF5_INC=${SCINET_HDF5_INC}
-	HDF5_LIB=${SCINET_HDF5_LIB}
-	COMPRESSION_LIBS=-L${SCINET_ZLIB_LIB} -L${SCINET_SZIP_LIB} -lsz -lz
+	BOOST_INC=-I${SCINET_BOOST_INC}
+	BOOST_LIB=-L${SCINET_BOOST_LIB}
+	PYTHON_INC=-I${SCINET_PYTHON_INC}/python2.7
+	PYTHON_LIB=-L${SCINET_PYTHON_LIB}
+	HDF5_INC=-I${SCINET_HDF5_INC}
+	HDF5_LIB=-L${SCINET_HDF5_LIB}
+	COMPRESSION_LIBS= -L${SCINET_ZLIB_LIB} -L${SCINET_SZIP_LIB} -lsz -lz
 	STD=c++0x # Redhat 4.4.7, which we have access to on bgq, calls it c++0x
 else ifneq (, $(findstring gpc,$(HOST)))
 	#on gpc
 	CXX=mpicxx
-	BOOST_INC=${SCINET_BOOST_INC}
-	BOOST_LIB=${SCINET_BOOST_LIB}
-	PYTHON_INC=${SCINET_PYTHON_INC}/python2.7
-	PYTHON_LIB=${SCINET_PYTHON_LIB}
-	HDF5_INC=${SCINET_HDF5_INC}
-	HDF5_LIB=${SCINET_HDF5_LIB}
+	BOOST_INC=-I${SCINET_BOOST_INC}
+	BOOST_LIB=-L${SCINET_BOOST_LIB}
+	PYTHON_INC=-I${SCINET_PYTHON_INC}/python2.7
+	PYTHON_LIB=-L${SCINET_PYTHON_LIB}
+	HDF5_INC=-I${SCINET_HDF5_INC}
+	HDF5_LIB=-L${SCINET_HDF5_LIB}
 	COMPRESSION_LIBS=
 	STD=c++11
+	CXXFLAGS= ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
 else
 	#on other machine
-	CXX=g++
-	PYTHON_INC=/usr/include
-	BOOST_INC=
-	BOOST_LIB=${SCINET_BOOST_LIB}
+	CXX=mpicxx
+	PYTHON_INC=-I/usr/include/python2.7/
+	HDF5_LIB=-L/usr/lib/x86_64-linux-gnu
+	STD=c++11
+	CXXFLAGS= ${PYTHON_INC} ${DEFS} -fPIC -std=${STD}
 endif
 
 OBJS=simulator.o operator.o mpi_operator.o custom_ops.o probe.o chunk.o mpi_simulator.o sim_log.o utils.o
@@ -47,8 +49,6 @@ run_debug: debug
 debug: DEFS+=-DDEBUG -g
 debug: build
 
-CXXFLAGS= -I${BOOST_INC} -I${PYTHON_INC} -I${HDF5_INC} ${DEFS} -fPIC -std=${STD}
-
 build: mpi_sim_worker mpi_sim.so
 
 clean:
@@ -57,14 +57,14 @@ clean:
 # ********* mpi_sim_worker *************
 
 mpi_sim_worker: worker.o ${OBJS}
-	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} ${DEFS} -std=${STD} -L${BOOST_LIB} -lm -L${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
+	${CXX} -o ${WORKER_LOC}/mpi_sim_worker worker.o ${OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
 
 worker.o: worker.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp utils.hpp debug.hpp
 
 # ********* mpi_sim.so *************
 
 mpi_sim.so: ${OBJS} python.o
-	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared ${DEFS} -std=${STD} -L${BOOST_LIB} -lm -L${PYTHON_LIB} -lboost_python -L${HDF5_LIB} -lhdf5 -ldl ${COMPRESSION_LIBS}
+	${CXX} -o ${SO_LOC}/mpi_sim.so ${OBJS} python.o -shared ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${PYTHON_LIB} -lboost_python ${HDF5_LIB} -lhdf5 -ldl ${COMPRESSION_LIBS}
 
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
 mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
