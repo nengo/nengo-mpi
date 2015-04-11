@@ -11,6 +11,7 @@ ifneq (, $(findstring bgq,$(HOST)))
 	HDF5_LIB=-L${SCINET_HDF5_LIB}
 	COMPRESSION_LIBS= -L${SCINET_ZLIB_LIB} -L${SCINET_SZIP_LIB} -lsz -lz
 	STD=c++0x # Redhat 4.4.7, which we have access to on bgq, calls it c++0x
+	CXXFLAGS= ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
 else ifneq (, $(findstring gpc,$(HOST)))
 	#on gpc
 	CXX=mpicxx

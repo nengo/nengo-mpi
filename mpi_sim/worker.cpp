@@ -187,13 +187,13 @@ void start_master(int argc, char **argv){
 
     cout << "Num steps: " << num_steps << endl;
     cout << "Running simulation..." << endl;
-    if(log_filename.compare("") != 0){
+    if(log_filename.size() != 0){
         cout << "Logging simulation results to " << log_filename << endl;
     }
 
     sim->run_n_steps(num_steps, bool(show_progress), log_filename);
 
-    if(filename.size() == 0){
+    if(log_filename.size() == 0){
         for(auto& key : sim->get_probe_keys()){
             vector<unique_ptr<BaseSignal>> probe_data = sim->get_probe_data(key);
 
@@ -225,6 +225,8 @@ int main(int argc, char **argv){
         MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
 
         if(mpi_size == 1){
+            // No parent, and only one process. Corresponds to a serial
+            // simulation using C++ directly (skipping python).
             MPI_Finalize();
 
             start_master(argc, argv);
