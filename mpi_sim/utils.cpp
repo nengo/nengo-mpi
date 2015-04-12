@@ -5,6 +5,12 @@ unique_ptr<Simulator> create_simulator_from_file(string filename){
 
     ifstream in_file(filename);
 
+    if(!in_file.good()){
+        stringstream s;
+        s << "The network file " << filename << " does not exist." << endl;
+        throw runtime_error(s.str());
+    }
+
     string line;
     getline(in_file, line, delim);
 
@@ -29,6 +35,8 @@ unique_ptr<Simulator> create_simulator_from_file(string filename){
     while(getline(in_file, line, '\n')){
         stringstream line_stream;
         line_stream << line;
+        dbg("Reading: " << line_stream.str() << endl);
+
         getline(line_stream, cell, delim);
 
         if(cell.compare("SIGNAL") == 0){

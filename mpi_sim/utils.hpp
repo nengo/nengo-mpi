@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <exception>
 
 #include "simulator.hpp"
 #include "mpi_simulator.hpp"
