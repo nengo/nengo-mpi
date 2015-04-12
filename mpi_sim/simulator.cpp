@@ -46,12 +46,12 @@ void Simulator::add_op(int component, string op_string){
 }
 
 void Simulator::add_probe(
-        key_type probe_key, string signal_string, dtype period){
+        key_type probe_key, string signal_string, dtype period, string name){
 
     stringstream ss;
 
     ss << "PROBE" << delim << 0 << delim << probe_key << delim
-                  << signal_string << delim << period;
+                  << signal_string << delim << period << delim << name;
 
     probe_info.push_back(ss.str());
 
@@ -62,14 +62,14 @@ void Simulator::add_probe(
 }
 
 void Simulator::add_probe(
-        int component, key_type probe_key, string signal_string, dtype period){
+        int component, key_type probe_key, string signal_string, dtype period, string name){
 
     if(component != 0){
         throw logic_error(
             "Adding probe with non-zero component to non-mpi simulator.");
     }
 
-    add_probe(probe_key, signal_string, period);
+    add_probe(probe_key, signal_string, period, name);
 }
 
 SignalView Simulator::get_signal(string signal_string){

@@ -48,6 +48,8 @@ struct HDF5Dataset{
     int row_offset;
 };
 
+const int MAX_PROBE_NAME_LENGTH = 512;
+
 struct ProbeInfo{
     int component;
     key_type probe_key;

@@ -90,7 +90,10 @@ unique_ptr<Simulator> create_simulator_from_file(string filename){
             getline(line_stream, cell, delim);
             int period = boost::lexical_cast<int>(cell);
 
-            simulator->add_probe(component, probe_key, signal_string, period);
+            getline(line_stream, cell, delim);
+            string name = cell;
+
+            simulator->add_probe(component, probe_key, signal_string, period, name);
         }
     }
 

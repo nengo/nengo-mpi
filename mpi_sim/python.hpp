@@ -48,7 +48,7 @@ public:
 
     void add_probe(
         bpy::object component, bpy::object probe_key,
-        bpy::object signal_string, bpy::object period);
+        bpy::object signal_string, bpy::object period, bpy::object name);
 
     /* Methods for creating PyFunc operators. */
     void create_PyFunc(bpy::object py_fn, bpy::object t_in);

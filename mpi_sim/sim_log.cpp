@@ -21,9 +21,7 @@ void SimulationLog::store_probe_info(vector<string> probe_strings){
         pi.probe_key = boost::lexical_cast<key_type>(tokens[2]);
         pi.signal_string = tokens[3];
         pi.period = boost::lexical_cast<int>(tokens[4]);
-
-        // TODO: get the actual name of the probe
-        pi.name = tokens[2];
+        pi.name = tokens[5];
 
         tokens.clear();
         boost::split(tokens, pi.signal_string, boost::is_any_of(":"), boost::token_compress_on);
@@ -58,10 +56,14 @@ void SimulationLog::prep_for_simulation(){
 }
 
 void SimulationLog::setup_hdf5(string filename, int num_steps){
-    hid_t dset_id, dataspace_id, plist_id;
+    hid_t dset_id, dataspace_id, plist_id, att_id, att_dataspace_id;
 
     // Create a new file collectively and release property list identifier.
     file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+
+    hid_t str_type = H5Tcopy(H5T_C_S1);
+    H5Tset_size(str_type, MAX_PROBE_NAME_LENGTH);
+    H5Tset_strpad(str_type, H5T_STR_NULLTERM);
 
     for(ProbeInfo pi : probe_info){
         hsize_t dset_dims[] = {num_steps, pi.shape1};
@@ -69,16 +71,28 @@ void SimulationLog::setup_hdf5(string filename, int num_steps){
         // Create the dataspace for the dataset.
         dataspace_id = H5Screate_simple(2, dset_dims, NULL);
 
+        string dspace_key = to_string(pi.probe_key);
+
         // Create the dataset with default properties
         dset_id = H5Dcreate2(
-            file_id, pi.name.c_str(), H5T_NATIVE_DOUBLE, dataspace_id,
+            file_id, dspace_key.c_str(), H5T_NATIVE_DOUBLE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        // Set the ``name'' attribute of the dataset so we know which probe the data came from
+        att_dataspace_id  = H5Screate(H5S_SCALAR);
+        att_id = H5Acreate2(dset_id, "name", str_type, att_dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+        H5Awrite(att_id, str_type, pi.name.substr(0, MAX_PROBE_NAME_LENGTH).c_str());
+
+        H5Sclose(att_dataspace_id);
+        H5Aclose(att_id);
 
         HDF5Dataset d(pi.name, pi.shape1, dset_id, dataspace_id);
 
         dset_map[pi.probe_key] = d;
         datasets.push_back(d);
     }
+
+    H5Tclose(str_type);
 }
 
 void SimulationLog::write(key_type probe_key, shared_ptr<dtype> buffer, int n_rows){
@@ -201,7 +215,7 @@ void ParallelSimulationLog::prep_for_simulation(){
 }
 
 void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
-    hid_t dset_id, dataspace_id, plist_id;
+    hid_t dset_id, dataspace_id, plist_id, att_id, att_dataspace_id;
 
     // Set up file access property list with parallel I/O access
     plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -211,16 +225,30 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
     file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
     H5Pclose(plist_id);
 
+    hid_t str_type = H5Tcopy(H5T_C_S1);
+    H5Tset_size(str_type, MAX_PROBE_NAME_LENGTH);
+    H5Tset_strpad(str_type, H5T_STR_NULLTERM);
+
     for(ProbeInfo pi : probe_info){
         hsize_t dset_dims[] = {num_steps, pi.shape1};
 
         // Create the dataspace for the dataset.
         dataspace_id = H5Screate_simple(2, dset_dims, NULL);
 
+        string dspace_key = to_string(pi.probe_key);
+
         // Create the dataset with default properties
         dset_id = H5Dcreate(
-            file_id, pi.name.c_str(), H5T_NATIVE_DOUBLE, dataspace_id,
+            file_id, dspace_key.c_str(), H5T_NATIVE_DOUBLE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        // Set the ``name'' attribute of the dataset so we know which probe the data came from
+        att_dataspace_id  = H5Screate(H5S_SCALAR);
+        att_id = H5Acreate2(dset_id, "name", str_type, att_dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
+        H5Awrite(att_id, str_type, pi.name.substr(0, MAX_PROBE_NAME_LENGTH).c_str());
+
+        H5Sclose(att_dataspace_id);
+        H5Aclose(att_id);
 
         // Create property list for independent dataset write.
         plist_id = H5Pcreate(H5P_DATASET_XFER);

@@ -809,10 +809,11 @@ class MpiModel(builder.Model):
             probe_string = MpiModel.outfile_delim.join(
                 str(i)
                 for i
-                in ["PROBE", component, probe_key, signal_string, period])
+                in ["PROBE", component, probe_key,
+                    signal_string, period, str(probe)])
 
             self.save_file.write("\n" + probe_string)
         else:
             self.mpi_sim.add_probe(
                 component, self.probe_keys[probe],
-                signal_string, period)
+                signal_string, period, str(probe))

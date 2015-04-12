@@ -37,7 +37,7 @@ public:
         int component, key_type key, string label, unique_ptr<BaseSignal> data);
     void add_op(int component, string op_string);
     void add_probe(
-        int component, key_type probe_key, string signal_string, dtype period);
+        int component, key_type probe_key, string signal_string, dtype period, string name);
 
     SignalView get_signal(string signal_string);
     void add_op(unique_ptr<Operator> op);

@@ -106,11 +106,11 @@ void MpiSimulator::add_op(int component, string op_string){
 }
 
 void MpiSimulator::add_probe(
-        int component, key_type probe_key, string signal_string, dtype period){
+        int component, key_type probe_key, string signal_string, dtype period, string name){
 
     stringstream ss;
     ss << "PROBE" << delim << component << delim << probe_key << delim
-                  << signal_string << delim << period;
+                  << signal_string << delim << period << delim << name;
     probe_info.push_back(ss.str());
 
     probe_counts[component] += 1;

@@ -32,8 +32,9 @@ public:
     virtual void add_op(string op_string);
     virtual void add_op(int component, string op_string);
 
-    virtual void add_probe(key_type probe_key, string signal_string, dtype period);
-    virtual void add_probe(int component, key_type probe_key, string signal_string, dtype period);
+    virtual void add_probe(key_type probe_key, string signal_string, dtype period, string name);
+    virtual void add_probe(
+        int component, key_type probe_key, string signal_string, dtype period, string name);
 
     virtual SignalView get_signal(string signal_string);
     virtual void add_op(unique_ptr<Operator> op);
