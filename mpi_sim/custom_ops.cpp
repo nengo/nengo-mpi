@@ -113,6 +113,12 @@ map<string, vector<unique_ptr<BaseSignal>>> load_image_data(string filename){
 
     ifstream ifs(filename);
 
+    if(!ifs.good()){
+        stringstream s;
+        s << "Could not load image data from " << filename << ". File does not exist." << endl;
+        throw runtime_error(s.str());
+    }
+
     map<string, vector<unique_ptr<BaseSignal>>> image_map;
     string label, data;
 

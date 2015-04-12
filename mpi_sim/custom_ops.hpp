@@ -6,6 +6,7 @@
 #include <map>
 #include <exception>
 #include <fstream>
+#include <memory>
 #include <cmath>
 #include <time.h>
 
