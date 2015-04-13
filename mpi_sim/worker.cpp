@@ -30,8 +30,8 @@ void start_worker(MPI_Comm comm){
     char name[buflen];
     MPI_Get_processor_name(name, &buflen);
 
-    cout << "Hello world! I'm a nengo_mpi worker process with "
-            "rank "<< my_id << " on host " << name << "." << endl;
+    dbg("Hello world! I'm a nengo_mpi worker process with "
+        "rank "<< my_id << " on host " << name << "." << endl);
 
     MPI_Status status;
 
@@ -116,8 +116,8 @@ void start_worker(MPI_Comm comm){
     int steps;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
-    cout << "Worker " << my_id << " got the signal to start simulation: "
-         << steps << " steps." << endl;
+    dbg("Worker " << my_id << " got the signal to start simulation: "
+        << steps << " steps." << endl);
 
     chunk.run_n_steps(steps, false);
 

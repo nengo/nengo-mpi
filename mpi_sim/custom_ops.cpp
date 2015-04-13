@@ -74,9 +74,6 @@ SpaunStimulus::SpaunStimulus(SignalView output, dtype* time_pointer, vector<stri
             image = unique_ptr<BaseSignal>(new BaseSignal(ScalarSignal(image_size, 1, 0.0)));
         }
 
-        cout << "Image for label: " << label << endl;
-        cout << *image << endl;
-
         images.push_back(move(image));
     }
 }

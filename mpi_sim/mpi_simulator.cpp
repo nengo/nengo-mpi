@@ -149,7 +149,7 @@ void MpiSimulator::finalize_build(){
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
-    cout << "Master sending simulation signal." << endl;
+    cout << "Master sending simulation signal to " << num_components - 1 << " workers." << endl;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
     cout << "Master starting simulation: " << steps << " steps." << endl;

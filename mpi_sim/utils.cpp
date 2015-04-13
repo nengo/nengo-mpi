@@ -11,10 +11,14 @@ unique_ptr<Simulator> create_simulator_from_file(string filename){
         throw runtime_error(s.str());
     }
 
+    cout << "Loading nengo network from file." << endl;
+
     string line;
     getline(in_file, line, delim);
 
     int num_components = boost::lexical_cast<int>(line);
+
+    cout << "Network has " << num_components << " components." << endl;
 
     getline(in_file, line, '\n');
     dtype dt = boost::lexical_cast<dtype>(line);
@@ -22,15 +26,17 @@ unique_ptr<Simulator> create_simulator_from_file(string filename){
     unique_ptr<Simulator> simulator;
 
     if(num_components == 1){
+        cout << "Building serial simulator." << endl;
+
         simulator = unique_ptr<Simulator>(new Simulator(dt));
     }else{
+        cout << "Building parallel simulator." << endl;
+
         bool spawn = false;
         simulator = unique_ptr<Simulator>(new MpiSimulator(num_components, dt, spawn));
     }
 
     string cell;
-
-    dbg("Loading nengo network from file.");
 
     while(getline(in_file, line, '\n')){
         stringstream line_stream;

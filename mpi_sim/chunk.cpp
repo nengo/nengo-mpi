@@ -10,8 +10,6 @@ MpiSimulatorChunk::MpiSimulatorChunk(int component, string label, dtype dt)
 
 void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
-    cout << label << ": running " << steps << " steps." << endl;
-
     if(component == 0){
         sim_log->prep_for_simulation(log_filename, steps);
     }else{
