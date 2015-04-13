@@ -194,7 +194,7 @@ def work_balanced_partitioner(network, num_components, assignments=None):
     if num_components == 1:
         return {}
 
-    G = network_to_filter_graph(network)
+    component_0, G = network_to_filter_graph(network)
 
     components, sizes = greedy_k(
         G.nodes(), num_components,
@@ -219,7 +219,7 @@ class GraphNode(object):
     def add_object(self, obj):
         self.objects.add(obj)
 
-        if hasattr(obj, 'n_neuron'):
+        if hasattr(obj, 'n_neurons'):
             self.n_neurons += obj.n_neurons
 
     def add_input(self, i):
@@ -240,16 +240,20 @@ class GraphNode(object):
             assignments[obj] = component
 
     def merge(self, other):
+        """Return whether a merging occurs."""
+
         if self == other:
-            return
+            return False
 
         for obj in other.objects:
-            if hasattr(obj, 'n_neuron'):
+            if hasattr(obj, 'n_neurons'):
                 self.n_neurons += obj.n_neurons
 
         self.objects = self.objects.union(other.objects)
         self.inputs = self.inputs.union(other.inputs)
         self.outputs = self.outputs.union(other.outputs)
+
+        return True
 
 
 def is_update(conn):
@@ -260,12 +264,16 @@ def neurons2ensemble(e):
     return e.ensemble if isinstance(e, Neurons) else e
 
 
-def for_component_0(node):
+def for_component_0(node, outputs):
     """Returns whether the component must be simulated on process 0."""
 
     for obj in node.objects:
         if isinstance(obj, Node) and callable(obj.output):
             return True
+
+        if isinstance(obj, Node):
+            if any([conn.function is not None for conn in outputs[obj]]):
+                return True
 
         if isinstance(obj, Ensemble) and isinstance(obj.neuron_type, Direct):
             return True
@@ -284,15 +292,22 @@ def network_to_filter_graph(network):
     Parameters
     ----------
     network: The nengo network to partition.
+
+    Returns
+    -------
+    A 2-tuple, where the first item is a GraphNode containing all objects which
+    have to be simulated on component 0 (None if there are no such objects),
+    and the second item is a filter graph in the form of a networkx graph.
     """
 
     def merge_nodes(node_map, a, b):
-        a.merge(b)
+        if a.merge(b):
+            for obj in b.objects:
+                node_map[obj] = a
 
-        for obj in b.objects:
-            node_map[obj] = a
+            del b
 
-        del b
+        return a
 
     node_map = defaultdict(GraphNode)
 
@@ -318,11 +333,17 @@ def network_to_filter_graph(network):
         else:
             merge_nodes(node_map, pre_node, post_node)
 
+    _, outputs = find_all_io(network.all_connections)
+
     # merge together all nodes that have to go on component 0
-    component_0 = filter(for_component_0, node_map.values())
+    component_0 = filter(
+        lambda x: for_component_0(x, outputs), node_map.values())
 
     if component_0:
-        reduce(lambda u, v: merge_nodes(node_map, u, v), component_0)
+        component_0 = reduce(
+            lambda u, v: merge_nodes(node_map, u, v), component_0)
+    else:
+        component_0 = None
 
     G = nx.Graph()
 
@@ -339,7 +360,7 @@ def network_to_filter_graph(network):
             else:
                 G.add_edge(pre_node, post_node, weight=conn.size_mid)
 
-    return G
+    return component_0, G
 
 
 def stoer_wagner_partitioner(network, num_components, assignments=None):
@@ -365,7 +386,7 @@ def stoer_wagner_partitioner(network, num_components, assignments=None):
     if num_components == 1:
         return {}
 
-    G = network_to_filter_graph(network)
+    component_0, G = network_to_filter_graph(network)
 
     sizes = {'': len(G)}
     components = {'': G}
@@ -448,7 +469,7 @@ def spectral_partitioner(network, num_components, assignments=None):
     if num_components == 1:
         return {}
 
-    G = network_to_filter_graph(network)
+    component_0, G = network_to_filter_graph(network)
 
     ordering = nx.spectral_ordering(G)
 
@@ -457,14 +478,15 @@ def spectral_partitioner(network, num_components, assignments=None):
         for e in network.all_ensembles
         if not isinstance(e.neurons, Direct))
 
-    component_0 = filter(for_component_0, G.nodes())
-    for node in component_0:
-        total_neurons -= node.n_neurons
-        node.assign_to_component(assignments, 0)
+    component = 0
 
-    ordering = filter(lambda n: not for_component_0(n), ordering)
+    if component_0:
+        total_neurons -= component_0.n_neurons
+        component_0.assign_to_component(assignments, 0)
 
-    component = 1
+        ordering.remove(component_0)
+        component = 1
+
     neurons_per_component = float(total_neurons) / num_components
 
     while ordering:
@@ -473,7 +495,7 @@ def spectral_partitioner(network, num_components, assignments=None):
             key=lambda i: ordering[i].n_neurons)
 
         component_n_neurons = 0
-        while component_n_neurons < neurons_per_component:
+        while ordering and component_n_neurons < neurons_per_component:
             ordering[next_index].assign_to_component(
                 assignments, component)
 
@@ -481,12 +503,10 @@ def spectral_partitioner(network, num_components, assignments=None):
 
             del ordering[next_index]
 
-            if next_index > len(ordering):
+            if next_index >= len(ordering):
                 next_index = len(ordering) - 1
 
         component += 1
-
-    print assignments
 
     return assignments
 
@@ -566,7 +586,7 @@ def metis_partitioner(network, num_components, assignments=None):
     if num_components == 1:
         return {}
 
-    G = network_to_filter_graph(network)
+    component_0, G = network_to_filter_graph(network)
 
     file_name = metis_input_filename(network)
 
@@ -633,14 +653,16 @@ class Partitioner(object):
                     "Number of components not specified. Defaulting to "
                     "1 and ignoring supplied assignments.")
 
-            self.func = top_level_partitioner
+            # self.func = top_level_partitioner
+            self.func = spectral_partitioner
             self.assignments = {}
 
         else:
             self.num_components = num_components
 
             if func is None:
-                func = top_level_partitioner
+                # func = top_level_partitioner
+                func = spectral_partitioner
 
             self.func = func
 
@@ -685,6 +707,7 @@ class Partitioner(object):
             *self.args, **self.kwargs)
 
         propogate_assignments(network, assignments)
+        evaluate_partition(network, self.num_components, assignments)
 
         return self.num_components, assignments
 
@@ -738,6 +761,9 @@ def propogate_assignments(network, assignments):
 
             else:
                 if any([conn.function is not None for conn in outputs[node]]):
+                    import pdb
+                    pdb.set_trace()
+
                     if node in assignments and assignments[node] != 0:
                         warnings.warn(
                             "Found Node with an output connection whose "
@@ -747,7 +773,7 @@ def propogate_assignments(network, assignments):
 
                     assignments[node] = 0
 
-                else:
+                elif node not in assignments:
                     assignments[node] = assignments[network]
 
         for ensemble in network.ensembles:
@@ -810,7 +836,7 @@ def evaluate_partition(
     print "*" * 80
 
     if filter_graph is None:
-        filter_graph = network_to_filter_graph(network)
+        _, filter_graph = network_to_filter_graph(network)
 
     key = lambda n: sum(
         e.n_neurons for e in n.objects if hasattr(e, 'n_neurons'))

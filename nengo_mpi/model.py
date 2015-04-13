@@ -89,23 +89,26 @@ with warnings.catch_warnings():
         remove_conns = []
 
         for conn in network.connections:
-            if isinstance(conn.pre_obj, Node):
-                if conn.pre_slice != slice(None):
-                    if conn.function is None:
-                        transform = full_transform(conn)
+            replace_connection = (
+                isinstance(conn.pre_obj, Node)
+                and conn.pre_slice != slice(None)
+                and conn.function is None)
 
-                        with network:
-                            Connection(
-                                conn.pre_obj, conn.post_obj,
-                                synapse=conn.synapse,
-                                transform=transform, solver=conn.solver,
-                                learning_rule_type=conn.learning_rule_type,
-                                modulatory=conn.modulatory,
-                                eval_points=conn.eval_points,
-                                scale_eval_points=conn.scale_eval_points,
-                                seed=conn.seed)
+            if replace_connection:
+                transform = full_transform(conn)
 
-                        remove_conns.append(conn)
+                with network:
+                    Connection(
+                        conn.pre_obj, conn.post_obj,
+                        synapse=conn.synapse,
+                        transform=transform, solver=conn.solver,
+                        learning_rule_type=conn.learning_rule_type,
+                        modulatory=conn.modulatory,
+                        eval_points=conn.eval_points,
+                        scale_eval_points=conn.scale_eval_points,
+                        seed=conn.seed)
+
+                remove_conns.append(conn)
 
         if remove_conns:
             network.objects[Connection] = filter(
