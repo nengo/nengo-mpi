@@ -87,10 +87,10 @@ with warnings.catch_warnings():
     def mpi_build_network(model, network):
         """
         For each connection that emenates from a Node, has a non-None
-        pre-slice, and has no function attached to it, we replace it
+        pre-slice, AND has no function attached to it, we replace it
         with a connection that is functionally equivalent, but has
         the slicing moved into the transform. This is done because
-        in some such cases, the nengo builder will implement the
+        in some such cases, the refimpl nengo builder will implement the
         slicing using a pyfunc, which we want to avoid in nengo_mpi.
         """
 
@@ -414,6 +414,9 @@ class MpiModel(builder.Model):
     def __str__(self):
         return "MpiModel: %s" % self.label
 
+    def build(self, *objs):
+        return MpiBuilder.build(self, *objs)
+
     def get_new_mpi_tag(self):
         mpi_tag = self._mpi_tag
         self._mpi_tag += 1
@@ -579,10 +582,11 @@ class MpiModel(builder.Model):
     def add_ops_to_mpi(self, component):
         """
         Adds to MPI all ops that are meant for the given component. Which ops
-        are meant for which components is stored in self.component_ops dict.
+        are meant for which component is stored in self.component_ops.
 
         For all ops except PyFuncs, creates a string encoding all information
-        about the op, and passes it into the C++ MPI simulator.
+        about the op, and passes it into the C++ MPI simulator. For PyFuncs,
+        we need to pass the python function to C++, so it is more involved.
         """
 
         send_signals = self.send_signals[component]
@@ -775,7 +779,10 @@ class MpiModel(builder.Model):
 
         elif op_type == SpaunStimulusOperator:
             output = signal_to_string(op.output)
-            op_args = ["SpaunStimulus", output, op.stimulus_sequence]
+
+            op_args = [
+                "SpaunStimulus", output, op.stimulus_sequence,
+                op.present_interval, op.present_blanks]
 
         else:
             raise NotImplementedError(

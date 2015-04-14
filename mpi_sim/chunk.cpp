@@ -249,7 +249,15 @@ void MpiSimulatorChunk::add_op(string op_string){
                 vector<string> stim_seq;
                 boost::split(stim_seq, stim_seq_str, boost::is_any_of(","));
 
-                add_op(unique_ptr<Operator>(new SpaunStimulus(output, get_time_pointer(), stim_seq)));
+                float present_interval = boost::lexical_cast<float>(tokens[3]);
+                float present_blanks = boost::lexical_cast<float>(tokens[4]);
+
+                auto op = unique_ptr<Operator>(
+                    new SpaunStimulus(
+                         output, get_time_pointer(), stim_seq,
+                         present_interval, present_blanks));
+
+                add_op(move(op));
 
         }else{
             stringstream msg;

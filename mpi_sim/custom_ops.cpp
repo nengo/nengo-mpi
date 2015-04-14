@@ -3,34 +3,27 @@
 
 #include "custom_ops.hpp"
 
-SpaunStimulus::SpaunStimulus(SignalView output, dtype* time_pointer, vector<string> stim_seq)
-:output(output), time_pointer(time_pointer), previous_index(-1){
+SpaunStimulus::SpaunStimulus(
+        SignalView output, dtype* time_pointer, vector<string> stim_sequence,
+        float present_interval, float present_blanks)
+:output(output), time_pointer(time_pointer), previous_index(-1),
+        stim_sequence(stim_sequence), present_interval(present_interval),
+        present_blanks(present_blanks){
 
-    if(stim_seq.empty()){
-        stim_seq = {
-            "A", "ONE", "OPEN", "1", "2", "3", "4", "5", "1", "2", "CLOSE", "QM"};
+    if(stim_sequence.empty()){
+        throw runtime_error("Cannot create SpaunStimulus with empty stimulus sequence.");
     }
 
-    num_stimuli = stim_seq.size();
-    present_interval = 1.0;
-    present_blanks = 1.0;
-
-    int num_mtr_responses = 7;
-    float mtr_ramp_scale = 2.0;
-    float mtr_est_digit_response_time = 1.5 / mtr_ramp_scale;
-
-    int est_mtr_response_time = num_mtr_responses * mtr_est_digit_response_time;
-    float est_run_time = stim_seq.size() * present_interval * pow(2, present_blanks);
-    int extra_spaces = int(est_mtr_response_time / (present_interval * pow(2, present_blanks)));
-
-    for(int i = 0; i < extra_spaces; i++){
-        stim_seq.push_back("");
-    }
+    num_stimuli = stim_sequence.size();
 
     string vision_data_loc = getenv("HOME");
     vision_data_loc += "/spaun2.0/_spaun/vision/spaun_vision_data.csv";
 
     auto image_data = load_image_data(vision_data_loc);
+
+    if(image_data.find("NULL") != image_data.end()){
+        throw runtime_error("Found image with label NULL in data.");
+    }
 
     int loaded_image_size = image_data.at("0")[0]->size1();
     image_size = output.size1();
@@ -52,7 +45,7 @@ SpaunStimulus::SpaunStimulus(SignalView output, dtype* time_pointer, vector<stri
 
     srand (time(NULL));
 
-    for(string label: stim_seq){
+    for(string label: stim_sequence){
         if(debug_mapping.find(label) != debug_mapping.end()){
             label = debug_mapping.at(label);
         }
@@ -91,8 +84,6 @@ void SpaunStimulus::operator() (){
         if(index == num_stimuli){
             output = ScalarSignal(image_size, 1, 0.0);
         }else{
-            // TODO: Should have a check somewhere to make sure output is
-            // the same size as the images that we've retrieved
             output = SignalView(
                 *images[index], ublas::slice(0, 1, image_size),
                 ublas::slice(0, 1, 1));
@@ -103,6 +94,29 @@ void SpaunStimulus::operator() (){
 }
 
 string SpaunStimulus::to_string() const{
+    stringstream out;
+
+    out << "SpaunStimulus:" << endl;
+    out << "Num stimuli:" << num_stimuli << endl;
+    out << "Present interval:" << present_interval << endl;
+    out << "Present blanks:" << present_blanks << endl;
+    out << "Image size:" << image_size << endl;
+    out << "Previous index:" << previous_index << endl;
+    out << "Stimulus sequence:" << endl;
+
+    int i = 0;
+    for(auto s: stim_sequence){
+        if(i > 0){
+            out << ", ";
+        }
+
+        out << s;
+        i++;
+    }
+
+    out << endl;
+
+    return out.str();
 
 }
 
