@@ -609,7 +609,6 @@ def metis_partitioner(network, num_components, assignments=None):
 
     return assignments
 
-
 class Partitioner(object):
     """
     A class for dividing a nengo network into components.
@@ -653,16 +652,14 @@ class Partitioner(object):
                     "Number of components not specified. Defaulting to "
                     "1 and ignoring supplied assignments.")
 
-            # self.func = top_level_partitioner
-            self.func = spectral_partitioner
+            self.func = self.default_partition_func
             self.assignments = {}
 
         else:
             self.num_components = num_components
 
             if func is None:
-                # func = top_level_partitioner
-                func = spectral_partitioner
+                func = self.default_partition_func
 
             self.func = func
 
@@ -687,6 +684,11 @@ class Partitioner(object):
         self.args = args
         self.kwargs = kwargs
 
+    @property
+    def default_partition_func(self):
+        return spectral_partitioner
+        #  return metis_partitioner
+
     def partition(self, network):
         """
         Parameters
@@ -707,7 +709,9 @@ class Partitioner(object):
             *self.args, **self.kwargs)
 
         propogate_assignments(network, assignments)
-        evaluate_partition(network, self.num_components, assignments)
+
+        if self.num_components > 1:
+            evaluate_partition(network, self.num_components, assignments)
 
         return self.num_components, assignments
 

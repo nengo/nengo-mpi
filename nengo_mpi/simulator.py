@@ -1,9 +1,8 @@
-from nengo import builder
 from nengo.simulator import ProbeDict
 import nengo.utils.numpy as npext
 from nengo.cache import get_default_decoder_cache
 
-from model import MpiModel
+from model import MpiBuilder, MpiModel
 from partition import Partitioner
 
 import numpy as np
@@ -75,7 +74,7 @@ class Simulator(object):
             decoder_cache=get_default_decoder_cache(),
             save_file=save_file)
 
-        builder.Builder.build(self.model, network)
+        MpiBuilder.build(self.model, network)
 
         print "Finalizing MPI model..."
         self.model.finalize_build()
