@@ -18,10 +18,8 @@ class Simulator(object):
             self, network, dt=0.001, seed=None, model=None,
             partitioner=None, save_file=""):
         """
-        Most of the time, you will pass in a network and sometimes a dt::
-
-            sim1 = nengo.Simulator(my_network)  # Uses default 0.001s dt
-            sim2 = nengo.Simulator(my_network, dt=0.01)  # Uses 0.01s dt
+        Creates a Simulator for a nengo network than can be executed
+        in parallel using MPI.
 
         Parameters
         ----------
@@ -65,11 +63,11 @@ class Simulator(object):
             partitioner = Partitioner()
 
         print "Partitioning network..."
-        num_components, assignments = partitioner.partition(network)
+        self.n_components, self.assignments = partitioner.partition(network)
 
         print "Building MPI model..."
         self.model = MpiModel(
-            num_components, assignments, dt=dt,
+            self.n_components, self.assignments, dt=dt,
             label="%s, dt=%f" % (network, dt),
             decoder_cache=get_default_decoder_cache(),
             save_file=save_file)

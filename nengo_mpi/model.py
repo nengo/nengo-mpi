@@ -132,9 +132,9 @@ with warnings.catch_warnings():
 
 class DummyNdarray(object):
     """
-    A dummy array intended to act as a place holder for an
+    A dummy array intended to act as a place-holder for an
     ndarray. Preserves the type, shape, stride and size
-    attributes of the original ndarray, but not its conents.
+    attributes of the original ndarray, but not its contents.
     """
 
     def __init__(self, value):
@@ -366,21 +366,21 @@ class MpiModel(builder.Model):
     outfile_delim = "|"
 
     def __init__(
-            self, num_components, assignments, dt=0.001, label=None,
+            self, n_components, assignments, dt=0.001, label=None,
             decoder_cache=NoDecoderCache(), save_file="", free_memory=True):
 
-        self.num_components = num_components
+        self.n_components = n_components
         self.assignments = assignments
 
         if save_file:
             self.save_file = open(save_file, 'w')
             self.save_file.write(
-                "%s%s%s" % (num_components, MpiModel.outfile_delim, dt))
+                "%s%s%s" % (n_components, MpiModel.outfile_delim, dt))
         else:
             self.save_file = None
 
             import mpi_sim
-            self.mpi_sim = mpi_sim.PythonMpiSimulator(num_components, dt)
+            self.mpi_sim = mpi_sim.PythonMpiSimulator(n_components, dt)
 
         # for each component, stores the keys of the signals that have
         # to be sent and received, respectively
@@ -539,15 +539,15 @@ class MpiModel(builder.Model):
         been added by this point; they are added to MPI as soon as they
         are built and then deleted from the python level, to save memory.
         """
-
         # Do this to throw an exception in case of an invalid graph.
         all_ops = list(chain(
             *[self.component_ops[component]
-              for component in range(self.num_components)]))
+              for component in range(self.n_components)]))
+
         dg = operator_depencency_graph(all_ops)
         [node for node in toposort(dg) if hasattr(node, 'make_step')]
 
-        for component in range(self.num_components):
+        for component in range(self.n_components):
             self.add_ops_to_mpi(component)
 
         for probe in self.probes:
@@ -557,27 +557,6 @@ class MpiModel(builder.Model):
 
         if not self.save_file:
             self.mpi_sim.finalize_build()
-
-    def from_refimpl_model(self, model):
-        """Create an MpiModel from an instance of a refimpl Model."""
-
-        if not isinstance(model, builder.Model):
-            raise TypeError(
-                "Model must be an instance of "
-                "%s." % builder.model.__name__)
-
-        self.dt = model.dt
-        self.label = model.label
-        self.decoder_cache = model.decoder_cache
-
-        self.toplevel = model.toplevel
-        self.config = model.config
-
-        self.operators = model.operators
-        self.params = model.params
-        self.seeds = model.seeds
-        self.probes = model.probes
-        self.sig = model.sig
 
     def add_ops_to_mpi(self, component):
         """
