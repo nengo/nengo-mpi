@@ -88,6 +88,8 @@ void Simulator::finalize_build(){
 
 void Simulator::run_n_steps(int steps, bool progress, string log_filename){
 
+    clock_t begin = clock();
+
     chunk->set_log_filename(log_filename);
     chunk->run_n_steps(steps, progress);
 
@@ -96,6 +98,9 @@ void Simulator::run_n_steps(int steps, bool progress, string log_filename){
     }
 
     chunk->close_simulation_log();
+
+    clock_t end = clock();
+    cout << "Simulating " << steps << " steps took " << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
 }
 
 void Simulator::gather_probe_data(){

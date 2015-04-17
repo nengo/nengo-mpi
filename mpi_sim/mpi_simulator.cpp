@@ -149,6 +149,8 @@ void MpiSimulator::finalize_build(){
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
+    clock_t begin = clock();
+
     cout << "Master sending simulation signal to " << num_components - 1 << " workers." << endl;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
@@ -167,6 +169,9 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
 
     chunk->close_simulation_log();
     MPI_Finalize();
+
+    clock_t end = clock();
+    cout << "Simulating " << steps << " steps took " << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
 }
 
 void MpiSimulator::gather_probe_data(){

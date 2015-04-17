@@ -35,8 +35,12 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
     for(unsigned step = 0; step < steps; ++step){
         if(step % FLUSH_PROBES_EVERY == 0 && step != 0){
-            cout << "Component " << component << " beginning step: " << step << ", flushing probes." << endl;
+            dbg("Component " << component << " beginning step: " << step << ", flushing probes." << endl);
             flush_probes();
+        }
+
+        if(component == 0 && step % 100 == 0){
+            cout << "Master beginning step: " << step << endl;
         }
 
         // Update time before calling operators, as refimpl does

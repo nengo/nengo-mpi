@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sstream>
 #include <exception>
+#include <ctime>
 
 #include "chunk.hpp"
 #include "debug.hpp"
