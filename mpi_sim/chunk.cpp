@@ -39,7 +39,7 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
             flush_probes();
         }
 
-        if(component == 0 && step % 100 == 0){
+        if(!progress && component == 0 && step % 100 == 0){
             cout << "Master beginning step: " << step << endl;
         }
 
