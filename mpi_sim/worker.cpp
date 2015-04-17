@@ -149,21 +149,53 @@ void start_worker(MPI_Comm comm){
     MPI_Finalize();
 }
 
+struct Arg: public option::Arg
+ {
+     static void printError(const char* msg1, const option::Option& opt, const char* msg2)
+     {
+         fprintf(stderr, "ERROR: %s", msg1);
+         fwrite(opt.name, opt.namelen, 1, stderr);
+         fprintf(stderr, "%s", msg2);
+     }
+
+     static option::ArgStatus NonEmpty(const option::Option& option, bool msg)
+     {
+         if (option.arg != 0 && option.arg[0] != 0)
+             return option::ARG_OK;
+
+         if (msg) printError("Option '", option, "' requires a non-empty argument\n");
+         return option::ARG_ILLEGAL;
+     }
+
+     static option::ArgStatus Numeric(const option::Option& option, bool msg)
+     {
+         char* endptr = 0;
+         if (option.arg != 0 && strtol(option.arg, &endptr, 10)){};
+         if (endptr != option.arg && *endptr == 0)
+             return option::ARG_OK;
+
+         if (msg) printError("Option '", option, "' requires a numeric argument\n");
+         return option::ARG_ILLEGAL;
+     }
+ };
+
 enum  optionIndex { UNKNOWN, HELP, PROC, LOG, NET, PROGRESS, TIME};
 
 const option::Descriptor usage[] =
 {
- {UNKNOWN, 0, "" , "", option::Arg::None,           "USAGE: example [options]\n\n"
-                                                    "Options:" },
- {HELP,    0, "" , "help", option::Arg::None,       "  --help  \tPrint usage and exit." },
- {PROC,    0, "p", "proc", option::Arg::None, "  --proc, -p  \tNumber of processors to use." },
- {LOG,    0, "", "log", option::Arg::None, "  --log,  \tName of file to log results to." },
- {NET,    0, "", "net", option::Arg::None, "  --net,  \tName of network to simulate." },
- {PROGRESS,    0, "", "progress", option::Arg::None, "  --progress, \tSupply to show progress bar." },
- {TIME,    0, "t", "time", option::Arg::None, "  --time, -t  \tTime to simulate for, in seconds." },
- {UNKNOWN, 0, "" ,  ""   , option::Arg::None,       "\nExamples:\n"
-                                                    "  example --unknown -- --this_is_no_option\n"
-                                                    "  example -unk --plus -ppp file1 file2\n" },
+ {UNKNOWN, 0, "" , "",          option::Arg::None, "USAGE: example [options]\n\n"
+                                                   "Options:" },
+ {HELP,     0, "" , "help",     option::Arg::None, "  --help  \tPrint usage and exit." },
+ {NET,      0, "",  "net",      Arg::NonEmpty,     "  --net,  \tName of network to simulate. Mandatory" },
+ {TIME,     0, "t", "time",     Arg::NonEmpty, "  --time, -t  \tTime to simulate for, in seconds. Mandatory" },
+ {PROC,     0, "p", "proc",     Arg::NonEmpty, "  --proc, -p  \tNumber of processors to use. "
+                                                                   "If not specified, will be read from the network file."},
+ {LOG,      0, "",  "log",      Arg::NonEmpty, "  --log,  \tName of file to log results to. "
+                                                               "If not specified, results printed at end of simulation." },
+ {PROGRESS, 0, "",  "progress", option::Arg::None, "  --progress, \tSupply to show progress bar." },
+ {UNKNOWN,  0, "" , ""   ,      option::Arg::None, "\nExamples:\n"
+                                                   "  mpi_sim_worker --net basal_ganglia.net -t 1.0\n"
+                                                   "  mpi_sim_worker --net spaun.net -t 7.5 -p 1024\n" },
  {0,0,0,0,0,0}
 };
 
@@ -179,16 +211,16 @@ void start_master(int argc, char **argv){
     }
 
     if (options[HELP] || argc == 0) {
-      option::printUsage(std::cout, usage);
+        option::printUsage(std::cout, usage);
         return;
     }
 
     if(!options[NET]){
-        cout << "Please network to simulate." << endl;
+        cout << "Please specify network to simulate." << endl;
         return;
     }
 
-    string net_filename = options[NET].arg;
+    string net_filename(options[NET].arg);
     cout << "Loading network from file: " << net_filename << "." << endl;
 
     if(!options[TIME]){
@@ -196,14 +228,34 @@ void start_master(int argc, char **argv){
         return;
     }
 
-    float sim_length = boost::lexical_cast<float>(options[TIME].arg);
+    string s_sim_length(options[TIME].arg);
+
+    float sim_length;
+    try{
+        sim_length = boost::lexical_cast<float>(s_sim_length);
+    }catch(const boost::bad_lexical_cast& e){
+        stringstream msg;
+        msg << "Specified simulation time could not be interpreted as a float." << endl;
+        throw runtime_error(msg.str());
+    }
+
     cout << "Will run simulation for " << sim_length << " second(s)." << endl;
 
     bool show_progress = bool(options[PROGRESS]);
 
     string log_filename = options[LOG] ? options[LOG].arg : "";
 
-    int num_processors = options[PROC] ? boost::lexical_cast<int>(options[PROC].arg) : 0;
+    int n_processors;
+    if(options[PROC]){
+        string s_n_processors(options[PROC].arg);
+        try{
+            n_processors = boost::lexical_cast<int>(s_n_processors);
+        }catch(const boost::bad_lexical_cast& e){
+            stringstream msg;
+            msg << "Specified a value for n_processors that could not be interpreted as an int." << endl;
+            throw runtime_error(msg.str());
+        }
+    }
 
     cout << "Building network..." << endl;
     unique_ptr<Simulator> sim = create_simulator_from_file(net_filename);
