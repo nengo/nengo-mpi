@@ -4,6 +4,8 @@
 
 #include <mpi.h>
 
+#include "optionparser.h"
+
 #include "chunk.hpp"
 #include "simulator.hpp"
 #include "utils.hpp"
@@ -147,39 +149,64 @@ void start_worker(MPI_Comm comm){
     MPI_Finalize();
 }
 
+enum  optionIndex { UNKNOWN, HELP, PROC, LOG, NET, PROGRESS, TIME};
+
+const option::Descriptor usage[] =
+{
+ {UNKNOWN, 0, "" , "", option::Arg::None,           "USAGE: example [options]\n\n"
+                                                    "Options:" },
+ {HELP,    0, "" , "help", option::Arg::None,       "  --help  \tPrint usage and exit." },
+ {PROC,    0, "p", "proc", option::Arg::None, "  --proc, -p  \tNumber of processors to use." },
+ {LOG,    0, "", "log", option::Arg::None, "  --log,  \tName of file to log results to." },
+ {NET,    0, "", "net", option::Arg::None, "  --net,  \tName of network to simulate." },
+ {PROGRESS,    0, "", "progress", option::Arg::None, "  --progress, \tSupply to show progress bar." },
+ {TIME,    0, "t", "time", option::Arg::None, "  --time, -t  \tTime to simulate for, in seconds." },
+ {UNKNOWN, 0, "" ,  ""   , option::Arg::None,       "\nExamples:\n"
+                                                    "  example --unknown -- --this_is_no_option\n"
+                                                    "  example -unk --plus -ppp file1 file2\n" },
+ {0,0,0,0,0,0}
+};
+
 void start_master(int argc, char **argv){
-    if(argc < 2){
-        cout << "Please specify a file to load" << endl;
+
+    argc -= (argc > 0); argv += (argc > 0); // skip program name argv[0] if present
+    option::Stats  stats(usage, argc, argv);
+    option::Option options[stats.options_max], buffer[stats.buffer_max];
+    option::Parser parse(usage, argc, argv, options, buffer);
+
+    if (parse.error()){
         return;
     }
 
-    if(argc < 3){
+    if (options[HELP] || argc == 0) {
+      option::printUsage(std::cout, usage);
+        return;
+    }
+
+    if(!options[NET]){
+        cout << "Please network to simulate." << endl;
+        return;
+    }
+
+    string net_filename = options[NET].arg;
+    cout << "Loading network from file: " << net_filename << "." << endl;
+
+    if(!options[TIME]){
         cout << "Please specify a simulation length" << endl;
         return;
     }
 
-    int show_progress;
-    if(argc < 4){
-        show_progress = 1;
-    }else{
-        show_progress = boost::lexical_cast<int>(argv[3]);
-    }
+    float sim_length = boost::lexical_cast<float>(options[TIME].arg);
+    cout << "Will run simulation for " << sim_length << " second(s)." << endl;
 
-    string log_filename;
-    if(argc < 5){
-        log_filename = "";
-    }else{
-        log_filename = argv[4];
-    }
+    bool show_progress = bool(options[PROGRESS]);
 
-    string filename = argv[1];
-    float sim_length = boost::lexical_cast<float>(argv[2]);
+    string log_filename = options[LOG] ? options[LOG].arg : "";
 
-    cout << "Loading network from file: " << filename << "." << endl;
-    cout << "Running simulation for " << sim_length << " second(s)." << endl;
+    int num_processors = options[PROC] ? boost::lexical_cast<int>(options[PROC].arg) : 0;
 
     cout << "Building network..." << endl;
-    unique_ptr<Simulator> sim = create_simulator_from_file(filename);
+    unique_ptr<Simulator> sim = create_simulator_from_file(net_filename);
     cout << "Done building network..." << endl;
 
     cout << "dt: " << sim->dt << endl;
@@ -191,7 +218,7 @@ void start_master(int argc, char **argv){
         cout << "Logging simulation results to " << log_filename << endl;
     }
 
-    sim->run_n_steps(num_steps, bool(show_progress), log_filename);
+    sim->run_n_steps(num_steps, show_progress, log_filename);
 
     if(log_filename.size() == 0){
         for(auto& key : sim->get_probe_keys()){
