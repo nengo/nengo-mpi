@@ -6,7 +6,7 @@ import numpy as np
 import argparse
 
 logger = logging.getLogger(__name__)
-nengo.log(debug=True)
+nengo.log(debug=False)
 
 parser = argparse.ArgumentParser(
     description="Benchmarking script for nengo_mpi.")
@@ -132,10 +132,8 @@ with m:
 
 if use_mpi:
     import nengo_mpi
-    partitioner = nengo_mpi.Partitioner(1 + extra_partitions, assignments)
-
     sim = nengo_mpi.Simulator(
-        m, dt=0.001, partitioner=partitioner, save_file=save_file)
+        m, dt=0.001, assignments=assignments, save_file=save_file)
 else:
     sim = nengo.Simulator(m, dt=0.001)
 
