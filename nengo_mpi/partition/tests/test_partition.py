@@ -1,0 +1,120 @@
+import pytest
+
+from nengo_mpi import Simulator
+
+from nengo_mpi import Partitioner
+from nengo_mpi.partition import spectral_partitioner
+from nengo_mpi.partition import work_balanced_partitioner
+from nengo_mpi.partition import metis_partitioner
+
+from nengo_mpi.partition.base import network_to_filter_graph
+
+import nengo
+
+import os
+
+
+@pytest.fixture
+def simple_network():
+    network = nengo.Network()
+
+    with network:
+        node = nengo.Node(0.5)
+        A = nengo.Ensemble(50, 1, label='A')
+        B = nengo.Ensemble(50, 1, label='B')
+
+        nengo.Connection(node, A)
+        nengo.Connection(A, B)
+
+    return network
+
+
+def pytest_generate_tests(metafunc):
+    if "n_components" in metafunc.funcargnames:
+        metafunc.parametrize("n_components", [1, 2, 4, 8])
+
+
+def test_default(simple_network, n_components):
+
+    # Save the network to a file so that an MpiSimulator is not created.
+    save_file = 'test.net'
+
+    component0, filter_graph = network_to_filter_graph(simple_network)
+
+    partitioner = Partitioner(n_components)
+    sim = Simulator(
+        simple_network, partitioner=partitioner, save_file=save_file)
+
+    assert sim.n_components == min(len(filter_graph), n_components)
+    assert os.path.isfile(save_file)
+    os.remove(save_file)
+
+
+def test_spectral(simple_network):
+    save_file = 'test.net'
+
+    n_components = 2
+    partitioner = Partitioner(n_components, func=spectral_partitioner)
+    sim = Simulator(
+        simple_network, partitioner=partitioner, save_file=save_file)
+
+    assert sim.n_components == 2
+    assert os.path.isfile(save_file)
+    os.remove(save_file)
+
+
+def test_metis(simple_network):
+    save_file = 'test.net'
+
+    n_components = 2
+    partitioner = Partitioner(
+        n_components, func=metis_partitioner, delete_file=True)
+    sim = Simulator(
+        simple_network, partitioner=partitioner, save_file=save_file)
+
+    assert sim.n_components == n_components
+    assert os.path.isfile(save_file)
+    os.remove(save_file)
+
+
+def test_work_balanced(simple_network):
+    save_file = 'test.net'
+
+    n_components = 2
+    partitioner = Partitioner(n_components, func=work_balanced_partitioner)
+    sim = Simulator(
+        simple_network, partitioner=partitioner, save_file=save_file)
+
+    assert sim.n_components == n_components
+    assert os.path.isfile(save_file)
+    os.remove(save_file)
+
+
+def test_no_partitioner(simple_network):
+    save_file = 'test.net'
+
+    sim = Simulator(simple_network, save_file=save_file)
+
+    assert sim.n_components == 1
+
+    assert os.path.isfile(save_file)
+    os.remove(save_file)
+
+
+def test_insufficient_chunks(simple_network):
+    """
+    Test the case where the network contains too few chunks to use the
+    specified number of components.
+    """
+
+    component0, filter_graph = network_to_filter_graph(simple_network)
+
+    partitioner = Partitioner(len(filter_graph) + 10)
+
+    save_file = 'test.net'
+    sim = Simulator(
+        simple_network, partitioner=partitioner, save_file=save_file)
+
+    assert sim.n_components == len(filter_graph)
+    assert os.path.isfile(save_file)
+    os.remove(save_file)
