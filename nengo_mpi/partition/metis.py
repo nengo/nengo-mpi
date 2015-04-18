@@ -5,7 +5,8 @@ import os
 _metis_available = True
 
 try:
-    subprocess.call(["gpmetis"])
+    devnull = open(os.devnull, 'w')
+    subprocess.call(["gpmetis"], stdout=devnull, stderr=subprocess.STDOUT)
 except OSError as e:
     if e.errno == os.errno.ENOENT:
         _metis_available = False
