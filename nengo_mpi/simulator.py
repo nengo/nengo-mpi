@@ -3,7 +3,7 @@ import nengo.utils.numpy as npext
 from nengo.cache import get_default_decoder_cache
 
 from model import MpiBuilder, MpiModel
-from partition import Partitioner
+from partition import Partitioner, verify_assignments
 
 import numpy as np
 
@@ -16,7 +16,7 @@ class Simulator(object):
 
     def __init__(
             self, network, dt=0.001, seed=None, model=None,
-            partitioner=None, save_file=""):
+            partitioner=None, assignments=None, save_file=""):
         """
         Creates a Simulator for a nengo network than can be executed
         in parallel using MPI.
@@ -45,6 +45,13 @@ class Simulator(object):
 
         partitioner: Partitioner
             Specifies how to assign nengo objects to MPI processes.
+            ``partitioner'' and ``assignment'' cannot both be supplied.
+
+        assignments: dict
+            Dictionary mapping from nengo objects to indices of
+            partitions components. ``partitioner'' and ``assignment''
+            cannot both be supplied.
+
 
         save_file: string
             Name of file that will store all data added to the simulator.
@@ -59,11 +66,21 @@ class Simulator(object):
         self.n_steps = 0
         self.dt = dt
 
-        if partitioner is None:
-            partitioner = Partitioner()
+        if partitioner is not None and assignments is not None:
+            raise ValueError(
+                "Cannot supply both ``assignments'' and ``partitioner'' to "
+                "Simulator.__init__.")
 
-        print "Partitioning network..."
-        self.n_components, self.assignments = partitioner.partition(network)
+        if assignments is not None:
+            p = verify_assignments(network, assignments)
+        else:
+            if partitioner is None:
+                partitioner = Partitioner()
+
+            print "Partitioning network..."
+            p = partitioner.partition(network)
+
+        self.n_components, self.assignments = p
 
         print "Building MPI model..."
         self.model = MpiModel(

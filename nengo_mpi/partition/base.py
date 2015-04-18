@@ -1,6 +1,5 @@
 from collections import defaultdict
 import warnings
-import sys
 
 import networkx as nx
 import numpy as np
@@ -14,26 +13,44 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def verify_assignments(network, assignments):
+    """
+    Propogate the assignments given in ``assignments'' to form a complete
+    partition of the network, and verify that the resulting partition is
+    usable.
+
+    network: nengo.Network
+        The network whose assignments are to be verified.
+
+    assignments: dict
+        A mapping from each nengo object in the network to an integer
+        specifiying which component of the partition the object is assigned
+        to. Component 0 is simulated by the master process.
+    """
+
+    propogate_assignments(network, assignments)
+    n_components = max(assignments.values()) + 1
+
+    return n_components, assignments
+
+
 class Partitioner(object):
     """
-    A class for dividing a nengo network into components.
+    A class for dividing a nengo network into components. Connections that
+    straddle component boundaries must be filtered connections.
 
     Parameters
     ----------
-    n_components: The number of components to divide the nengo network into.
-        If None, defaults to 1, and ``assignments'' and ``func'' are ignored.
-
-    assignments: A dictionary mapping from nengo objects to component indices,
-        with 0 as the first component. Used to hard-assign nengo objects
-        to specific components.
+    n_components: int
+        The number of components to divide the nengo network into. If None,
+        defaults to 1.
 
     func: A function to partition the nengo graph, assigning nengo objects
-        to component indices.
+        to component indices. Ignored if n_components == 1.
 
         Arguments:
             filter_graph
             n_components
-            assignments
 
     args: Extra positional args passed to func
 
@@ -52,7 +69,6 @@ class Partitioner(object):
                     "1 and ignoring supplied partitioner function.")
 
             self.func = self.default_partition_func
-            self.assignments = {}
 
         else:
             self.n_components = n_components
@@ -74,23 +90,27 @@ class Partitioner(object):
         Partition the network using the partitioning function self.func.
         If self.n_components == 1 or the number of independently
         simulatable chunks of the network is less than self.n_components, the
-        partitioning function is node used. In the former case, all objects
-        go on component 0, and in the latter case, we arbitrarily assignments
-        each independently simulatable chunk to its own component.
+        partitioning function is not used. In the former case, all objects
+        go on component 0, and in the latter case, we arbitrarily assign each
+        independently simulatable chunk to its own component.
 
         Parameters
         ----------
-        network: The network to partition.
+        network: nengo.Network
+            The network to partition.
 
         Returns
         -------
-        n_components: The number of components the nengo network
-            is split into. May be different than the value supplied to
-            Partitioner.__init__ in cases where it is deemed impossible
-            to split the network into the desired number of components.
+        n_components: int
+            The number of components the nengo network is split into. May
+            be different than the value supplied to Partitioner.__init__ in
+            cases where it is deemed impossible to split the network into the
+            desired number of components.
 
-        assignments: A dictionary mapping from nengo objects to
-            component indices.
+        assignments: dict
+            A mapping from each nengo object in the network to an integer
+            specifiying which component of the partition the object is assigned
+            to. Component 0 is simulated by the master process.
         """
 
         object_assignments = {}
@@ -328,7 +348,8 @@ def propogate_assignments(network, assignments):
     and then this function propogates those assignments.
 
     Also does a small amount of validation, making sure that certain types of
-    objects are assigned to the master component (component 0).
+    objects are assigned to the master component (component 0), and making sure
+    that connections that straddle component boundaries have a filter on them.
 
     These objects are:
         1. Nodes with callable outputs.
@@ -337,9 +358,11 @@ def propogate_assignments(network, assignments):
 
     Parameters
     ----------
-    network: The network we are partitioning.
+    network: nengo.Network
+        The network we are partitioning.
 
-    assignments: A dictionary mapping from nengo objects to component indices.
+    assignments: dict
+        A dictionary mapping from nengo objects to component indices.
         This dictionary will be altered to contain assignments for all objects
         in the network. If a network appears in assignments, then all objects
         in that network which do not also appear in assignments will be given
@@ -422,6 +445,19 @@ def propogate_assignments(network, assignments):
         # Nengo tests require a value error to be raised in these cases.
         msg = "Invalid Partition. KeyError: %s" % e.message,
         raise ValueError(msg)
+
+    non_updates = [
+        conn for conn in network.all_connections if not is_update(conn)]
+
+    for conn in non_updates:
+        pre_component = assignments[conn.pre_obj]
+        post_component = assignments[conn.post_obj]
+
+        if pre_component != post_component:
+            raise RuntimeError(
+                "Non-filtered connection %s straddles component "
+                "boundaries. Pre-object assigned to %d, post-object "
+                "assigned to %d." % (conn, pre_component, post_component))
 
     nodes = network.all_nodes
     nodes_in = all([node in assignments for node in nodes])

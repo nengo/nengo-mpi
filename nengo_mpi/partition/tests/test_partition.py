@@ -5,7 +5,7 @@ from nengo_mpi import Simulator
 from nengo_mpi import Partitioner
 from nengo_mpi.partition import spectral_partitioner
 from nengo_mpi.partition import work_balanced_partitioner
-from nengo_mpi.partition import metis_partitioner
+from nengo_mpi.partition import metis_available, metis_partitioner
 
 from nengo_mpi.partition.base import network_to_filter_graph
 
@@ -63,6 +63,9 @@ def test_spectral(simple_network):
     os.remove(save_file)
 
 
+@pytest.mark.skipif(
+    not metis_available(),
+    reason="Requires metis to be available on the system.")
 def test_metis(simple_network):
     save_file = 'test.net'
 
@@ -99,6 +102,48 @@ def test_no_partitioner(simple_network):
 
     assert os.path.isfile(save_file)
     os.remove(save_file)
+
+
+def test_assignments():
+    save_file = 'test.net'
+
+    network = nengo.Network()
+
+    with network:
+        node = nengo.Node(0.5)
+        A = nengo.Ensemble(50, 1, label='A')
+        B = nengo.Ensemble(50, 1, label='B')
+
+        nengo.Connection(node, A)
+        nengo.Connection(A, B)
+
+    sim = Simulator(
+        network, assignments={node: 0, A: 1, B: 2}, save_file=save_file)
+
+    assert sim.n_components == 3
+
+    assert os.path.isfile(save_file)
+    os.remove(save_file)
+
+
+def test_bad_assignments():
+    save_file = 'test.net'
+
+    network = nengo.Network()
+
+    with network:
+        node = nengo.Node(0.5)
+        A = nengo.Ensemble(50, 1, label='A')
+        B = nengo.Ensemble(50, 1, label='B')
+
+        nengo.Connection(node, A)
+        nengo.Connection(A, B, synapse=None)
+
+    # No filter between A and B, but we're assigning them to different
+    # partitions, so an error should be raised.
+    with pytest.raises(RuntimeError):
+        Simulator(
+            network, assignments={node: 0, A: 1, B: 2}, save_file=save_file)
 
 
 def test_insufficient_chunks(simple_network):

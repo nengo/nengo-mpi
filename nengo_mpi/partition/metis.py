@@ -2,6 +2,20 @@ import subprocess
 import tempfile
 import os
 
+_metis_available = True
+
+try:
+    subprocess.call(["gpmetis"])
+except OSError as e:
+    if e.errno == os.errno.ENOENT:
+        _metis_available = False
+    else:
+        raise
+
+
+def metis_available():
+    return _metis_available
+
 
 def write_metis_input_file(filter_graph):
     """
@@ -87,6 +101,11 @@ def metis_partitioner(filter_graph, n_components, delete_file=True):
     assignments: dict
         A mapping from nodes in the filter graph to components.
     """
+
+    if not metis_available():
+        raise Exception(
+            "Cannot use metis_partitioner. "
+            "gpmetis is not present on the system.")
 
     assert n_components > 1
 
