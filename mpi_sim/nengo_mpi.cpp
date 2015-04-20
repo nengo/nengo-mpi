@@ -179,69 +179,77 @@ struct Arg: public option::Arg
      }
  };
 
-enum  optionIndex { UNKNOWN, HELP, PROC, LOG, NET, PROGRESS, TIME};
+enum serialOptionIndex {UNKNOWN, HELP, LOG, PROGRESS};
 
-const option::Descriptor usage[] =
+const option::Descriptor serial_usage[] =
 {
- {UNKNOWN, 0, "" , "",          option::Arg::None, "USAGE: example [options]\n\n"
+ {UNKNOWN, 0, "" , "",          option::Arg::None, "USAGE: nengo_mpi [options] <network file> <simulation time> \n\n"
+                                                   "where <network file> is a file specifying a network to simulate,\n"
+                                                   "and <simulation time> is the amount of time to simulate the network\n"
+                                                   "for, in seconds. Simulation results are logged to an HDF5 file.\n"
                                                    "Options:" },
  {HELP,     0, "" , "help",     option::Arg::None, "  --help  \tPrint usage and exit." },
- {NET,      0, "",  "net",      Arg::NonEmpty,     "  --net,  \tName of network to simulate. Mandatory" },
- {TIME,     0, "t", "time",     Arg::NonEmpty,     "  --time, -t  \tTime to simulate for, in seconds. Mandatory" },
- {LOG,      0, "",  "log",      Arg::NonEmpty,     "  --log,  \tName of file to log results to using HDF5. "
-                                                               "If not specified, results are printed at end of simulation." },
- {PROGRESS, 0, "",  "progress", option::Arg::None, "  --progress, \tSupply to show progress bar." },
+ {PROGRESS, 0, "",  "progress", option::Arg::None, "  --progress  \tSupply to show progress bar." },
+ {LOG,      0, "",  "log",      Arg::NonEmpty,     "  --log  \tName of file to log results to using HDF5. "
+                                                               "If not specified, the log filename is the same as the "
+                                                               "name of the network file, but with the .h5 extension."},
  {UNKNOWN,  0, "" , ""   ,      option::Arg::None, "\nExamples:\n"
-                                                   "  mpirun -np 2 nengo_mpi --net basal_ganglia.net -t 1.0 --log bg.h5\n"
-                                                   "  mpirun -np 1024 nengo_mpi --net spaun.net -t 7.5 --log spaun spaun.h5\n" },
+                                                   "  nengo_mpi --progress basal_ganglia.net 1.0\n"
+                                                   "  nengo_mpi --log ~/spaun_results.h5 spaun.net 7.5\n" },
  {0,0,0,0,0,0}
 };
 
-void start_master(int argc, char **argv){
+int start_master(int argc, char **argv){
 
     argc -= (argc > 0); argv += (argc > 0); // skip program name argv[0] if present
-    option::Stats  stats(usage, argc, argv);
+    option::Stats  stats(serial_usage, argc, argv);
     option::Option options[stats.options_max], buffer[stats.buffer_max];
-    option::Parser parse(usage, argc, argv, options, buffer);
+    option::Parser parse(serial_usage, argc, argv, options, buffer);
 
     if (parse.error()){
-        return;
+        return 0;
     }
 
     if (options[HELP] || argc == 0) {
-        option::printUsage(std::cout, usage);
-        return;
+        option::printUsage(std::cout, serial_usage);
+        return 0;
     }
 
-    if(!options[NET]){
-        cout << "Please specify network to simulate." << endl;
-        return;
-    }
-
-    string net_filename(options[NET].arg);
-    cout << "Loading network from file: " << net_filename << "." << endl;
-
-    if(!options[TIME]){
-        cout << "Please specify a simulation length" << endl;
-        return;
-    }
-
-    string s_sim_length(options[TIME].arg);
-
+    string net_filename;
     float sim_length;
-    try{
-        sim_length = boost::lexical_cast<float>(s_sim_length);
-    }catch(const boost::bad_lexical_cast& e){
-        stringstream msg;
-        msg << "Specified simulation time could not be interpreted as a float." << endl;
-        throw runtime_error(msg.str());
+
+    // Handle mandatory options.
+    if(parse.nonOptionsCount() != 2){
+        cout << "Please specify a network to simulate and a simulation time." << endl << endl;
+        option::printUsage(std::cout, serial_usage);
+        return 0;
+    }else{
+        net_filename = parse.nonOptions()[0];
+
+        string s_sim_length(parse.nonOptions()[1]);
+
+        try{
+            sim_length = boost::lexical_cast<float>(s_sim_length);
+        }catch(const boost::bad_lexical_cast& e){
+            stringstream msg;
+            msg << "Specified simulation time, " << s_sim_length
+                << ", could not be interpreted as a float." << endl;
+            throw runtime_error(msg.str());
+        }
     }
 
+    cout << "Loading network from file: " << net_filename << "." << endl;
     cout << "Will run simulation for " << sim_length << " second(s)." << endl;
 
     bool show_progress = bool(options[PROGRESS]);
 
-    string log_filename = options[LOG] ? options[LOG].arg : "";
+    string log_filename;
+    if(options[LOG]){
+        log_filename = options[LOG].arg;
+    }else{
+        log_filename = net_filename.substr(0, net_filename.find_last_of(".")) + ".h5";
+    }
+    cout << "Will write simulation results to " << log_filename << endl;
 
     cout << "Building network..." << endl;
     auto sim = unique_ptr<MpiSimulator>(new MpiSimulator);
@@ -254,23 +262,10 @@ void start_master(int argc, char **argv){
 
     cout << "Num steps: " << num_steps << endl;
     cout << "Running simulation..." << endl;
-    if(log_filename.size() != 0){
-        cout << "Logging simulation results to " << log_filename << endl;
-    }
 
     sim->run_n_steps(num_steps, show_progress, log_filename);
 
-    if(log_filename.size() == 0){
-        for(auto& key : sim->get_probe_keys()){
-            vector<unique_ptr<BaseSignal>> probe_data = sim->get_probe_data(key);
-
-            cout << "Probe data for key: " << key << endl;
-
-            for(auto& pd : probe_data){
-                cout << *pd << endl;
-            }
-        }
-    }
+    return 0;
 }
 
 int main(int argc, char **argv){

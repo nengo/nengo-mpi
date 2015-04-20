@@ -11,7 +11,6 @@ Simulator::Simulator(dtype dt)
 }
 
 void Simulator::init(dtype dt){
-    cout << "In simulator.init" << endl;
     chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt, 1));
 }
 
