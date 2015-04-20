@@ -45,12 +45,18 @@ class Partitioner(object):
         The number of components to divide the nengo network into. If None,
         defaults to 1.
 
-    func: A function to partition the nengo graph, assigning nengo objects
+    func: function
+        A function to partition the nengo graph, assigning nengo objects
         to component indices. Ignored if n_components == 1.
 
         Arguments:
             filter_graph
             n_components
+
+    use_weights: boolean
+        Whether to use the size_mid attribute of connections to weight the
+        edges in the graph that we partition. If False, then all edges have
+        the same weight.
 
     args: Extra positional args passed to func
 
@@ -58,7 +64,8 @@ class Partitioner(object):
     """
 
     def __init__(
-            self, n_components=None, func=None, *args, **kwargs):
+            self, n_components=None, func=None,
+            use_weights=True, *args, **kwargs):
 
         if n_components is None:
             self.n_components = 1
@@ -152,7 +159,7 @@ class Partitioner(object):
         return self.n_components, object_assignments
 
 
-def network_to_filter_graph(network):
+def network_to_filter_graph(network, use_weights=True):
     """
     Creates a graph from a nengo network, where the nodes are collections
     of nengo objects that are connected by non-filtered connections, and edges
@@ -165,7 +172,13 @@ def network_to_filter_graph(network):
 
     Parameters
     ----------
-    network: The nengo network to partition.
+    network: nengo.Network
+        The network whose filter graph we want to find.
+
+    use_weights: boolean
+        Whether edges in the filter graph should be weighted by the size_mid
+        attribute of the connection. If not, then all connections are weighted
+        equally.
 
     Returns
     -------
@@ -234,10 +247,12 @@ def network_to_filter_graph(network):
         post_node = node_map[neurons2ensemble(conn.post_obj)]
 
         if pre_node != post_node:
+            weight = conn.size_mid if use_weights else 1.0
+
             if G.has_edge(pre_node, post_node):
-                G[pre_node][post_node]['weight'] += conn.size_mid
+                G[pre_node][post_node]['weight'] += weight
             else:
-                G.add_edge(pre_node, post_node, weight=conn.size_mid)
+                G.add_edge(pre_node, post_node, weight=weight)
 
     return component0, G
 
