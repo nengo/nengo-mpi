@@ -8,7 +8,6 @@
 #include <exception>
 
 #include <hdf5.h>
-#include <mpi.h>
 
 #include "operator.hpp"
 #include "debug.hpp"
@@ -95,32 +94,5 @@ protected:
     vector<HDF5Dataset> datasets;
     bool closed;
 };
-
-class ParallelSimulationLog: public SimulationLog{
-public:
-    ParallelSimulationLog(){};
-
-    // Called by master
-    ParallelSimulationLog(int num_components, vector<string> probe_info, dtype dt, MPI_Comm comm);
-    void prep_for_simulation(string filename, int num_steps);
-
-    // Called by workers
-    ParallelSimulationLog(int num_components, int component, dtype dt, MPI_Comm comm);
-    void prep_for_simulation();
-
-    void setup_hdf5(string filename, int num_steps);
-
-protected:
-    int num_components;
-    int component;
-    MPI_Comm comm;
-
-    int mpi_rank;
-    int mpi_size;
-};
-
-
-vector<string> bcast_recv_probe_info(MPI_Comm comm);
-void bcast_send_probe_info(vector<string> probe_info, MPI_Comm comm);
 
 #endif

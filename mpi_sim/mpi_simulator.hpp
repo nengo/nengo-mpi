@@ -11,6 +11,7 @@
 
 #include "simulator.hpp"
 #include "chunk.hpp"
+#include "psim_log.hpp"
 
 using namespace std;
 
@@ -26,27 +27,29 @@ const int probe_tag = 2;
 class MpiSimulator: public Simulator{
 public:
     MpiSimulator();
-    MpiSimulator(int num_components, dtype dt);
-    MpiSimulator(int num_components, dtype dt, bool spawn);
+
+    // Used when we need to spaun extra process (e.g. when run through python)
+    MpiSimulator(int n_processors, dtype dt);
 
     ~MpiSimulator();
 
-    void init_mpi();
+    void spawn_processors();
+    void init(dtype dt) override;
 
     void add_base_signal(
-        int component, key_type key, string label, unique_ptr<BaseSignal> data);
-    void add_op(int component, string op_string);
+        int component, key_type key, string label, unique_ptr<BaseSignal> data) override;
+    void add_op(int component, string op_string) override;
     void add_probe(
-        int component, key_type probe_key, string signal_string, dtype period, string name);
+        int component, key_type probe_key, string signal_string, dtype period, string name) override;
 
-    SignalView get_signal(string signal_string);
-    void add_op(unique_ptr<Operator> op);
+    SignalView get_signal(string signal_string) override;
+    void add_op(unique_ptr<Operator> op) override;
 
-    void finalize_build();
+    void finalize_build() override;
 
-    void run_n_steps(int steps, bool progress, string log_filename);
+    void run_n_steps(int steps, bool progress, string log_filename) override;
 
-    void gather_probe_data();
+    void gather_probe_data() override;
 
     string to_string() const;
 
@@ -56,7 +59,7 @@ public:
     }
 
 protected:
-    int num_components;
+    int n_processors;
     bool spawn;
 
     MPI_Comm comm;

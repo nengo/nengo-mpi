@@ -1,59 +1,51 @@
 #include "mpi_simulator.hpp"
 
+// This constructor assume that MPI_Initialize has already been called.
 MpiSimulator::MpiSimulator()
-:MpiSimulator(1, 0.001){}
+:Simulator(), spawn(false), n_processors(0), comm(MPI_COMM_NULL){
+}
 
-MpiSimulator::MpiSimulator(int num_components, dtype dt)
-:MpiSimulator(num_components, dt, true){}
-
-MpiSimulator::MpiSimulator(int num_components, dtype dt, bool spawn)
-:Simulator(dt), num_components(num_components), spawn(spawn){
-
-    if(num_components < 2){
-        throw logic_error(
-            "Trying to use MpiSimulator, but fewer than 2 components in use. "
-            "Use regular Simulator instead.");
-    }
-
-    init_mpi();
-
-    for(int i = 0; i < num_components; i++){
-        probe_counts[i] = 0;
-    }
+MpiSimulator::MpiSimulator(int n_processors, dtype dt)
+:Simulator(), n_processors(n_processors), spawn(true){
+    spawn_processors();
+    init(dt);
 }
 
 MpiSimulator::~MpiSimulator(){
     // TODO: send a flag to workers, telling them to clean up and exit
 }
 
-void MpiSimulator::init_mpi(){
-
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt));
-
+void MpiSimulator::spawn_processors(){
     int argc = 0;
     char** argv;
 
-    if(spawn){
-        cout << "Master initing MPI..." << endl;
-        MPI_Init(&argc, &argv);
-        cout << "Master finished initing MPI." << endl;
+    cout << "Master initing MPI..." << endl;
+    MPI_Init(&argc, &argv);
+    cout << "Master finished initing MPI." << endl;
 
-        cout << "Master spawning " << num_components - 1 << " workers..." << endl;
+    cout << "Master spawning " << n_processors - 1 << " workers..." << endl;
 
-        MPI_Comm inter;
+    MPI_Comm inter;
 
-        MPI_Comm_spawn(
-            "/home/c/celiasmi/e2crawfo/nengo_mpi/nengo_mpi/mpi_sim_worker",
-             MPI_ARGV_NULL, num_components - 1,
-             MPI_INFO_NULL, 0, MPI_COMM_SELF, &inter,
-             MPI_ERRCODES_IGNORE);
+    MPI_Comm_spawn(
+        "/home/c/celiasmi/e2crawfo/nengo_mpi/nengo_mpi/mpi_sim_worker",
+         MPI_ARGV_NULL, n_processors - 1,
+         MPI_INFO_NULL, 0, MPI_COMM_SELF, &inter,
+         MPI_ERRCODES_IGNORE);
 
-        cout << "Master finished spawning workers." << endl;
+    cout << "Master finished spawning workers." << endl;
 
-        MPI_Intercomm_merge(inter, false, &comm);
-    }else{
+    MPI_Intercomm_merge(inter, false, &comm);
+}
+
+void MpiSimulator::init(dtype dt){
+    if(comm == MPI_COMM_NULL){
         comm = MPI_COMM_WORLD;
     }
+
+    MPI_Comm_size(comm, &n_processors);
+
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt, n_processors));
 
     int buflen = 512;
     char name[buflen];
@@ -65,10 +57,11 @@ void MpiSimulator::init_mpi(){
     cout << "Master host: " << name << endl;
     cout << "Master rank in merged communicator: "
          << rank << " (should be 0)." << endl;
+    cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
     string chunk_label;
 
-    for(int i = 0; i < num_components - 1; i++){
+    for(int i = 0; i < n_processors - 1; i++){
         stringstream s;
         s << "Chunk " << i + 1;
         chunk_label = s.str();
@@ -76,54 +69,65 @@ void MpiSimulator::init_mpi(){
         send_string(chunk_label, i+1, setup_tag, comm);
         send_dtype(dt, i+1, setup_tag, comm);
     }
+
+    for(int i = 0; i < n_processors; i++){
+        probe_counts[i] = 0;
+    }
 }
 
 void MpiSimulator::add_base_signal(
         int component, key_type key, string label, unique_ptr<BaseSignal> data){
 
-    dbg("SIGNAL" << delim << key << delim << label << delim << *data);
+    int processor_index = component % n_processors;
 
-    if(component == 0){
+    dbg("SIGNAL" << delim << processor_index << delim << key << delim << label << delim << *data);
+
+    if(processor_index == 0){
         chunk->add_base_signal(key, label, move(data));
     }else{
-        send_int(add_signal_flag, component, setup_tag, comm);
+        send_int(add_signal_flag, processor_index, setup_tag, comm);
 
-        send_key(key, component, setup_tag, comm);
-        send_string(label, component, setup_tag, comm);
-        send_matrix(move(data), component, setup_tag, comm);
+        send_key(key, processor_index, setup_tag, comm);
+        send_string(label, processor_index, setup_tag, comm);
+        send_matrix(move(data), processor_index, setup_tag, comm);
     }
 }
 
 void MpiSimulator::add_op(int component, string op_string){
-    dbg("OP" << delim << component << delim << op_string);
 
-    if(component == 0){
+    int processor_index = component % n_processors;
+
+    dbg("OP" << delim << processor_index << delim << op_string);
+
+    if(processor_index == 0){
         chunk->add_op(op_string);
     }else{
-        send_int(add_op_flag, component, setup_tag, comm);
-        send_string(op_string, component, setup_tag, comm);
+        send_int(add_op_flag, processor_index, setup_tag, comm);
+        send_string(op_string, processor_index, setup_tag, comm);
     }
 }
 
 void MpiSimulator::add_probe(
         int component, key_type probe_key, string signal_string, dtype period, string name){
 
+    int processor_index = component % n_processors;
+
     stringstream ss;
-    ss << "PROBE" << delim << component << delim << probe_key << delim
+    ss << "PROBE" << delim << processor_index << delim << probe_key << delim
                   << signal_string << delim << period << delim << name;
     probe_info.push_back(ss.str());
 
-    probe_counts[component] += 1;
+    probe_counts[processor_index] += 1;
     probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();
 
-    if(component == 0){
+    if(processor_index == 0){
         chunk->add_probe(probe_key, signal_string, period);
     }else{
-        send_int(add_probe_flag, component, setup_tag, comm);
+        send_int(add_probe_flag, processor_index, setup_tag, comm);
 
-        send_key(probe_key, component, setup_tag, comm);
-        send_string(signal_string, component, setup_tag, comm);
-        send_dtype(period, component, setup_tag, comm);
+        send_key(probe_key, processor_index, setup_tag, comm);
+        send_string(signal_string, processor_index, setup_tag, comm);
+        send_dtype(period, processor_index, setup_tag, comm);
     }
 }
 
@@ -136,12 +140,12 @@ void MpiSimulator::add_op(unique_ptr<Operator> op){
 }
 
 void MpiSimulator::finalize_build(){
-    for(int i = 0; i < num_components - 1; i++){
+    for(int i = 0; i < n_processors - 1; i++){
         send_int(stop_flag, i+1, setup_tag, comm);
     }
 
     auto sim_log = unique_ptr<SimulationLog>(
-        new ParallelSimulationLog(num_components, probe_info, chunk->dt, comm));
+        new ParallelSimulationLog(n_processors, probe_info, chunk->dt, comm));
 
     chunk->set_simulation_log(move(sim_log));
     chunk->set_communicator(comm);
@@ -151,7 +155,7 @@ void MpiSimulator::finalize_build(){
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     clock_t begin = clock();
 
-    cout << "Master sending simulation signal to " << num_components - 1 << " workers." << endl;
+    cout << "Master sending simulation signal to " << n_processors - 1 << " workers." << endl;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
     cout << "Master starting simulation: " << steps << " steps." << endl;
@@ -213,7 +217,7 @@ string MpiSimulator::to_string() const{
     stringstream out;
 
     out << "<MpiSimulator" << endl;
-    out << "num components: " << num_components << endl;
+    out << "num components: " << n_processors << endl;
 
     out << "**chunk**" << endl;
     out << *chunk << endl;

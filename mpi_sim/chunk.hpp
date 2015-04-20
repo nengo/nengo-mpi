@@ -27,7 +27,7 @@ class MpiSimulatorChunk{
 
 public:
     MpiSimulatorChunk();
-    MpiSimulatorChunk(int component, string label, dtype dt);
+    MpiSimulatorChunk(int rank, string label, dtype dt, int n_processors);
     const string classname() { return "MpiSimulatorChunk"; }
 
     /* Run an integer number of steps. Called by a
@@ -136,7 +136,8 @@ public:
 private:
     dtype time;
     int n_steps;
-    int component;
+    int rank;
+    int n_processors;
 
     unique_ptr<SimulationLog> sim_log;
     string log_filename;

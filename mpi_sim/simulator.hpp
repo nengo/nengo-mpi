@@ -23,10 +23,12 @@ public:
 
     Simulator();
     Simulator(dtype dt);
+
     virtual ~Simulator(){};
 
     const virtual string classname() { return "Simulator"; }
 
+    virtual void init(dtype dt);
     virtual void add_base_signal(key_type key, string label, unique_ptr<BaseSignal> data);
     virtual void add_base_signal(int component, key_type key, string label, unique_ptr<BaseSignal> data);
 
@@ -51,6 +53,7 @@ public:
     virtual void reset();
 
     virtual string to_string() const;
+    void from_file(string filename);
 
     friend ostream& operator << (ostream &out, const Simulator &sim){
         out << sim.to_string();

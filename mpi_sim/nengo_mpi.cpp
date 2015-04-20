@@ -7,8 +7,7 @@
 #include "optionparser.h"
 
 #include "chunk.hpp"
-#include "simulator.hpp"
-#include "utils.hpp"
+#include "mpi_simulator.hpp"
 
 using namespace std;
 
@@ -24,9 +23,9 @@ using namespace std;
 // process having rank 0.
 void start_worker(MPI_Comm comm){
 
-    int my_id, num_procs;
+    int my_id, n_processors;
     MPI_Comm_rank(comm, &my_id);
-    MPI_Comm_size(comm, &num_procs);
+    MPI_Comm_size(comm, &n_processors);
 
     int buflen = 512;
     char name[buflen];
@@ -41,7 +40,7 @@ void start_worker(MPI_Comm comm){
 
     dtype dt = recv_dtype(0, setup_tag, comm);
 
-    MpiSimulatorChunk chunk(my_id, chunk_label, dt);
+    MpiSimulatorChunk chunk(my_id, chunk_label, dt, n_processors);
 
     int s = 0;
     string op_string;
@@ -105,7 +104,7 @@ void start_worker(MPI_Comm comm){
 
     dbg("Worker " << my_id << " setting up simulation log...");
     auto sim_log = unique_ptr<SimulationLog>(
-        new ParallelSimulationLog(num_procs, my_id, dt, comm));
+        new ParallelSimulationLog(n_processors, my_id, dt, comm));
 
     chunk.set_simulation_log(move(sim_log));
 
@@ -126,6 +125,7 @@ void start_worker(MPI_Comm comm){
     MPI_Barrier(comm);
 
     if(!chunk.is_logging()){
+        // If we're not logging, send the probe data back to the master
         for(auto& pair : chunk.probe_map){
             key_type key = pair.first;
             shared_ptr<Probe>& probe = pair.second;
@@ -187,15 +187,13 @@ const option::Descriptor usage[] =
                                                    "Options:" },
  {HELP,     0, "" , "help",     option::Arg::None, "  --help  \tPrint usage and exit." },
  {NET,      0, "",  "net",      Arg::NonEmpty,     "  --net,  \tName of network to simulate. Mandatory" },
- {TIME,     0, "t", "time",     Arg::NonEmpty, "  --time, -t  \tTime to simulate for, in seconds. Mandatory" },
- {PROC,     0, "p", "proc",     Arg::NonEmpty, "  --proc, -p  \tNumber of processors to use. "
-                                                                   "If not specified, will be read from the network file."},
- {LOG,      0, "",  "log",      Arg::NonEmpty, "  --log,  \tName of file to log results to. "
-                                                               "If not specified, results printed at end of simulation." },
+ {TIME,     0, "t", "time",     Arg::NonEmpty,     "  --time, -t  \tTime to simulate for, in seconds. Mandatory" },
+ {LOG,      0, "",  "log",      Arg::NonEmpty,     "  --log,  \tName of file to log results to using HDF5. "
+                                                               "If not specified, results are printed at end of simulation." },
  {PROGRESS, 0, "",  "progress", option::Arg::None, "  --progress, \tSupply to show progress bar." },
  {UNKNOWN,  0, "" , ""   ,      option::Arg::None, "\nExamples:\n"
-                                                   "  mpi_sim_worker --net basal_ganglia.net -t 1.0\n"
-                                                   "  mpi_sim_worker --net spaun.net -t 7.5 -p 1024\n" },
+                                                   "  mpirun -np 2 nengo_mpi --net basal_ganglia.net -t 1.0 --log bg.h5\n"
+                                                   "  mpirun -np 1024 nengo_mpi --net spaun.net -t 7.5 --log spaun spaun.h5\n" },
  {0,0,0,0,0,0}
 };
 
@@ -245,20 +243,10 @@ void start_master(int argc, char **argv){
 
     string log_filename = options[LOG] ? options[LOG].arg : "";
 
-    int n_processors;
-    if(options[PROC]){
-        string s_n_processors(options[PROC].arg);
-        try{
-            n_processors = boost::lexical_cast<int>(s_n_processors);
-        }catch(const boost::bad_lexical_cast& e){
-            stringstream msg;
-            msg << "Specified a value for n_processors that could not be interpreted as an int." << endl;
-            throw runtime_error(msg.str());
-        }
-    }
-
     cout << "Building network..." << endl;
-    unique_ptr<Simulator> sim = create_simulator_from_file(net_filename);
+    auto sim = unique_ptr<MpiSimulator>(new MpiSimulator);
+    sim->from_file(net_filename);
+
     cout << "Done building network..." << endl;
 
     cout << "dt: " << sim->dt << endl;
@@ -300,18 +288,6 @@ int main(int argc, char **argv){
         MPI_Intercomm_merge(parent, true, &everyone);
         start_worker(everyone);
     }else{
-        int mpi_size;
-        MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
-
-        if(mpi_size == 1){
-            // No parent, and only one process. Corresponds to a serial
-            // simulation using C++ directly (skipping python).
-            MPI_Finalize();
-
-            start_master(argc, argv);
-            return 0;
-        }
-
         int rank;
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
