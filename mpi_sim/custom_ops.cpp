@@ -40,16 +40,9 @@ SpaunStimulus::SpaunStimulus(
         throw runtime_error("SpaunStimulus: loaded images too small.");
     }
 
-    map<string, string> debug_mapping = {
-        {"A", "SIX"}, {"OPEN", "SEV"}, {"CLOSE", "EIG"}, {"QM", "NIN"}};
-
     srand (time(NULL));
 
     for(string label: stim_sequence){
-        if(debug_mapping.find(label) != debug_mapping.end()){
-            label = debug_mapping.at(label);
-        }
-
         unique_ptr<BaseSignal> image;
 
         if(!label.empty() && image_data.find(label) != image_data.end()){
