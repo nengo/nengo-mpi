@@ -88,7 +88,7 @@ with open(path.join(working_dir, submit_script), 'w') as outf:
     outf.write('# @ comment            = "BGQ Job By Size"\n')
     outf.write('# @ error              = $(job_name).$(Host).$(jobid).err\n')
     outf.write('# @ output             = $(job_name).$(Host).$(jobid).out\n')
-    outf.write('# @ bg_size            = 1024\n' % n_nodes)
+    outf.write('# @ bg_size            = 64\n' % n_nodes)
     #outf.write('# @ bg_size            = %d\n' % n_nodes)
     outf.write('# @ wall_clock_limit   = %s\n' % wall_time)
     outf.write('# @ bg_connectivity    = Torus\n')
