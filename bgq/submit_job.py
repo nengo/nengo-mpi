@@ -63,8 +63,6 @@ network_name = path.split(network_file)[-1]
 network_name = path.splitext(network_name)[0]
 print "Network name: ", network_name
 
-raise Exception('debug')
-
 t = args.t
 
 log = args.log
