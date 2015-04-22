@@ -23,6 +23,7 @@ import numpy as np
 from collections import defaultdict
 import warnings
 from itertools import chain
+import re
 
 import logging
 logger = logging.getLogger(__name__)
@@ -414,6 +415,10 @@ class MpiModel(builder.Model):
     def __str__(self):
         return "MpiModel: %s" % self.label
 
+    def sanitize(self, s):
+        s = re.sub('([0-9])L', lambda x: x.groups()[0], s)
+        return s
+
     def build(self, *objs):
         return MpiBuilder.build(self, *objs)
 
@@ -514,6 +519,7 @@ class MpiModel(builder.Model):
                     for i
                     in ["SIGNAL", component, key, label, data_string])
 
+                signal_string = self.sanitize(signal_string)
                 self.save_file.write("\n" + signal_string)
             else:
                 self.mpi_sim.add_signal(component, key, label, A)
@@ -652,6 +658,7 @@ class MpiModel(builder.Model):
                             for i
                             in ["OP", component, op_string])
 
+                        op_string = self.sanitize(op_string)
                         self.save_file.write("\n" + op_string)
                     else:
                         self.mpi_sim.add_op(component, op_string)
@@ -800,6 +807,7 @@ class MpiModel(builder.Model):
                 in ["PROBE", component, probe_key,
                     signal_string, period, str(probe)])
 
+            probe_string = self.sanitize(probe_string)
             self.save_file.write("\n" + probe_string)
         else:
             self.mpi_sim.add_probe(
