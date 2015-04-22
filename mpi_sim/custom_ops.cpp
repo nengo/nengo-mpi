@@ -43,6 +43,7 @@ SpaunStimulus::SpaunStimulus(
     srand (time(NULL));
 
     for(string label: stim_sequence){
+        cout << "Processing label:" << label << endl;
         unique_ptr<BaseSignal> image;
 
         if(!label.empty() && image_data.find(label) != image_data.end()){

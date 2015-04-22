@@ -162,13 +162,21 @@ void Simulator::from_file(string filename){
 
     cout << "Network has " << n_components << " components." << endl;
 
-    getline(in_file, line, '\n');
+    getline(in_file, line);
+    if(line[line.size() - 1] == '\r'){
+        line.erase(line.end() - 1);
+    }
+
     dt = boost::lexical_cast<dtype>(line);
     init(dt);
 
     string cell;
 
-    while(getline(in_file, line, '\n')){
+    while(getline(in_file, line)){
+        if(line[line.size() - 1] == '\r'){
+            line.erase(line.end() - 1);
+        }
+
         stringstream line_stream;
         line_stream << line;
         dbg("Reading: " << line_stream.str() << endl);
