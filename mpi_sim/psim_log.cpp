@@ -4,20 +4,24 @@
 // Master version
 ParallelSimulationLog::ParallelSimulationLog(
     int n_processors, vector<string> probe_strings, dtype dt, MPI_Comm comm)
-:SimulationLog(probe_strings, dt), n_processors(n_processors), component(0), comm(comm){
+:SimulationLog(probe_strings, dt), n_processors(n_processors), processor(0), comm(comm){
 
+    /*
     if(n_processors > 1){
         bcast_send_probe_info(probe_strings, comm);
     }
+    */
 }
 
 // Worker version
 ParallelSimulationLog::ParallelSimulationLog(
-    int n_processors, int component, dtype dt, MPI_Comm comm)
-:SimulationLog(dt), n_processors(n_processors), component(component), comm(comm){
+    int n_processors, int processor, dtype dt, MPI_Comm comm)
+:SimulationLog(dt), n_processors(n_processors), processor(processor), comm(comm){
 
+    /*
     vector<string> probe_strings = bcast_recv_probe_info(comm);
     store_probe_info(probe_strings);
+    */
 }
 
 // Master version
@@ -113,7 +117,7 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
 
         HDF5Dataset d(pi.name, pi.shape1, dset_id, dataspace_id, plist_id);
 
-        if(pi.component == component){
+        if(pi.component % n_processors == processor){
             dset_map[pi.probe_key] = d;
         }
 

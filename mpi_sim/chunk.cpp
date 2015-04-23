@@ -25,8 +25,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
     H5Aread(attr, H5T_NATIVE_INT, &n_components);
     H5Aclose(attr);
 
-    cout << "n_components: " << n_components << endl;
-
     if(rank == 0){
         cout << "Loading nengo network from file." << endl;
         cout << "Network has " << n_components << " components." << endl;
@@ -36,7 +34,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
     attr = H5Aopen(f, "dt", H5P_DEFAULT);
     H5Aread(attr, H5T_NATIVE_DOUBLE, &dt);
     H5Aclose(attr);
-    cout << "dt: " << dt << endl;
 
     const int MAX_LENGTH = 256;
     char c_signal_key[MAX_LENGTH];
@@ -61,7 +58,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
         hsize_t n_signals;
         err = H5Gget_num_objs(signal_group, &n_signals);
-        cout << "n_signals: " << n_signals << endl;
 
         // Read signals for component
         for(int i = 0; i < n_signals; i++){
@@ -71,7 +67,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
             // Open the dataset
             hid_t signal = H5Dopen(signal_group, c_signal_key, H5P_DEFAULT);
 
-            cout << "key: " << (string) c_signal_key << endl;
             // Get array shape
             hid_t dspace = H5Dget_space(signal);
             hsize_t shape[2], max_shape[2];
@@ -86,9 +81,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
             if(ndim != 1 && ndim != 2){
                 throw runtime_error("Got impropr value of ndim while reading signal.");
             }
-
-            cout << "shape: " << shape[0] << ", " << shape[1] << endl;
-            cout << "shape: " << max_shape[0] << ", " << max_shape[1] << endl;
 
             attr = H5Aopen(signal, "label", H5P_DEFAULT);
             hid_t atype = H5Aget_type(attr);
@@ -110,8 +102,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
             //H5Aclose(attr);
 
             string signal_label = c_label;
-            cout << "label: " << signal_label << endl;
-            cout << "label: " << signal_label << endl;
 
             // Get the data
             auto data = unique_ptr<BaseSignal>(new BaseSignal(shape[0], shape[1]));
@@ -146,7 +136,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         hid_t dspace = H5Dget_space(operators);
         int ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
         H5Sclose(dspace);
-        cout << "shape: " << shape[0] << ", " << shape[1] << endl;
 
         hid_t type = H5Dget_type(operators);
         size_t width = H5Tget_size(type);
@@ -164,7 +153,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         }
 
         H5Dclose(operators);
-        cout << "Done reading ops!" << endl;
 
         hid_t probes = H5Dopen(component_group, "probes", H5P_DEFAULT);
 
@@ -172,7 +160,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         dspace = H5Dget_space(probes);
         ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
         H5Sclose(dspace);
-        cout << "shape: " << shape[0] << ", " << shape[1] << endl;
 
         type = H5Dget_type(probes);
         width = H5Tget_size(type);
@@ -186,12 +173,10 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
         for(int i = 0; i < shape[0]; i++){
             string probe_string = probe_buffer.get() + i * width;
-            cout << "probe string: " << probe_string << endl;
             add_probe(probe_string);
         }
 
         H5Dclose(probes);
-        cout << "Done reading probes!" << endl;
 
         H5Gclose(component_group);
 
@@ -207,7 +192,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
     hid_t dspace = H5Dget_space(all_probes);
     int ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
     H5Sclose(dspace);
-    cout << "shape of all_probes: " << shape[0] << ", " << shape[1] << endl;
 
     hid_t type = H5Dget_type(all_probes);
     size_t width = H5Tget_size(type);

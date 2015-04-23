@@ -102,10 +102,12 @@ void MpiSimulator::from_file(string filename){
     hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
 
-    chunk->from_file(filename, file_plist, read_plist);
+    chunk->from_file(filename, file_plist, read_plist, comm);
 
     H5Pclose(file_plist);
     H5Pclose(read_plist);
+
+    chunk->set_communicator(comm);
 }
 
 void MpiSimulator::add_base_signal(

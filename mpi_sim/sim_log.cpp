@@ -11,7 +11,6 @@ SimulationLog::SimulationLog(dtype dt)
 
 void SimulationLog::store_probe_info(vector<string> probe_strings){
     for(string s : probe_strings){
-        cout << "probe string info: " << s << endl;
         // Extract probe data from the string
         vector<string> tokens;
         boost::split(tokens, s, boost::is_any_of("|"), boost::token_compress_on);

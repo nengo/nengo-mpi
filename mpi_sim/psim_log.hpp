@@ -22,14 +22,14 @@ public:
     void prep_for_simulation(string filename, int num_steps);
 
     // Called by workers
-    ParallelSimulationLog(int n_processors, int component, dtype dt, MPI_Comm comm);
+    ParallelSimulationLog(int n_processors, int processor, dtype dt, MPI_Comm comm);
     void prep_for_simulation();
 
     void setup_hdf5(string filename, int num_steps);
 
 protected:
     int n_processors;
-    int component;
+    int processor;
     MPI_Comm comm;
 
     int mpi_rank;

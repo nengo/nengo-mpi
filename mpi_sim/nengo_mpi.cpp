@@ -48,7 +48,7 @@ void start_worker(MPI_Comm comm){
         hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
         H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
 
-        chunk.from_file(filename, file_plist, read_plist);
+        chunk.from_file(filename, file_plist, read_plist, comm);
 
         H5Pclose(file_plist);
         H5Pclose(read_plist);
@@ -117,14 +117,14 @@ void start_worker(MPI_Comm comm){
     }
 
     dbg("Worker " << my_id << " setting up simulation log...");
-    auto sim_log = unique_ptr<SimulationLog>(
-        new ParallelSimulationLog(n_processors, my_id, chunk.dt, comm));
+    //auto sim_log = unique_ptr<SimulationLog>(
+    //    new ParallelSimulationLog(n_processors, my_id, chunk.dt, comm));
 
-    chunk.set_simulation_log(move(sim_log));
+    //chunk.set_simulation_log(move(sim_log));
 
     dbg("Worker " << my_id << " setting up MPI operators...");
     chunk.set_communicator(comm);
-    chunk.add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
+    //chunk.add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
 
     dbg("Worker " << my_id << " waiting for signal to start simulation...");
 
