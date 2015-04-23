@@ -256,12 +256,14 @@ void MpiSimulatorChunk::add_op(string op_string){
             if(n_processors > 1){
                 int dst = boost::lexical_cast<int>(tokens[1]);
                 dst = dst % n_processors;
+                if(dst != rank){
 
-                int tag = boost::lexical_cast<int>(tokens[2]);
-                key_type signal_key = boost::lexical_cast<key_type>(tokens[3]);
-                SignalView content = get_signal_view(signal_key);
+                    int tag = boost::lexical_cast<int>(tokens[2]);
+                    key_type signal_key = boost::lexical_cast<key_type>(tokens[3]);
+                    SignalView content = get_signal_view(signal_key);
 
-                add_mpi_send(unique_ptr<MPISend>(new MPISend(dst, tag, content)));
+                    add_mpi_send(unique_ptr<MPISend>(new MPISend(dst, tag, content)));
+                }
             }
 
         }else if(type_string.compare("MpiRecv") == 0){
@@ -270,11 +272,13 @@ void MpiSimulatorChunk::add_op(string op_string){
                 int src = boost::lexical_cast<int>(tokens[1]);
                 src = src % n_processors;
 
-                int tag = boost::lexical_cast<int>(tokens[2]);
-                key_type signal_key = boost::lexical_cast<key_type>(tokens[3]);
-                SignalView content = get_signal_view(signal_key);
+                if(src != rank){
+                    int tag = boost::lexical_cast<int>(tokens[2]);
+                    key_type signal_key = boost::lexical_cast<key_type>(tokens[3]);
+                    SignalView content = get_signal_view(signal_key);
 
-                add_mpi_recv(unique_ptr<MPIRecv>(new MPIRecv(src, tag, content)));
+                    add_mpi_recv(unique_ptr<MPIRecv>(new MPIRecv(src, tag, content)));
+                }
             }
 
         }else if(type_string.compare("SpaunStimulus") == 0){
