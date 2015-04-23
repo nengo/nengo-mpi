@@ -24,6 +24,7 @@ from collections import defaultdict
 import warnings
 from itertools import chain
 import re
+import h5py as h5
 
 import logging
 logger = logging.getLogger(__name__)
@@ -349,6 +350,16 @@ def ndarray_to_mpi_string(a):
     return s
 
 
+def resize_and_flush(dataset, data):
+    """
+    dataset: a resizable h5dataset containg strings, with shape[1] == 1
+    data: a list of strings
+    """
+    idx = dataset.shape[0]
+    dataset.resize((idx + len(data), 1))
+    dataset[idx:] = np.reshape(data, (-1, 1))
+
+
 class MpiModel(builder.Model):
     """
     Output of the MpiBuilder, used by the Simulator.
@@ -364,7 +375,6 @@ class MpiModel(builder.Model):
 
     op_string_delim = ";"
     signal_string_delim = ":"
-    outfile_delim = "|"
 
     def __init__(
             self, n_components, assignments, dt=0.001, label=None,
@@ -374,9 +384,30 @@ class MpiModel(builder.Model):
         self.assignments = assignments
 
         if save_file:
-            self.save_file = open(save_file, 'w')
-            self.save_file.write(
-                "%s%s%s" % (n_components, MpiModel.outfile_delim, dt))
+            self.max_string_length = 256
+            self.h5_compression = 'gzip'
+            self.string_dtype = 'S%d' % self.max_string_length
+            self.size_increment = 100
+            self.op_strings = defaultdict(list)
+            self.probe_strings = defaultdict(list)
+            self.all_probe_strings = []
+
+            self.save_file = h5.File(save_file, 'w')
+            self.save_file.attrs['dt'] = dt
+            self.save_file.attrs['n_components'] = n_components
+
+            for i in range(n_components):
+                component_group = self.save_file.create_group(str(i))
+
+                component_group.create_group('signals')
+
+                component_group.create_dataset(
+                    'operators', (0, 1), maxshape=(None, 1),
+                    dtype=self.string_dtype, compression=self.h5_compression)
+
+                component_group.create_dataset(
+                    'probes', (0, 1), maxshape=(None, 1),
+                    dtype=self.string_dtype, compression=self.h5_compression)
         else:
             self.save_file = None
 
@@ -513,14 +544,11 @@ class MpiModel(builder.Model):
                 A = A.astype(np.float64)
 
             if self.save_file:
-                data_string = ndarray_to_mpi_string(A)
-                signal_string = MpiModel.outfile_delim.join(
-                    str(i)
-                    for i
-                    in ["SIGNAL", component, key, label, data_string])
+                self.save_file[str(component)]['signals'].create_dataset(
+                    str(key), data=A, compression='gzip')
 
-                signal_string = self.sanitize(signal_string)
-                self.save_file.write("\n" + signal_string)
+                self.save_file[
+                    str(component)]['signals'][str(key)].attrs['label'] = np.string_(label)
             else:
                 self.mpi_sim.add_signal(component, key, label, A)
 
@@ -563,6 +591,23 @@ class MpiModel(builder.Model):
 
         if not self.save_file:
             self.mpi_sim.finalize_build()
+        else:
+            for component in range(self.n_components):
+                resize_and_flush(
+                    self.save_file[str(component)]['operators'],
+                    self.op_strings[component])
+
+                resize_and_flush(
+                    self.save_file[str(component)]['probes'],
+                    self.probe_strings[component])
+
+            self.save_file.create_dataset(
+                'all_probes', (len(self.all_probe_strings), 1),
+                dtype=self.string_dtype, compression=self.h5_compression)
+
+            self.save_file['all_probes'][:, 0] = np.array(self.all_probe_strings)
+
+            self.save_file.close()
 
     def add_ops_to_mpi(self, component):
         """
@@ -653,13 +698,18 @@ class MpiModel(builder.Model):
                         component, op_string)
 
                     if self.save_file:
-                        op_string = MpiModel.outfile_delim.join(
-                            str(i)
-                            for i
-                            in ["OP", component, op_string])
+                        op_strings = self.op_strings[component]
+                        op_strings.append(op_string)
 
-                        op_string = self.sanitize(op_string)
-                        self.save_file.write("\n" + op_string)
+                        if len(op_strings) > self.size_increment:
+                            raise Exception("op_strings has grown too large.")
+
+                        if len(op_string) == self.size_increment:
+                            resize_and_flush(
+                                self.save_file[str(component)]['operators'],
+                                op_strings)
+
+                            self.op_strings[component] = []
                     else:
                         self.mpi_sim.add_op(component, op_string)
 
@@ -801,14 +851,25 @@ class MpiModel(builder.Model):
             signal_string, period)
 
         if self.save_file:
-            probe_string = MpiModel.outfile_delim.join(
+            probe_string = MpiModel.op_string_delim.join(
                 str(i)
                 for i
-                in ["PROBE", component, probe_key,
-                    signal_string, period, str(probe)])
+                in [probe_key, signal_string, period, str(probe)])
 
-            probe_string = self.sanitize(probe_string)
-            self.save_file.write("\n" + probe_string)
+            probe_strings = self.probe_strings[component]
+            probe_strings.append(probe_string)
+
+            self.all_probe_strings.append(probe_string)
+
+            if len(probe_strings) > self.size_increment:
+                raise Exception("probe_strings has grown too large.")
+
+            if len(probe_string) == self.size_increment:
+                resize_and_flush(
+                    self.save_file[str(component)]['probes'],
+                    probe_strings)
+
+                self.probe_strings[component] = []
         else:
             self.mpi_sim.add_probe(
                 component, self.probe_keys[probe],
