@@ -2,13 +2,24 @@
 
 // This constructor assume that MPI_Initialize has already been called.
 MpiSimulator::MpiSimulator()
-:Simulator(), spawn(false), n_processors(0), comm(MPI_COMM_NULL){
+:n_processors(0), comm(MPI_COMM_NULL){
+    init();
 }
 
 MpiSimulator::MpiSimulator(int n_processors, dtype dt)
-:Simulator(), n_processors(n_processors), spawn(true){
+:n_processors(n_processors){
+    this->dt = dt;
+
     spawn_processors();
-    init(dt);
+
+    init();
+
+    // Send blank filename, so workers know not to look for a file
+    string filename;
+    for(int i = 0; i < n_processors-1; i++){
+        send_string(filename, i+1, setup_tag, comm);
+        send_dtype(dt, i+1, setup_tag, comm);
+    }
 }
 
 MpiSimulator::~MpiSimulator(){
@@ -38,14 +49,12 @@ void MpiSimulator::spawn_processors(){
     MPI_Intercomm_merge(inter, false, &comm);
 }
 
-void MpiSimulator::init(dtype dt){
+void MpiSimulator::init(){
     if(comm == MPI_COMM_NULL){
         comm = MPI_COMM_WORLD;
     }
 
     MPI_Comm_size(comm, &n_processors);
-
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt, n_processors));
 
     int buflen = 512;
     char name[buflen];
@@ -59,20 +68,44 @@ void MpiSimulator::init(dtype dt){
          << rank << " (should be 0)." << endl;
     cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
-    string chunk_label;
-
-    for(int i = 0; i < n_processors - 1; i++){
-        stringstream s;
-        s << "Chunk " << i + 1;
-        chunk_label = s.str();
-
-        send_string(chunk_label, i+1, setup_tag, comm);
-        send_dtype(dt, i+1, setup_tag, comm);
-    }
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, n_processors));
 
     for(int i = 0; i < n_processors; i++){
         probe_counts[i] = 0;
     }
+}
+
+void MpiSimulator::from_file(string filename){
+    if(filename.length() == 0){
+        stringstream s;
+        s << "Got empty string for filename" << endl;
+        throw runtime_error(s.str());
+    }
+
+    ifstream in_file(filename);
+
+    if(!in_file.good()){
+        stringstream s;
+        s << "The network file " << filename << " does not exist." << endl;
+        throw runtime_error(s.str());
+    }
+
+    in_file.close();
+
+    for(int i = 0; i < n_processors-1; i++){
+        send_string(filename, i+1, setup_tag, comm);
+    }
+
+    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
+
+    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
+    H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
+
+    chunk->from_file(filename, file_plist, read_plist);
+
+    H5Pclose(file_plist);
+    H5Pclose(read_plist);
 }
 
 void MpiSimulator::add_base_signal(

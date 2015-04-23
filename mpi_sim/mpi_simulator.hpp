@@ -34,7 +34,7 @@ public:
     ~MpiSimulator();
 
     void spawn_processors();
-    void init(dtype dt) override;
+    void init();
 
     void add_base_signal(
         int component, key_type key, string label, unique_ptr<BaseSignal> data) override;
@@ -52,6 +52,7 @@ public:
     void gather_probe_data() override;
 
     string to_string() const;
+    void from_file(string filename) override;
 
     friend ostream& operator << (ostream &out, const MpiSimulator &sim){
         out << sim.to_string();
@@ -60,7 +61,6 @@ public:
 
 protected:
     int n_processors;
-    bool spawn;
 
     MPI_Comm comm;
 

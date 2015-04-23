@@ -16,6 +16,7 @@
 #include "custom_ops.hpp"
 #include "probe.hpp"
 #include "sim_log.hpp"
+#include "psim_log.hpp"
 #include "debug.hpp"
 #include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
 
@@ -27,8 +28,13 @@ class MpiSimulatorChunk{
 
 public:
     MpiSimulatorChunk();
-    MpiSimulatorChunk(int rank, string label, dtype dt, int n_processors);
+    MpiSimulatorChunk(int rank, int n_processors);
     const string classname() { return "MpiSimulatorChunk"; }
+
+    /*
+     * Add simulation objects to the chunk from an HDF5 file. */
+    void from_file(string filename, hid_t file_plist, hid_t read_plist);
+    void from_file(string filename, hid_t file_plist, hid_t read_plist, MPI_Comm comm);
 
     /* Run an integer number of steps. Called by a
      * worker process once it gets a signal from the master
@@ -103,6 +109,9 @@ public:
     // Add a pre-created probe to the chunk.
     void add_probe(key_type probe_key, shared_ptr<Probe> probe);
 
+    // Add a a probe from a string
+    void add_probe(string probe_string);
+
     // *** Miscellaneous ***
 
     // Set the simulation log object which records the results of the simulation
@@ -138,6 +147,7 @@ private:
     int n_steps;
     int rank;
     int n_processors;
+    vector<string> probe_info;
 
     unique_ptr<SimulationLog> sim_log;
     string log_filename;

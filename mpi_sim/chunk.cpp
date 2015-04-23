@@ -4,8 +4,250 @@ MpiSimulatorChunk::MpiSimulatorChunk()
     :time(0.0), dt(0.001), n_steps(0){
 }
 
-MpiSimulatorChunk::MpiSimulatorChunk(int rank, string label, dtype dt, int n_processors)
-    :rank(rank), time(0.0), label(label), dt(dt), n_steps(0), n_processors(n_processors){
+MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors)
+    :rank(rank), time(0.0), dt(0.001), n_steps(0), n_processors(n_processors){
+    stringstream ss;
+    ss << "Chunk " << rank;
+    label = ss.str();
+}
+
+void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist){
+    from_file(filename, file_plist, read_plist, MPI_COMM_NULL);
+}
+
+void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist, MPI_Comm comm){
+    herr_t err;
+    hid_t f = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, file_plist);
+
+    // Get n_components
+    int n_components;
+    hid_t attr = H5Aopen(f, "n_components", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_INT, &n_components);
+    H5Aclose(attr);
+
+    cout << "n_components: " << n_components << endl;
+
+    if(rank == 0){
+        cout << "Loading nengo network from file." << endl;
+        cout << "Network has " << n_components << " components." << endl;
+    }
+
+    // Get dt
+    attr = H5Aopen(f, "dt", H5P_DEFAULT);
+    H5Aread(attr, H5T_NATIVE_DOUBLE, &dt);
+    H5Aclose(attr);
+    cout << "dt: " << dt << endl;
+
+    const int MAX_LENGTH = 256;
+    char c_signal_key[MAX_LENGTH];
+    char c_label[MAX_LENGTH];
+    int length;
+
+    hid_t str_type = H5Tcopy(H5T_C_S1);
+    H5Tset_size(str_type, MAX_LENGTH);
+    H5Tset_strpad(str_type, H5T_STR_NULLTERM);
+
+    int component = rank;
+    while(component < n_components){
+
+        stringstream ss;
+        ss << component;
+
+        // Open the group assigned to my component
+        hid_t component_group = H5Gopen(f, ss.str().c_str(), H5P_DEFAULT);
+
+        // Open the signals subgroup
+        hid_t signal_group = H5Gopen(component_group, "signals", H5P_DEFAULT);
+
+        hsize_t n_signals;
+        err = H5Gget_num_objs(signal_group, &n_signals);
+        cout << "n_signals: " << n_signals << endl;
+
+        // Read signals for component
+        for(int i = 0; i < n_signals; i++){
+            length = H5Gget_objname_by_idx(
+                signal_group, (hsize_t) i, c_signal_key, (size_t) MAX_LENGTH);
+
+            // Open the dataset
+            hid_t signal = H5Dopen(signal_group, c_signal_key, H5P_DEFAULT);
+
+            cout << "key: " << (string) c_signal_key << endl;
+            // Get array shape
+            hid_t dspace = H5Dget_space(signal);
+            hsize_t shape[2], max_shape[2];
+            int ndim = H5Sget_simple_extent_dims(dspace, shape, max_shape);
+            H5Sclose(dspace);
+
+            if(ndim == 1){
+                shape[1] = 1;
+                max_shape[1] = 1;
+            }
+
+            if(ndim != 1 && ndim != 2){
+                throw runtime_error("Got impropr value of ndim while reading signal.");
+            }
+
+            cout << "shape: " << shape[0] << ", " << shape[1] << endl;
+            cout << "shape: " << max_shape[0] << ", " << max_shape[1] << endl;
+
+            attr = H5Aopen(signal, "label", H5P_DEFAULT);
+            hid_t atype = H5Aget_type(attr);
+            H5T_class_t type_class = H5Tget_class(atype);
+            if (type_class == H5T_STRING) {
+                 hid_t atype_mem = H5Tget_native_type(atype, H5T_DIR_ASCEND);
+                 H5Aread(attr, atype_mem, c_label);
+                 H5Tclose(atype_mem);
+            }else{
+                throw runtime_error("Label has incorrect data type.");
+            }
+
+            H5Aclose(attr);
+            H5Tclose(atype);
+
+
+            // Get the signal label
+            //H5Aread(attr, str_type, c_label);
+            //H5Aclose(attr);
+
+            string signal_label = c_label;
+            cout << "label: " << signal_label << endl;
+            cout << "label: " << signal_label << endl;
+
+            // Get the data
+            auto data = unique_ptr<BaseSignal>(new BaseSignal(shape[0], shape[1]));
+            auto buffer = unique_ptr<dtype>(new dtype[shape[0] * shape[1]]);
+
+            err = H5Dread(signal, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, read_plist, buffer.get());
+
+            int idx = 0;
+            for(int i = 0; i < shape[0]; i++){
+                for(int j = 0; j < shape[1]; j++){
+                    (*data)(i, j) = buffer.get()[idx];
+                    idx++;
+                }
+            }
+
+            H5Dclose(signal);
+
+            key_type signal_key = boost::lexical_cast<key_type>(c_signal_key);
+            add_base_signal(signal_key, signal_label, move(data));
+        }
+
+        H5Gclose(signal_group);
+
+        hsize_t shape[2], max_shape[2];
+
+        // Read operators for component
+
+        // Open the dataset
+        hid_t operators = H5Dopen(component_group, "operators", H5P_DEFAULT);
+
+        // Get its dimensions
+        hid_t dspace = H5Dget_space(operators);
+        int ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        H5Sclose(dspace);
+        cout << "shape: " << shape[0] << ", " << shape[1] << endl;
+
+        hid_t type = H5Dget_type(operators);
+        size_t width = H5Tget_size(type);
+
+        // Read the data set
+        auto op_buffer = unique_ptr<char>(new char[width * shape[0]]);
+
+        hid_t memtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(memtype, width);
+        err = H5Dread(operators, memtype, H5S_ALL, H5S_ALL, read_plist, op_buffer.get());
+
+        for(int i = 0; i < shape[0]; i++){
+            string op_string = op_buffer.get() + i * width;
+            add_op(op_string);
+        }
+
+        H5Dclose(operators);
+        cout << "Done reading ops!" << endl;
+
+        hid_t probes = H5Dopen(component_group, "probes", H5P_DEFAULT);
+
+        // Get its dimensions
+        dspace = H5Dget_space(probes);
+        ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        H5Sclose(dspace);
+        cout << "shape: " << shape[0] << ", " << shape[1] << endl;
+
+        type = H5Dget_type(probes);
+        width = H5Tget_size(type);
+
+        // Read the data set
+        auto probe_buffer = unique_ptr<char>(new char[width * shape[0]]);
+
+        memtype = H5Tcopy(H5T_C_S1);
+        H5Tset_size(memtype, width);
+        err = H5Dread(probes, memtype, H5S_ALL, H5S_ALL, read_plist, probe_buffer.get());
+
+        for(int i = 0; i < shape[0]; i++){
+            string probe_string = probe_buffer.get() + i * width;
+            cout << "probe string: " << probe_string << endl;
+            add_probe(probe_string);
+        }
+
+        H5Dclose(probes);
+        cout << "Done reading probes!" << endl;
+
+        H5Gclose(component_group);
+
+        component += n_processors;
+    }
+
+    // Open the dataset
+    hid_t all_probes = H5Dopen(f, "all_probes", H5P_DEFAULT);
+
+    hsize_t shape[2];
+
+    // Get its dimensions
+    hid_t dspace = H5Dget_space(all_probes);
+    int ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+    H5Sclose(dspace);
+    cout << "shape of all_probes: " << shape[0] << ", " << shape[1] << endl;
+
+    hid_t type = H5Dget_type(all_probes);
+    size_t width = H5Tget_size(type);
+
+    // Read the data set
+    auto probe_buffer = unique_ptr<char>(new char[width * shape[0]]);
+
+    hid_t memtype = H5Tcopy(H5T_C_S1);
+    H5Tset_size(memtype, width);
+    err = H5Dread(all_probes, memtype, H5S_ALL, H5S_ALL, read_plist, probe_buffer.get());
+
+    char delim = '|';
+    for(int i = 0; i < shape[0]; i++){
+        string probe_string = probe_buffer.get() + i * width;
+
+        vector<string> tokens;
+        boost::split(tokens, probe_string, boost::is_any_of(";"));
+
+        key_type probe_key = boost::lexical_cast<key_type>(tokens[0]);
+        string signal_string = tokens[1];
+        dtype period = boost::lexical_cast<dtype>(tokens[2]);
+        string name = tokens[3];
+
+        stringstream ss;
+        ss << "PROBE" << delim << 0 << delim << probe_key << delim
+                      << signal_string << delim << period << delim << name;
+
+        probe_info.push_back(ss.str());
+    }
+
+    H5Dclose(all_probes);
+    H5Fclose(f);
+
+    if(n_processors != 1){
+        sim_log = unique_ptr<SimulationLog>(
+            new ParallelSimulationLog(n_processors, probe_info, dt, comm));
+    }else{
+        sim_log = unique_ptr<SimulationLog>(
+            new SimulationLog(probe_info, dt));
+    }
 }
 
 void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
@@ -335,6 +577,17 @@ void MpiSimulatorChunk::add_probe(key_type probe_key, string signal_string, dtyp
 
 void MpiSimulatorChunk::add_probe(key_type probe_key, shared_ptr<Probe> probe){
     probe_map[probe_key] = probe;
+}
+
+void MpiSimulatorChunk::add_probe(string probe_string){
+    vector<string> tokens;
+    boost::split(tokens, probe_string, boost::is_any_of(";"));
+
+    key_type probe_key = boost::lexical_cast<key_type>(tokens[0]);
+    string signal_string = tokens[1];
+    dtype period = boost::lexical_cast<dtype>(tokens[2]);
+    string probe_label = tokens[3];
+    add_probe(probe_key, signal_string, period);
 }
 
 void MpiSimulatorChunk::set_simulation_log(unique_ptr<SimulationLog> sl){

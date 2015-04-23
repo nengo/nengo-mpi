@@ -3,15 +3,13 @@
 char Simulator::delim = '|';
 
 Simulator::Simulator()
-:dt(0.001){}
-
-Simulator::Simulator(dtype dt)
-:dt(dt), chunk(NULL){
-    init(dt);
+:dt(0.001){
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, 1));
 }
 
-void Simulator::init(dtype dt){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, "Chunk 0", dt, 1));
+Simulator::Simulator(dtype dt)
+:dt(dt){
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, 1));
 }
 
 void Simulator::add_base_signal(
@@ -143,7 +141,11 @@ string Simulator::to_string() const{
 }
 
 void Simulator::from_file(string filename){
-    char delim = Simulator::delim;
+    if(filename.length() == 0){
+        stringstream s;
+        s << "Got empty string for filename" << endl;
+        throw runtime_error(s.str());
+    }
 
     ifstream in_file(filename);
 
@@ -153,95 +155,15 @@ void Simulator::from_file(string filename){
         throw runtime_error(s.str());
     }
 
-    cout << "Loading nengo network from file." << endl;
-
-    string line;
-    getline(in_file, line, delim);
-
-    int n_components = boost::lexical_cast<int>(line);
-
-    cout << "Network has " << n_components << " components." << endl;
-
-    getline(in_file, line);
-    if(line[line.size() - 1] == '\r'){
-        line.erase(line.end() - 1);
-    }
-
-    dt = boost::lexical_cast<dtype>(line);
-    init(dt);
-
-    string cell;
-
-    while(getline(in_file, line)){
-        if(line[line.size() - 1] == '\r'){
-            line.erase(line.end() - 1);
-        }
-
-        stringstream line_stream;
-        line_stream << line;
-        dbg("Reading: " << line_stream.str() << endl);
-
-        getline(line_stream, cell, delim);
-
-        if(cell.compare("SIGNAL") == 0){
-            getline(line_stream, cell, delim);
-            int component = boost::lexical_cast<int>(cell);
-
-            getline(line_stream, cell, delim);
-            key_type key = boost::lexical_cast<key_type>(cell);
-
-            getline(line_stream, cell, delim);
-            string label = cell;
-
-            getline(line_stream, cell, delim);
-
-            vector<string> tokens;
-            boost::trim_if(cell, boost::is_any_of(",()[] "));
-            boost::split(tokens, cell, boost::is_any_of(",()[] "), boost::token_compress_on);
-
-            vector<string>::iterator it = tokens.begin();
-            int size1 = boost::lexical_cast<int>(*(it++));
-            int size2 = boost::lexical_cast<int>(*(it++));
-
-            auto data = unique_ptr<BaseSignal>(new BaseSignal(size1, size2));
-
-            for(int i = 0; it < tokens.end(); it++, i++){
-                (*data)(i / size2, i % size2) = boost::lexical_cast<dtype>(*it);
-            }
-
-            add_base_signal(component, key, label, move(data));
-
-        }else if(cell.compare("OP") == 0){
-            getline(line_stream, cell, delim);
-            int component = boost::lexical_cast<int>(cell);
-
-            getline(line_stream, cell, delim);
-            string op_string = cell;
-
-            add_op(component, op_string);
-
-        }else if(cell.compare("PROBE") == 0){
-
-            getline(line_stream, cell, delim);
-            int component = boost::lexical_cast<int>(cell);
-
-            getline(line_stream, cell, delim);
-            key_type probe_key = boost::lexical_cast<key_type>(cell);
-
-            getline(line_stream, cell, delim);
-            string signal_string = cell;
-
-            getline(line_stream, cell, delim);
-            int period = boost::lexical_cast<int>(cell);
-
-            getline(line_stream, cell, delim);
-            string name = cell;
-
-            add_probe(component, probe_key, signal_string, period, name);
-        }
-    }
-
     in_file.close();
 
-    finalize_build();
+    // Use non-parallel property lists.
+    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
+    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
+
+    chunk->from_file(filename, file_plist, read_plist);
+    dt = chunk->dt;
+
+    H5Pclose(file_plist);
+    H5Pclose(read_plist);
 }

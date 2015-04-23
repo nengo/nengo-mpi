@@ -3,6 +3,7 @@
 #include <memory>
 
 #include <mpi.h>
+#include <hdf5.h>
 
 #include "optionparser.h"
 
@@ -36,75 +37,88 @@ void start_worker(MPI_Comm comm){
 
     MPI_Status status;
 
-    string chunk_label = recv_string(0, setup_tag, comm);
+    string filename = recv_string(0, setup_tag, comm);
 
-    dtype dt = recv_dtype(0, setup_tag, comm);
+    MpiSimulatorChunk chunk(my_id, n_processors);
 
-    MpiSimulatorChunk chunk(my_id, chunk_label, dt, n_processors);
+    if(filename.length() != 0){
+        hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
+        H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
 
-    int s = 0;
-    string op_string;
+        hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
+        H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
 
-    key_type probe_key;
-    string signal_string;
-    dtype period;
+        chunk.from_file(filename, file_plist, read_plist);
 
-    dbg("Worker " << my_id  << " receiving network...");
+        H5Pclose(file_plist);
+        H5Pclose(read_plist);
+    }else{
+        chunk.dt = recv_dtype(0, setup_tag, comm);
 
-    while(1){
-        s = recv_int(0, setup_tag, comm);
+        int s = 0;
+        string op_string;
 
-        if(s == add_signal_flag){
-            dbg("Worker " << my_id  << " receiving signal.");
+        key_type probe_key;
+        string signal_string;
+        dtype period;
 
-            key_type key = recv_key(0, setup_tag, comm);
+        dbg("Worker " << my_id  << " receiving network...");
 
-            string label = recv_string(0, setup_tag, comm);
+        while(1){
+            s = recv_int(0, setup_tag, comm);
 
-            unique_ptr<BaseSignal> data = recv_matrix(0, setup_tag, comm);
+            if(s == add_signal_flag){
+                dbg("Worker " << my_id  << " receiving signal.");
 
-            dbg("Worker " << my_id  << " done receiving signal.");
+                key_type key = recv_key(0, setup_tag, comm);
 
-            dbg("key; " << key);
-            dbg("label; " << key);
-            dbg("data; " << *data);
+                string label = recv_string(0, setup_tag, comm);
 
-            chunk.add_base_signal(key, label, move(data));
+                unique_ptr<BaseSignal> data = recv_matrix(0, setup_tag, comm);
 
-        }else if(s == add_op_flag){
-            dbg("Worker " << my_id  << " receiving operator.");
+                dbg("Worker " << my_id  << " done receiving signal.");
 
-            string op_string = recv_string(0, setup_tag, comm);
+                dbg("key; " << key);
+                dbg("label; " << key);
+                dbg("data; " << *data);
 
-            dbg("Worker " << my_id  << " done receiving operator.");
+                chunk.add_base_signal(key, label, move(data));
 
-            chunk.add_op(op_string);
+            }else if(s == add_op_flag){
+                dbg("Worker " << my_id  << " receiving operator.");
 
-        }else if(s == add_probe_flag){
-            dbg("Worker " << my_id  << " receiving probe.");
+                string op_string = recv_string(0, setup_tag, comm);
 
-            key_type probe_key = recv_key(0, setup_tag, comm);
+                dbg("Worker " << my_id  << " done receiving operator.");
 
-            string signal_string = recv_string(0, setup_tag, comm);
+                chunk.add_op(op_string);
 
-            dtype period = recv_dtype(0, setup_tag, comm);
+            }else if(s == add_probe_flag){
+                dbg("Worker " << my_id  << " receiving probe.");
 
-            dbg("Worker " << my_id  << " done receiving probe.");
+                key_type probe_key = recv_key(0, setup_tag, comm);
 
-            chunk.add_probe(probe_key, signal_string, period);
+                string signal_string = recv_string(0, setup_tag, comm);
 
-        }else if(s == stop_flag){
-            dbg("Worker " << my_id  << " done receiving network.");
-            break;
+                dtype period = recv_dtype(0, setup_tag, comm);
 
-        }else{
-            throw runtime_error("Worker received invalid flag from master.");
+                dbg("Worker " << my_id  << " done receiving probe.");
+
+                chunk.add_probe(probe_key, signal_string, period);
+
+            }else if(s == stop_flag){
+                dbg("Worker " << my_id  << " done receiving network.");
+                break;
+
+            }else{
+                throw runtime_error("Worker received invalid flag from master.");
+            }
         }
     }
 
     dbg("Worker " << my_id << " setting up simulation log...");
     auto sim_log = unique_ptr<SimulationLog>(
-        new ParallelSimulationLog(n_processors, my_id, dt, comm));
+        new ParallelSimulationLog(n_processors, my_id, chunk.dt, comm));
 
     chunk.set_simulation_log(move(sim_log));
 
