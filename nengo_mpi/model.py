@@ -704,7 +704,7 @@ class MpiModel(builder.Model):
                         if len(op_strings) > self.size_increment:
                             raise Exception("op_strings has grown too large.")
 
-                        if len(op_string) == self.size_increment:
+                        if len(op_strings) == self.size_increment:
                             resize_and_flush(
                                 self.save_file[str(component)]['operators'],
                                 op_strings)
@@ -864,7 +864,7 @@ class MpiModel(builder.Model):
             if len(probe_strings) > self.size_increment:
                 raise Exception("probe_strings has grown too large.")
 
-            if len(probe_string) == self.size_increment:
+            if len(probe_strings) == self.size_increment:
                 resize_and_flush(
                     self.save_file[str(component)]['probes'],
                     probe_strings)
