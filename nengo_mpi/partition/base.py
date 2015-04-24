@@ -123,6 +123,7 @@ class Partitioner(object):
         object_assignments = {}
 
         if self.n_components > 1:
+            # component0 is also in the filter graph
             component0, filter_graph = network_to_filter_graph(network)
 
             n_nodes = len(filter_graph)
@@ -151,10 +152,11 @@ class Partitioner(object):
                 node.assign_to_component(
                     object_assignments, node_assignments[node])
 
+        propogate_assignments(network, object_assignments)
+
+        if self.n_components > 1:
             evaluate_partition(
                 network, self.n_components, object_assignments, filter_graph)
-
-        propogate_assignments(network, object_assignments)
 
         return self.n_components, object_assignments
 

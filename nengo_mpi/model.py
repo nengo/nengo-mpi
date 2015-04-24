@@ -585,7 +585,6 @@ class MpiModel(builder.Model):
                 component_group = self.save_file[str(component)]
 
                 op_strings = self.op_strings[component]
-                max_string_length = max(len(s) for s in op_strings)
                 max_string_length = (
                     max(len(s) for s in op_strings)
                     if op_strings
