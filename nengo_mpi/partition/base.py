@@ -154,14 +154,14 @@ class Partitioner(object):
 
         propogate_assignments(network, object_assignments)
 
-        if self.n_components > 1:
-            evaluate_partition(
-                network, self.n_components, object_assignments, filter_graph)
+        # if self.n_components > 1:
+        #     evaluate_partition(
+        #         network, self.n_components, object_assignments, filter_graph)
 
         return self.n_components, object_assignments
 
 
-def network_to_filter_graph(network, use_weights=True):
+def network_to_filter_graph(network, use_weights=True, merge_nengo_nodes=True):
     """
     Creates a graph from a nengo network, where the nodes are collections
     of nengo objects that are connected by non-filtered connections, and edges
@@ -181,6 +181,13 @@ def network_to_filter_graph(network, use_weights=True):
         Whether edges in the filter graph should be weighted by the size_mid
         attribute of the connection. If not, then all connections are weighted
         equally.
+
+    merge_nengo_nodes: boolean
+        If True, then nodes in the filter graph which would consist entirely of
+        nengo nodes are merged with a neighboring node. This is done because
+        it is typically not useful to have a processor simulating only nodes,
+        as it will only add to the communication, while not significantly
+        easing the computational burden.
 
     Returns
     -------
@@ -204,23 +211,17 @@ def network_to_filter_graph(network, use_weights=True):
 
         return a
 
-    node_map = defaultdict(GraphNode)
+    node_map = {
+        obj: GraphNode(obj) for obj
+        in network.all_nodes + network.all_ensembles}
 
     for conn in network.all_connections:
 
         pre_obj = neurons2ensemble(conn.pre_obj)
-
         pre_node = node_map[pre_obj]
 
-        if pre_node.empty():
-            pre_node.add_object(pre_obj)
-
         post_obj = neurons2ensemble(conn.post_obj)
-
         post_node = node_map[post_obj]
-
-        if post_node.empty():
-            post_node.add_object(post_obj)
 
         if is_update(conn):
             pre_node.add_output(conn)
@@ -228,21 +229,54 @@ def network_to_filter_graph(network, use_weights=True):
         else:
             merge_nodes(node_map, pre_node, post_node)
 
+    all_nodes = list(set(node_map.values()))
+
     _, outputs = find_all_io(network.all_connections)
 
     # merge together all nodes that have to go on component 0
     component0 = filter(
-        lambda x: for_component0(x, outputs), node_map.values())
+        lambda x: for_component0(x, outputs), all_nodes)
 
     if component0:
+        all_nodes = filter(lambda x: x not in component0[1:], all_nodes)
         component0 = reduce(
             lambda u, v: merge_nodes(node_map, u, v), component0)
     else:
         component0 = None
 
+    if merge_nengo_nodes:
+        # If component0 has no neurons, merge it with some node that does
+        if component0 and component0.n_neurons == 0:
+            merge_with = (n for n in all_nodes if n.n_neurons > 0).next()
+            merge_nodes(node_map, component0, merge_with)
+            all_nodes.remove(merge_with)
+
+        without_neurons = filter(lambda x: x.n_neurons == 0, all_nodes)
+
+        for node in without_neurons:
+            if node.inputs or node.outputs:
+                # figure out which other node would be most
+                # beneficial to merge with.
+                counts = defaultdict(int)
+
+                for i in node.inputs:
+                    counts[node_map[i.pre_obj]] += i.size_mid
+
+                for o in node.outputs:
+                    counts[node_map[o.post_obj]] += o.size_mid
+
+                best_node = max(counts, key=counts.__getitem__)
+            else:
+                best_node = (n for n in all_nodes if n.n_neurons > 0).next()
+
+            merge_nodes(node_map, best_node, node)
+            all_nodes.remove(node)
+
     G = nx.Graph()
 
     update_connections = filter(is_update, network.all_connections)
+
+    G.add_nodes_from(all_nodes)
 
     for conn in update_connections:
         pre_node = node_map[neurons2ensemble(conn.pre_obj)]
@@ -266,11 +300,13 @@ class GraphNode(object):
     which must be simulated on the same processor in nengo_mpi.
     """
 
-    def __init__(self):
+    def __init__(self, obj):
         self.objects = set()
         self.inputs = set()
         self.outputs = set()
         self._n_neurons = 0
+
+        self.add_object(obj)
 
     @property
     def n_neurons(self):
@@ -292,8 +328,11 @@ class GraphNode(object):
         return len(self.objects) == 0
 
     def __str__(self):
-        s = ",".join(str(o) for o in self.objects)
+        s = "<GraphNode: " + ", ".join(str(o) for o in self.objects) + ">"
         return s
+
+    def __repr__(self):
+        return str(self)
 
     def assign_to_component(self, assignments, component):
         """
@@ -323,8 +362,14 @@ class GraphNode(object):
                 self._n_neurons += obj.n_neurons
 
         self.objects = self.objects.union(other.objects)
-        self.inputs = self.inputs.union(other.inputs)
-        self.outputs = self.outputs.union(other.outputs)
+
+        self.inputs = set([
+            i for i in self.inputs.union(other.inputs)
+            if not (i.pre_obj in self.objects and i.post_obj in self.objects)])
+
+        self.outputs = set([
+            o for o in self.outputs.union(other.outputs)
+            if not (o.pre_obj in self.objects and o.post_obj in self.objects)])
 
         return True
 
@@ -406,9 +451,6 @@ def propogate_assignments(network, assignments):
 
             else:
                 if any([conn.function is not None for conn in outputs[node]]):
-                    import pdb
-                    pdb.set_trace()
-
                     if node in assignments and assignments[node] != 0:
                         warnings.warn(
                             "Found Node with an output connection whose "

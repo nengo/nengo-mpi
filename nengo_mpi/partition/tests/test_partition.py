@@ -42,6 +42,7 @@ def test_default(simple_network, n_components):
     component0, filter_graph = network_to_filter_graph(simple_network)
 
     partitioner = Partitioner(n_components)
+
     sim = Simulator(
         simple_network, partitioner=partitioner, save_file=save_file)
 
@@ -163,3 +164,56 @@ def test_insufficient_chunks(simple_network):
     assert sim.n_components == len(filter_graph)
     assert os.path.isfile(save_file)
     os.remove(save_file)
+
+
+def test_filter_graph():
+    network = nengo.Network()
+
+    with network:
+        node = nengo.Node(0.5, label='Node 0')
+        A = nengo.Ensemble(50, 1, label='A')
+        B = nengo.Ensemble(50, 1, label='B')
+
+        nengo.Connection(node, A)
+        nengo.Connection(A, B)
+
+    component0, filter_graph = network_to_filter_graph(network)
+    assert len(filter_graph) == 2
+
+    component0, filter_graph = network_to_filter_graph(
+        network, merge_nengo_nodes=False)
+    assert len(filter_graph) == 3
+
+    with network:
+        node = nengo.Node(lambda x: 0.5, label='Node 1')
+
+    component0, filter_graph = network_to_filter_graph(network)
+    assert len(filter_graph) == 2
+    assert component0 is not None
+
+    component0, filter_graph = network_to_filter_graph(
+        network, merge_nengo_nodes=False)
+    assert len(filter_graph) == 4
+    assert component0 is not None
+
+    with network:
+        node = nengo.Node(lambda x: 0.7, label='Node 2')
+        nengo.Connection(node, A, synapse=None)
+
+    component0, filter_graph = network_to_filter_graph(network)
+    assert len(filter_graph) == 2
+
+    component0, filter_graph = network_to_filter_graph(
+        network, merge_nengo_nodes=False)
+    assert len(filter_graph) == 3
+
+    with network:
+        C = nengo.Ensemble(100, 1, label='C')
+        nengo.Connection(C, A)
+
+    component0, filter_graph = network_to_filter_graph(network)
+    assert len(filter_graph) == 3
+
+    component0, filter_graph = network_to_filter_graph(
+        network, merge_nengo_nodes=False)
+    assert len(filter_graph) == 4
