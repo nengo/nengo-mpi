@@ -48,13 +48,14 @@ parser.add_argument(
          'object to processors')
 
 parser.add_argument(
-    '--save', type=str, default='',
+    '--save', nargs='?', type=str, default='', const='bench',
     help="Supply a filename to write the network to (so it can be "
          "later be used by the stand-alone version of nengo_mpi). "
          "In this case, the network will not be simulated.")
 
 parser.add_argument(
-    '--mpi-log', type=str, default='', dest='mpi_log',
+    '--mpi-log', nargs='?', type=str,
+    default='', const='bench', dest='mpi_log',
     help="Supply a filename to write the results of the simulation "
          "to, if an MPI simulation is performed.")
 
@@ -72,9 +73,18 @@ stream_length = args.sl
 extra_partitions = args.p - 1
 
 use_mpi = args.mpi
-mpi_log = args.mpi_log
 
 save_file = args.save
+if save_file == 'bench':
+    save_file = (
+        'bench_p{0}_sl{1}_ns{2}.net'.format(
+            args.p, stream_length, num_streams))
+
+mpi_log = args.mpi_log
+if mpi_log == 'bench':
+    mpi_log = (
+        'bench_p{0}_sl{1}_ns{2}.h5'.format(
+            args.p, stream_length, num_streams))
 
 sim_time = args.t
 
@@ -97,7 +107,7 @@ ensembles = []
 
 m = nengo.Network(label=name, seed=seed)
 with m:
-    m.config[nengo.Ensemble].neuron_type = nengo.LIFRate()
+    m.config[nengo.Ensemble].neuron_type = nengo.LIF()
     input_node = nengo.Node(output=[0.25] * D)
     input_p = nengo.Probe(input_node, synapse=0.01)
 
