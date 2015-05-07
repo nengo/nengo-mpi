@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <memory>
 
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
@@ -38,7 +39,7 @@ typedef long long int key_type;
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures are stored in a list, and we call
 // them sequentially each time step. The order they are called in is determined
-// by python the order they are given to us from python.
+// by the order they are given to us from python.
 //
 // Note that the () operator is a virtual function, which comes with some overhead.
 // Future optimizations should look at another scheme, either function pointers

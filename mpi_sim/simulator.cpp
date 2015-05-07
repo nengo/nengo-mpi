@@ -42,13 +42,10 @@ void Simulator::add_probe(
         key_type probe_key, string signal_string, dtype period, string name){
 
     stringstream ss;
-
     ss << "PROBE" << delim << 0 << delim << probe_key << delim
                   << signal_string << delim << period << delim << name;
-
     probe_info.push_back(ss.str());
-
-    dbg(ss.str());
+    dbg("Adding probe info: " << ss.str());
 
     chunk->add_probe(probe_key, signal_string, period);
     probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();
@@ -69,9 +66,8 @@ void Simulator::add_op(unique_ptr<Operator> op){
 }
 
 void Simulator::finalize_build(){
-
-    chunk->set_simulation_log(
-        unique_ptr<SimulationLog>(new SimulationLog(probe_info, dt)));
+    chunk->probe_info = probe_info;
+    chunk->setup_simulation_log();
 }
 
 void Simulator::run_n_steps(int steps, bool progress, string log_filename){
@@ -88,7 +84,8 @@ void Simulator::run_n_steps(int steps, bool progress, string log_filename){
     chunk->close_simulation_log();
 
     clock_t end = clock();
-    cout << "Simulating " << steps << " steps took " << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+    cout << "Simulating " << steps << " steps took "
+         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
 }
 
 void Simulator::gather_probe_data(){

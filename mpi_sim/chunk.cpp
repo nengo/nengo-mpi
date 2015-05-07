@@ -1,11 +1,11 @@
 #include "chunk.hpp"
 
 MpiSimulatorChunk::MpiSimulatorChunk()
-    :time(0.0), dt(0.001), n_steps(0){
+:time(0.0), dt(0.001), n_steps(0){
 }
 
 MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors)
-    :rank(rank), time(0.0), dt(0.001), n_steps(0), n_processors(n_processors){
+:rank(rank), time(0.0), dt(0.001), n_steps(0), n_processors(n_processors){
     stringstream ss;
     ss << "Chunk " << rank;
     label = ss.str();
@@ -59,12 +59,16 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         hsize_t n_signals;
         err = H5Gget_num_objs(signal_group, &n_signals);
 
-        // Read signals for component
+        // Read signals for component one at a time
+        // Name of the dataset containing a signal is equal to the signal key
         for(int i = 0; i < n_signals; i++){
+
+            // Get the signal key/dataset name
             length = H5Gget_objname_by_idx(
                 signal_group, (hsize_t) i, c_signal_key, (size_t) MAX_LENGTH);
+            key_type signal_key = boost::lexical_cast<key_type>(c_signal_key);
 
-            // Open the dataset
+            // Open the dataset containing the signal
             hid_t signal = H5Dopen(signal_group, c_signal_key, H5P_DEFAULT);
 
             // Get array shape
@@ -82,6 +86,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
                 throw runtime_error("Got impropr value of ndim while reading signal.");
             }
 
+            // Get the signal label
             attr = H5Aopen(signal, "label", H5P_DEFAULT);
             hid_t atype = H5Aget_type(attr);
             H5T_class_t type_class = H5Tget_class(atype);
@@ -93,17 +98,12 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
                 throw runtime_error("Label has incorrect data type.");
             }
 
+            string signal_label = c_label;
+
             H5Aclose(attr);
             H5Tclose(atype);
 
-
-            // Get the signal label
-            //H5Aread(attr, str_type, c_label);
-            //H5Aclose(attr);
-
-            string signal_label = c_label;
-
-            // Get the data
+            // Get the signal data
             auto data = unique_ptr<BaseSignal>(new BaseSignal(shape[0], shape[1]));
             auto buffer = unique_ptr<dtype>(new dtype[shape[0] * shape[1]]);
 
@@ -119,7 +119,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
             H5Dclose(signal);
 
-            key_type signal_key = boost::lexical_cast<key_type>(c_signal_key);
+            // Add the signal to the chunk
             add_base_signal(signal_key, signal_label, move(data));
         }
 
@@ -128,7 +128,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         hsize_t shape[2], max_shape[2];
 
         // Read operators for component
-
+        //
         // Open the dataset
         hid_t operators = H5Dopen(component_group, "operators", H5P_DEFAULT);
 
@@ -137,6 +137,10 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         int ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
         H5Sclose(dspace);
 
+        // Get the length of the strings (the width variable). The length
+        // of all the strings in the dataset is equal to the length of the longest
+        // string (have to do this since HDF5 does not support reading variable-length
+        // data-types in parallel).
         hid_t type = H5Dget_type(operators);
         size_t width = H5Tget_size(type);
 
@@ -154,6 +158,9 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
         H5Dclose(operators);
 
+        // Read probes for component
+        //
+        // Open the dataset
         hid_t probes = H5Dopen(component_group, "probes", H5P_DEFAULT);
 
         // Get its dimensions
@@ -225,13 +232,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
     H5Dclose(all_probes);
     H5Fclose(f);
 
-    if(n_processors != 1){
-        sim_log = unique_ptr<SimulationLog>(
-            new ParallelSimulationLog(n_processors, probe_info, dt, comm));
-    }else{
-        sim_log = unique_ptr<SimulationLog>(
-            new SimulationLog(probe_info, dt));
-    }
+    setup_simulation_log(comm);
 }
 
 void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
@@ -302,6 +303,7 @@ void MpiSimulatorChunk::add_base_signal(
         key_type key, string l, unique_ptr<BaseSignal> data){
 
     auto key_location = signal_map.find(key);
+
     if(key_location != signal_map.end()){
         shared_ptr<BaseSignal> existing_data = key_location->second;
 
@@ -574,8 +576,17 @@ void MpiSimulatorChunk::add_probe(string probe_string){
     add_probe(probe_key, signal_string, period);
 }
 
-void MpiSimulatorChunk::set_simulation_log(unique_ptr<SimulationLog> sl){
-    sim_log = move(sl);
+void MpiSimulatorChunk::setup_simulation_log(){
+    setup_simulation_log(MPI_COMM_NULL);
+}
+
+void MpiSimulatorChunk::setup_simulation_log(MPI_Comm comm){
+    if(n_processors != 1){
+        sim_log = unique_ptr<SimulationLog>(
+            new ParallelSimulationLog(n_processors, rank, probe_info, dt, comm));
+    }else{
+        sim_log = unique_ptr<SimulationLog>(new SimulationLog(probe_info, dt));
+    }
 }
 
 void MpiSimulatorChunk::set_log_filename(string lf){

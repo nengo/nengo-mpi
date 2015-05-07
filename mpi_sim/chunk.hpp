@@ -115,7 +115,8 @@ public:
     // *** Miscellaneous ***
 
     // Set the simulation log object which records the results of the simulation
-    void set_simulation_log(unique_ptr<SimulationLog> sl);
+    void setup_simulation_log();
+    void setup_simulation_log(MPI_Comm comm);
     void set_log_filename(string lf);
     bool is_logging();
     void close_simulation_log();
@@ -141,13 +142,13 @@ public:
     string label;
 
     map<key_type, shared_ptr<Probe>> probe_map;
+    vector<string> probe_info;
 
 private:
     dtype time;
     int n_steps;
     int rank;
     int n_processors;
-    vector<string> probe_info;
 
     unique_ptr<SimulationLog> sim_log;
     string log_filename;
@@ -155,7 +156,8 @@ private:
     map<key_type, string> signal_labels;
     map<key_type, shared_ptr<BaseSignal>> signal_map;
 
-    // Contains all operators
+    // Contains all operators - don't have to worry about deleting these, since we
+    // have unique_ptr's for all these ops in the lists below.
     list<Operator*> operator_list;
 
     // Contains non-mpi operators

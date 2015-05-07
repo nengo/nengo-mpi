@@ -42,6 +42,7 @@ void start_worker(MPI_Comm comm){
     MpiSimulatorChunk chunk(my_id, n_processors);
 
     if(filename.length() != 0){
+        // Use parallel property lists
         hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
         H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
 
@@ -116,15 +117,9 @@ void start_worker(MPI_Comm comm){
         }
     }
 
-    dbg("Worker " << my_id << " setting up simulation log...");
-    //auto sim_log = unique_ptr<SimulationLog>(
-    //    new ParallelSimulationLog(n_processors, my_id, chunk.dt, comm));
-
-    //chunk.set_simulation_log(move(sim_log));
-
     dbg("Worker " << my_id << " setting up MPI operators...");
+
     chunk.set_communicator(comm);
-    //chunk.add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
 
     dbg("Worker " << my_id << " waiting for signal to start simulation...");
 

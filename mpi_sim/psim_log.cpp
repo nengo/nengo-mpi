@@ -1,28 +1,8 @@
 #include "psim_log.hpp"
 
-
-// Master version
 ParallelSimulationLog::ParallelSimulationLog(
-    int n_processors, vector<string> probe_strings, dtype dt, MPI_Comm comm)
-:SimulationLog(probe_strings, dt), n_processors(n_processors), processor(0), comm(comm){
-
-    /*
-    if(n_processors > 1){
-        bcast_send_probe_info(probe_strings, comm);
-    }
-    */
-}
-
-// Worker version
-ParallelSimulationLog::ParallelSimulationLog(
-    int n_processors, int processor, dtype dt, MPI_Comm comm)
-:SimulationLog(dt), n_processors(n_processors), processor(processor), comm(comm){
-
-    /*
-    vector<string> probe_strings = bcast_recv_probe_info(comm);
-    store_probe_info(probe_strings);
-    */
-}
+    int n_processors, int processor, vector<string> probe_strings, dtype dt, MPI_Comm comm)
+:SimulationLog(probe_strings, dt), n_processors(n_processors), processor(processor), comm(comm){}
 
 // Master version
 void ParallelSimulationLog::prep_for_simulation(string filename, int num_steps){
@@ -52,7 +32,7 @@ void ParallelSimulationLog::prep_for_simulation(string filename, int num_steps){
 // Worker version
 void ParallelSimulationLog::prep_for_simulation(){
 
-    // Get filename size
+    // Receive filename size
     int size;
     MPI_Bcast(&size, 1, MPI_INT, 0, comm);
 
@@ -61,12 +41,12 @@ void ParallelSimulationLog::prep_for_simulation(){
         return;
     }
 
-    // Get filename
+    // Receive filename
     unique_ptr<char[]> buffer(new char[size+1]);
     MPI_Bcast(buffer.get(), size+1, MPI_CHAR, 0, comm);
     string filename(buffer.get());
 
-    // Get number of steps in simulation
+    // Receive number of steps in simulation
     int num_steps;
     MPI_Bcast(&num_steps, 1, MPI_INT, 0, comm);
 
@@ -125,45 +105,4 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
     }
 
     closed = false;
-}
-
-vector<string> bcast_recv_probe_info(MPI_Comm comm){
-    int src = 0;
-
-    int num_probes, size;
-    MPI_Bcast(&num_probes, 1, MPI_INT, src, comm);
-
-    vector<string> probe_info;
-
-    for(int i = 0; i < num_probes; i++){
-        MPI_Bcast(&size, 1, MPI_INT, src, comm);
-
-        unique_ptr<char[]> buffer(new char[size+1]);
-
-        MPI_Bcast(buffer.get(), size+1, MPI_CHAR, src, comm);
-
-        string s(buffer.get());
-
-        probe_info.push_back(s);
-    }
-
-    return probe_info;
-}
-
-void bcast_send_probe_info(vector<string> probe_info, MPI_Comm comm){
-    int src = 0;
-
-    int num_probes = probe_info.size();
-    MPI_Bcast(&num_probes, 1, MPI_INT, src, comm);
-
-    for(auto& s : probe_info){
-        int size = s.size();
-        MPI_Bcast(&size, 1, MPI_INT, src, comm);
-
-        unique_ptr<char[]> buffer(new char[size+1]);
-
-        strcpy(buffer.get(), s.c_str());
-
-        MPI_Bcast(buffer.get(), size+1, MPI_CHAR, src, comm);
-    }
 }

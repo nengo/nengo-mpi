@@ -1,6 +1,6 @@
 #include "mpi_simulator.hpp"
 
-// This constructor assume that MPI_Initialize has already been called.
+// This constructor assumes that MPI_Initialize has already been called.
 MpiSimulator::MpiSimulator()
 :n_processors(0), comm(MPI_COMM_NULL){
     init();
@@ -96,6 +96,7 @@ void MpiSimulator::from_file(string filename){
         send_string(filename, i+1, setup_tag, comm);
     }
 
+    // Use parallel property lists
     hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
 
@@ -147,11 +148,6 @@ void MpiSimulator::add_probe(
 
     int processor_index = component % n_processors;
 
-    stringstream ss;
-    ss << "PROBE" << delim << processor_index << delim << probe_key << delim
-                  << signal_string << delim << period << delim << name;
-    probe_info.push_back(ss.str());
-
     probe_counts[processor_index] += 1;
     probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();
 
@@ -175,16 +171,7 @@ void MpiSimulator::add_op(unique_ptr<Operator> op){
 }
 
 void MpiSimulator::finalize_build(){
-    for(int i = 0; i < n_processors - 1; i++){
-        send_int(stop_flag, i+1, setup_tag, comm);
-    }
-
-    auto sim_log = unique_ptr<SimulationLog>(
-        new ParallelSimulationLog(n_processors, probe_info, chunk->dt, comm));
-
-    chunk->set_simulation_log(move(sim_log));
     chunk->set_communicator(comm);
-    chunk->add_op(unique_ptr<Operator>(new MPIBarrier(comm)));
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
@@ -210,7 +197,8 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     MPI_Finalize();
 
     clock_t end = clock();
-    cout << "Simulating " << steps << " steps took " << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+    cout << "Simulating " << steps << " steps took "
+         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
 }
 
 void MpiSimulator::gather_probe_data(){

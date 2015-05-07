@@ -13,18 +13,26 @@
 #include "sim_log.hpp"
 #include "debug.hpp"
 
+// A parallel version of SimulationLog. Represents an HDF5 file to which we
+// write data collected throughout the simulation. All processors have access
+// to the same file, and all processors can write to it independently.
 class ParallelSimulationLog: public SimulationLog{
 public:
     ParallelSimulationLog(){};
 
+    ParallelSimulationLog(
+        int n_processors, int processor, vector<string> probe_strings,
+        dtype dt, MPI_Comm comm);
+
     // Called by master
-    ParallelSimulationLog(int n_processors, vector<string> probe_info, dtype dt, MPI_Comm comm);
     void prep_for_simulation(string filename, int num_steps);
 
     // Called by workers
-    ParallelSimulationLog(int n_processors, int processor, dtype dt, MPI_Comm comm);
     void prep_for_simulation();
 
+    // Use the `probe_info` (which is read from the HDF5 file that specifies the
+    // network), to collectively construct a shared parallel HDF5 which all
+    // processors can write simulation results to.
     void setup_hdf5(string filename, int num_steps);
 
 protected:
@@ -35,9 +43,5 @@ protected:
     int mpi_rank;
     int mpi_size;
 };
-
-
-vector<string> bcast_recv_probe_info(MPI_Comm comm);
-void bcast_send_probe_info(vector<string> probe_info, MPI_Comm comm);
 
 #endif
