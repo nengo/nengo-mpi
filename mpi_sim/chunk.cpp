@@ -217,13 +217,14 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         vector<string> tokens;
         boost::split(tokens, probe_string, boost::is_any_of(";"));
 
-        key_type probe_key = boost::lexical_cast<key_type>(tokens[0]);
-        string signal_string = tokens[1];
-        dtype period = boost::lexical_cast<dtype>(tokens[2]);
-        string name = tokens[3];
+        int component = boost::lexical_cast<int>(tokens[0]);
+        key_type probe_key = boost::lexical_cast<key_type>(tokens[1]);
+        string signal_string = tokens[2];
+        dtype period = boost::lexical_cast<dtype>(tokens[3]);
+        string name = tokens[4];
 
         stringstream ss;
-        ss << "PROBE" << delim << 0 << delim << probe_key << delim
+        ss << "PROBE" << delim << component << delim << probe_key << delim
                       << signal_string << delim << period << delim << name;
 
         probe_info.push_back(ss.str());
