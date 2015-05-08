@@ -864,7 +864,8 @@ class MpiModel(builder.Model):
 
             self.probe_strings[component].append(probe_string)
 
-            self.all_probe_strings.append(probe_string)
+            self.all_probe_strings.append(
+                str(component) + MpiModel.op_string_delim + probe_string)
         else:
             self.mpi_sim.add_probe(
                 component, self.probe_keys[probe],
