@@ -144,9 +144,9 @@ def test_random_dot_inc(Simulator):
     np.random.seed(seed)
 
     D = 3
-    num_tests = 10
+    n_tests = 10
 
-    for i in range(num_tests):
+    for i in range(n_tests):
         A = Signal(np.random.random((D, D)), 'A')
         X = Signal(np.random.random(D), 'X')
         Y = Signal(np.zeros(D), 'Y')

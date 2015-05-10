@@ -154,9 +154,9 @@ class Partitioner(object):
 
         propogate_assignments(network, object_assignments)
 
-        # if self.n_components > 1:
-        #     evaluate_partition(
-        #         network, self.n_components, object_assignments, filter_graph)
+        if self.n_components > 1:
+            evaluate_partition(
+                network, self.n_components, object_assignments, filter_graph)
 
         return self.n_components, object_assignments
 
@@ -260,10 +260,12 @@ def network_to_filter_graph(network, use_weights=True, merge_nengo_nodes=True):
                 counts = defaultdict(int)
 
                 for i in node.inputs:
-                    counts[node_map[i.pre_obj]] += i.size_mid
+                    pre_obj = neurons2ensemble(i.pre_obj)
+                    counts[node_map[pre_obj]] += i.size_mid
 
                 for o in node.outputs:
-                    counts[node_map[o.post_obj]] += o.size_mid
+                    post_obj = neurons2ensemble(o.post_obj)
+                    counts[node_map[post_obj]] += o.size_mid
 
                 best_node = max(counts, key=counts.__getitem__)
             else:
@@ -555,9 +557,14 @@ def evaluate_partition(
     graph_node_n_neurons = [key(n) for n in filter_graph.nodes()]
     graph_node_n_items = [len(n.objects) for n in filter_graph.nodes()]
 
+    all_nodes = [
+        all(isinstance(o, Node) for o in n.objects)
+        for n in filter_graph.nodes()]
+
     print "Filter graph statistics:"
     print "Number of nodes: ", filter_graph.number_of_nodes()
     print "Number of edges: ", filter_graph.number_of_edges()
+    print "Number of FG nodes containing only nengo Nodes: ", sum(all_nodes)
 
     print "Mean neurons per filter graph node: ", np.mean(graph_node_n_neurons)
     print "Std of neurons per filter graph node", np.std(graph_node_n_neurons)

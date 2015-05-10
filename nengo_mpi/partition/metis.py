@@ -20,7 +20,7 @@ def metis_available():
 
 def write_metis_input_file(filter_graph):
     """
-    Writes a filter graph (created via network_to_filter_graph) to file indices
+    Writes a filter graph (created via network_to_filter_graph) to file in
     the format required by metis (a graph-partitioning utility).
 
     Parameters
@@ -64,19 +64,22 @@ def write_metis_input_file(filter_graph):
 
 def read_metis_output_file(filename):
     """
-    Read the given file name, assuming it is the output from a run of gpmetis.
-    The format of the file is: n lines (n is the number of nodes), the i-th
-    line giving information about the i-th node. Each line contains a single
-    int giving the component that the i-th node is assigned to. Components are
-    indexed starting from 0.
+    Read the given file, assuming it is the output from a run of gpmetis.
+    The format of the file is: n lines (n being number of nodes), the i-th line
+    contains a single int giving the component that the i-th node is assigned
+    to. The first component has index 0.
+
+    Returns
+    -------
+    A list L s.t. L[i] gives the component of the (i+1)-th node.
     """
     print "Reading metis output file: %s" % filename
 
     node_assignments = []
 
     with open(filename, 'r') as f:
-        for line in iter(f.readline, ''):
-            node_assignments.append(int(line))
+        node_assignments = [
+            int(line) for line in iter(f.readline, '')]
 
     return node_assignments
 
@@ -113,7 +116,6 @@ def metis_partitioner(filter_graph, n_components, delete_file=True):
     filename = write_metis_input_file(filter_graph)
 
     print "Running metis..."
-    # run metis on written file
     subprocess.check_call(['gpmetis', filename, str(n_components)])
 
     output_filename = metis_output_filename(filename, n_components)
