@@ -5,9 +5,15 @@ http://stackoverflow.com/questions/1644868/c-define-macro-for-debug-printing/164
 */
 
 #ifdef DEBUG
-#define DEBUG_TEST 1
+#define BASIC_DEBUG_TEST 1
 #else
-#define DEBUG_TEST 0
+#define BASIC_DEBUG_TEST 0
+#endif
+
+#ifdef BUILD_DEBUG
+#define BUILD_DEBUG_TEST 1
+#else
+#define BUILD_DEBUG_TEST 0
 #endif
 
 #ifdef RUN_DEBUG
@@ -23,5 +29,6 @@ http://stackoverflow.com/questions/1644868/c-define-macro-for-debug-printing/164
 //#define debug_print(x) \
 //        do { if (DEBUG_TEST) std::cerr << __FILE__ << ":" << __LINE__ << ":" << __func__ << ": " << x << std::endl; } while (0)
 //
-#define dbg(x) do { if (DEBUG_TEST) std::cerr << "mpi_sim.so: " << x << std::endl; } while (0)
-#define run_dbg(x) do { if (RUN_DEBUG_TEST) std::cerr << "mpi_sim.so: " << x << std::endl; } while (0)
+#define dbg(x) do { if (BASIC_DEBUG_TEST) std::cerr << "mpi_sim: " << x << std::endl; } while (0)
+#define build_dbg(x) do { if (BUILD_DEBUG_TEST) std::cerr << "mpi_sim: " << x << std::endl; } while (0)
+#define run_dbg(x) do { if (RUN_DEBUG_TEST) std::cerr << "mpi_sim: " << x << std::endl; } while (0)

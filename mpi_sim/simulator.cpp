@@ -15,7 +15,7 @@ Simulator::Simulator(dtype dt)
 void Simulator::add_base_signal(
         key_type key, string label, unique_ptr<BaseSignal> data){
 
-    dbg("SIGNAL" << delim << 0 << delim << key << delim << label << delim << *data);
+    build_dbg("SIGNAL" << delim << 0 << delim << key << delim << label << delim << *data);
 
     chunk->add_base_signal(key, label, move(data));
 }
@@ -28,7 +28,7 @@ void Simulator::add_base_signal(
 
 void Simulator::add_op(string op_string){
 
-    dbg("OP" << delim << 0 << delim << op_string);
+    build_dbg("OP" << delim << 0 << delim << op_string);
 
     chunk->add_op(op_string);
 }
@@ -45,7 +45,7 @@ void Simulator::add_probe(
     ss << "PROBE" << delim << 0 << delim << probe_key << delim
                   << signal_string << delim << period << delim << name;
     probe_info.push_back(ss.str());
-    dbg("Adding probe info: " << ss.str());
+    build_dbg("Adding probe info: " << ss.str());
 
     chunk->add_probe(probe_key, signal_string, period);
     probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();

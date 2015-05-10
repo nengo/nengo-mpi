@@ -96,7 +96,7 @@ int main(int argc, char **argv){
         }
     }
 
-    cout << "Loading network from file: " << net_filename << "." << endl;
+    cout << "Will network from file: " << net_filename << "." << endl;
     cout << "Will run simulation for " << sim_length << " second(s)." << endl;
 
     bool show_progress = bool(options[PROGRESS]);

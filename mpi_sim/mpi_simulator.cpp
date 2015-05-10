@@ -116,7 +116,9 @@ void MpiSimulator::add_base_signal(
 
     int processor_index = component % n_processors;
 
-    dbg("SIGNAL" << delim << processor_index << delim << key << delim << label << delim << *data);
+    build_dbg(
+        "SIGNAL" << delim << processor_index << delim
+        << key << delim << label << delim << *data);
 
     if(processor_index == 0){
         chunk->add_base_signal(key, label, move(data));
@@ -133,7 +135,7 @@ void MpiSimulator::add_op(int component, string op_string){
 
     int processor_index = component % n_processors;
 
-    dbg("OP" << delim << processor_index << delim << op_string);
+    build_dbg("OP" << delim << processor_index << delim << op_string);
 
     if(processor_index == 0){
         chunk->add_op(op_string);
@@ -205,7 +207,7 @@ void MpiSimulator::gather_probe_data(){
 
     Simulator::gather_probe_data();
 
-    cout << "Master gathering probe data from workers..." << endl;
+    run_dbg("Master gathering probe data from workers..." << endl);
 
     for(auto& pair : probe_counts){
 
@@ -216,8 +218,8 @@ void MpiSimulator::gather_probe_data(){
             for(unsigned i = 0; i < probe_count; i++){
                 key_type probe_key = recv_key(chunk_index, probe_tag, comm);
 
-                run_dbg("Master receiving probe from chunk " << chunk_index << endl
-                        << " with key " << probe_key << "..." << endl);
+                run_dbg("Master receiving probe data from chunk " << chunk_index << endl
+                        << "with key " << probe_key << "..." << endl);
 
                 int data_length = recv_int(chunk_index, probe_tag, comm);
 
