@@ -31,6 +31,11 @@ def verify_assignments(network, assignments):
     propogate_assignments(network, assignments)
     n_components = max(assignments.values()) + 1
 
+    if n_components > 1:
+        component0, filter_graph = network_to_filter_graph(network)
+        evaluate_partition(
+            network, n_components, assignments, filter_graph)
+
     return n_components, assignments
 
 
@@ -119,7 +124,6 @@ class Partitioner(object):
             specifiying which component of the partition the object is assigned
             to. Component 0 is simulated by the master process.
         """
-
         object_assignments = {}
 
         if self.n_components > 1:
