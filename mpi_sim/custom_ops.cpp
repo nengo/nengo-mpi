@@ -66,16 +66,16 @@ SpaunStimulus::SpaunStimulus(
 }
 
 void SpaunStimulus::operator() (){
+
     float index_f = (*time_pointer) / present_interval / pow(2, present_blanks);
     int index = int(index_f);
 
-    if (present_blanks &&
-            (index != int(round(index_f)) || index >= num_stimuli)){
+    if ((present_blanks && index != int(round(index_f))) || index >= num_stimuli){
         index = num_stimuli;
     }
 
     if(index != previous_index){
-        if(index == num_stimuli){
+        if(index >= num_stimuli){
             output = ScalarSignal(image_size, 1, 0.0);
         }else{
             output = SignalView(
