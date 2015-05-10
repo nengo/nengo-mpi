@@ -169,7 +169,7 @@ void PythonMpiSimulator::create_PyFuncI(
 
     string input_signal = bpy::extract<string>(input);
 
-    dbg("Creating PyFuncI. Input signal: " << input_signal);
+    build_dbg("Creating PyFuncI. Input signal: " << input_signal);
     SignalView input_mat = sim->get_signal(input_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
@@ -184,7 +184,7 @@ void PythonMpiSimulator::create_PyFuncO(
 
     string output_signal = bpy::extract<string>(output);
 
-    dbg("Creating PyFuncO. Output signal: " << output_signal);
+    build_dbg("Creating PyFuncO. Output signal: " << output_signal);
     SignalView output_mat = sim->get_signal(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);
@@ -199,14 +199,14 @@ void PythonMpiSimulator::create_PyFuncIO(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
         bpyn::array py_input, bpy::object output){
 
-    dbg("Creating PyFuncIO.");
+    build_dbg("Creating PyFuncIO.");
 
     string input_signal = bpy::extract<string>(input);
-    dbg("Input signal: " << input_signal);
+    build_dbg("Input signal: " << input_signal);
     SignalView input_mat = sim->get_signal(input_signal);
 
     string output_signal = bpy::extract<string>(output);
-    dbg("Output signal: " << output_signal);
+    build_dbg("Output signal: " << output_signal);
     SignalView output_mat = sim->get_signal(output_signal);
 
     bool c_t_in = bpy::extract<bool>(t_in);

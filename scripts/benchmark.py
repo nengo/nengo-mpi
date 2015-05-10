@@ -2,6 +2,9 @@ import logging
 
 import nengo
 import numpy as np
+import nengo_mpi
+from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
+from nengo_mpi.partition import spectral_partitioner, random_partitioner
 
 import argparse
 
@@ -43,9 +46,10 @@ parser.add_argument(
     help='Supply to omit the progress bar.')
 
 parser.add_argument(
-    '--rand', action='store_true',
-    help='Supply to use a (pseudo) random scheme for assigning nengo '
-         'object to processors')
+    '--pfunc', type=str, default='',
+    help='Specify the algorithm to use for partitioning. '
+         'Possible values are: metis, random, spectral, work.'
+         'If not supplied, an assignment scheme is used.')
 
 parser.add_argument(
     '--save', nargs='?', type=str, default='', const='bench',
@@ -70,7 +74,7 @@ seed = 10
 num_streams = args.ns
 stream_length = args.sl
 
-extra_partitions = args.p - 1
+n_processors = args.p
 
 use_mpi = args.mpi
 
@@ -90,16 +94,23 @@ sim_time = args.t
 
 progress_bar = not args.noprog
 
-random_partitions = args.rand
+partitioner = args.pfunc
+
+assignment_seed = 11
+if not partitioner:
+    partitioner = None
+    denom = int(np.ceil(float(stream_length) / n_processors))
+else:
+    fmap = {
+        'metis': metis_partitioner, 'spectral': spectral_partitioner,
+        'random': random_partitioner, 'work': work_balanced_partitioner}
+
+    partitioner = nengo_mpi.Partitioner(n_processors, func=fmap[partitioner])
 
 assert num_streams > 0
 assert stream_length > 0
-assert extra_partitions >= 0
+assert n_processors >= 1
 assert sim_time > 0
-
-assignment_seed = 11
-assignments_rng = np.random.RandomState(assignment_seed)
-denom = int(np.ceil(float(stream_length) / (extra_partitions + 1)))
 
 assignments = {}
 
@@ -124,12 +135,8 @@ with m:
             else:
                 nengo.Connection(input_node, ensemble)
 
-            if extra_partitions:
-                if random_partitions:
-                    assignments[ensemble] = (
-                        assignments_rng.randint(extra_partitions + 1))
-                else:
-                    assignments[ensemble] = j / denom
+            if n_processors > 1 and partitioner is None:
+                assignments[ensemble] = j / denom
 
             ensembles[-1].append(ensemble)
 
@@ -141,9 +148,13 @@ with m:
             nengo.Probe(ensemble, 'decoded_output', synapse=0.01))
 
 if use_mpi:
-    import nengo_mpi
-    sim = nengo_mpi.Simulator(
-        m, dt=0.001, assignments=assignments, save_file=save_file)
+    if partitioner is not None:
+        sim = nengo_mpi.Simulator(
+            m, dt=0.001, partitioner=partitioner, save_file=save_file)
+    else:
+        sim = nengo_mpi.Simulator(
+            m, dt=0.001, assignments=assignments, save_file=save_file)
+
 else:
     sim = nengo.Simulator(m, dt=0.001)
 

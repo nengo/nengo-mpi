@@ -46,16 +46,20 @@ DEFS=-O3
 all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG
 all: build
 
-run_debug: DEFS+=-DRUN_DEBUG
+run_debug: DEFS+= -DRUN_DEBUG
 run_debug: debug
 
-debug: DEFS+=-DDEBUG -g
+build_debug: DEFS+= -DBUILD_DEBUG
+build_debug: debug
+
+debug: DEFS+= -DDEBUG -g
 debug: build
 
 build: nengo_cpp nengo_mpi mpi_sim.so
 
 clean:
 	rm -rf ${BIN}/nengo_cpp ${BIN}/nengo_mpi ${BIN}/mpi_sim.so *.o
+
 
 # ********* nengo_cpp *************
 
@@ -65,6 +69,7 @@ nengo_cpp: nengo_cpp.o ${MPI_OBJS} | ${BIN}
 
 nengo_cpp.o: nengo_mpi.cpp simulator.hpp operator.hpp probe.hpp debug.hpp
 
+
 # ********* nengo_mpi *************
 
 nengo_mpi: nengo_mpi.o ${OBJS} | ${BIN}
@@ -73,6 +78,7 @@ nengo_mpi: nengo_mpi.o ${OBJS} | ${BIN}
 nengo_mpi.o: nengo_mpi.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 #${MPICXX} -c -o nengo_mpi.o nengo_mpi.cpp
 
+
 # ********* mpi_sim.so *************
 
 mpi_sim.so: ${MPI_OBJS} python.o | ${BIN}
@@ -80,7 +86,9 @@ mpi_sim.so: ${MPI_OBJS} python.o | ${BIN}
 
 python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 
+
 # ********* common to all *************
+
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
 #${MPICXX} -c -o mpi_operator.o mpi_operator.cpp
 
