@@ -203,6 +203,7 @@ if __name__ == "__main__":
         job_id = job_id.split('.')[0]
     else:
         job_id = subprocess.check_output(['llsubmit', submit_script])
+        job_id = job_id.split('"')[1]
 
     # Create a file in the directory with the job_id as its name
     open(job_id, 'w').close()
