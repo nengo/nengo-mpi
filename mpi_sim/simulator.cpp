@@ -138,6 +138,8 @@ string Simulator::to_string() const{
 }
 
 void Simulator::from_file(string filename){
+    clock_t begin = clock();
+
     if(filename.length() == 0){
         stringstream s;
         s << "Got empty string for filename" << endl;
@@ -163,4 +165,8 @@ void Simulator::from_file(string filename){
 
     H5Pclose(file_plist);
     H5Pclose(read_plist);
+
+    clock_t end = clock();
+    cout << "Loading network from file took "
+         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
 }

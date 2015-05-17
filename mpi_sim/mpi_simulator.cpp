@@ -76,6 +76,8 @@ void MpiSimulator::init(){
 }
 
 void MpiSimulator::from_file(string filename){
+    clock_t begin = clock();
+
     if(filename.length() == 0){
         stringstream s;
         s << "Got empty string for filename" << endl;
@@ -109,6 +111,13 @@ void MpiSimulator::from_file(string filename){
     H5Pclose(read_plist);
 
     chunk->set_communicator(comm);
+
+    // Master barrier 1
+    MPI_Barrier(comm);
+
+    clock_t end = clock();
+    cout << "Loading network from file took "
+         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
 }
 
 void MpiSimulator::add_base_signal(
@@ -187,12 +196,14 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     chunk->set_log_filename(log_filename);
     chunk->run_n_steps(steps, progress);
 
+    // Master barrier 2
     MPI_Barrier(comm);
 
     if(!chunk->is_logging()){
         gather_probe_data();
     }
 
+    // Master barrier 3
     MPI_Barrier(comm);
 
     chunk->close_simulation_log();

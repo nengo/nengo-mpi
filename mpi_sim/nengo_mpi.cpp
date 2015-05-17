@@ -118,11 +118,12 @@ void start_worker(MPI_Comm comm){
     }
 
     dbg("Worker " << my_id << " setting up MPI operators...");
-
     chunk.set_communicator(comm);
 
-    dbg("Worker " << my_id << " waiting for signal to start simulation...");
+    // Worker barrier 1
+    MPI_Barrier(comm);
 
+    dbg("Worker " << my_id << " waiting for signal to start simulation...");
     int steps;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
@@ -131,6 +132,7 @@ void start_worker(MPI_Comm comm){
 
     chunk.run_n_steps(steps, false);
 
+    // Worker barrier 2
     MPI_Barrier(comm);
 
     if(!chunk.is_logging()){
@@ -151,6 +153,7 @@ void start_worker(MPI_Comm comm){
         }
     }
 
+    // Worker barrier 3
     MPI_Barrier(comm);
 
     chunk.close_simulation_log();
