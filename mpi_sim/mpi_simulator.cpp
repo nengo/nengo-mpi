@@ -110,8 +110,6 @@ void MpiSimulator::from_file(string filename){
     H5Pclose(file_plist);
     H5Pclose(read_plist);
 
-    chunk->set_communicator(comm);
-
     // Master barrier 1
     MPI_Barrier(comm);
 
@@ -182,7 +180,7 @@ void MpiSimulator::add_op(unique_ptr<Operator> op){
 }
 
 void MpiSimulator::finalize_build(){
-    chunk->set_communicator(comm);
+    chunk->finalize_build(comm);
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){

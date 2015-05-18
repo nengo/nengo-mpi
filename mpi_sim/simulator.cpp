@@ -65,9 +65,11 @@ void Simulator::add_op(unique_ptr<Operator> op){
     chunk->add_op(move(op));
 }
 
+// Only called when running from python. Otherwise, chunk->finalize_build
+// is called in chunk->from_file, and the probe_info does not need to be set.
 void Simulator::finalize_build(){
     chunk->probe_info = probe_info;
-    chunk->setup_simulation_log();
+    chunk->finalize_build();
 }
 
 void Simulator::run_n_steps(int steps, bool progress, string log_filename){

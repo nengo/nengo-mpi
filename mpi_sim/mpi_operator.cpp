@@ -1,19 +1,19 @@
 #include "mpi_operator.hpp"
 
-MPISend::MPISend(int dst, int tag, SignalView content):
-        dst(dst), tag(tag), content(content), first_call(true){
+MPISend::MPISend(int dst, int tag, SignalView content)
+:MPIOperator(tag), dst(dst), content(content){
 
     content_data = &(content.data().expression().data()[0]);
     size = content.size1() * content.size2();
-    buffer = new dtype[size];
+    buffer = unique_ptr<dtype>(new dtype[size]);
 }
 
-MPIRecv::MPIRecv(int src, int tag, SignalView content):
-        src(src), tag(tag), content(content), first_call(true){
+MPIRecv::MPIRecv(int src, int tag, SignalView content)
+:MPIOperator(tag), src(src), content(content){
 
     content_data = &(content.data().expression().data()[0]);
     size = content.size1() * content.size2();
-    buffer = new dtype[size];
+    buffer = unique_ptr<dtype>(new dtype[size]);
 }
 
 void MPISend::operator() (){
@@ -24,9 +24,9 @@ void MPISend::operator() (){
         MPI_Wait(&request, &status);
     }
 
-    memcpy(buffer, content_data, size * sizeof(dtype));
+    memcpy(buffer.get(), content_data, size * sizeof(dtype));
 
-    MPI_Isend(buffer, size, MPI_DOUBLE, dst, tag, comm, &request);
+    MPI_Isend(buffer.get(), size, MPI_DOUBLE, dst, tag, comm, &request);
 
     run_dbg(*this);
 }
@@ -38,38 +38,10 @@ void MPIRecv::operator() (){
     }else{
         MPI_Wait(&request, &status);
 
-        memcpy(content_data, buffer, size * sizeof(dtype));
+        memcpy(content_data, buffer.get(), size * sizeof(dtype));
     }
 
-    MPI_Irecv(buffer, size, MPI_DOUBLE, src, tag, comm, &request);
-
-    run_dbg(*this);
-}
-
-void MPISend::set_communicator(MPI_Comm comm){
-    this->comm = comm;
-}
-
-void MPIRecv::set_communicator(MPI_Comm comm){
-    this->comm = comm;
-}
-
-void MPISend::complete(){
-    // Complete the send that was initiated on final step of simulation
-    MPI_Wait(&request, &status);
-}
-
-void MPIRecv::complete(){
-    // Complete the recv that was initiated on final step of simulation
-    MPI_Wait(&request, &status);
-}
-
-void MPIBarrier::operator() (){
-    if(step != 0 && step % BARRIER_PERIOD == 0){
-        MPI_Barrier(comm);
-    }
-
-    step++;
+    MPI_Irecv(buffer.get(), size, MPI_DOUBLE, src, tag, comm, &request);
 
     run_dbg(*this);
 }
@@ -87,7 +59,7 @@ string MPISend::to_string() const{
     out << "buffer:" << endl;
 
     for(int i = 0; i < size; i++){
-        out << buffer[i] << ", " << endl;
+        out << buffer.get()[i] << ", " << endl;
     }
 
     return out.str();
@@ -106,18 +78,139 @@ string MPIRecv::to_string() const{
     out << "buffer:" << endl;
 
     for(int i = 0; i < size; i++){
-        out << buffer[i] << ", " << endl;
+        out << buffer.get()[i] << ", " << endl;
     }
 
     return out.str();
 }
 
-string MPIBarrier::to_string() const{
+// *************************************
+// Merged operators, used in MERGED mode.
+
+MergedMPISend::MergedMPISend(int dst, int tag, vector<SignalView> content)
+:MPIOperator(tag), dst(dst), content(content){
+
+    sizes = vector<int>();
+    content_data = vector<dtype*>();
+
+    size = 0;
+
+    for(SignalView& c : content){
+        int s = c.size1() * c.size2();
+        sizes.push_back(s);
+
+        size += s;
+
+        content_data.push_back(&(c.data().expression().data()[0]));
+    }
+
+    buffer = unique_ptr<dtype>(new dtype[size]);
+}
+
+MergedMPIRecv::MergedMPIRecv(int src, int tag, vector<SignalView> content)
+:MPIOperator(tag), src(src), content(content){
+
+    sizes = vector<int>();
+    content_data = vector<dtype*>();
+
+    size = 0;
+
+    for(SignalView& c : content){
+        int s = c.size1() * c.size2();
+        sizes.push_back(s);
+
+        size += s;
+
+        content_data.push_back(&(c.data().expression().data()[0]));
+    }
+
+    buffer = unique_ptr<dtype>(new dtype[size]);
+}
+
+void MergedMPISend::operator() (){
+
+    if(first_call){
+        first_call = false;
+    }else{
+        MPI_Wait(&request, &status);
+    }
+
+    dtype* buffer_offset = buffer.get();
+
+    int i = 0;
+    for(auto& c : content_data){
+        int s = sizes[i];
+        memcpy(buffer_offset, c, s * sizeof(dtype));
+
+        buffer_offset += s;
+        i++;
+    }
+
+    MPI_Isend(buffer.get(), size, MPI_DOUBLE, dst, tag, comm, &request);
+
+    run_dbg(*this);
+}
+
+void MergedMPIRecv::operator() (){
+
+    if(first_call){
+        first_call = false;
+    }else{
+        MPI_Wait(&request, &status);
+
+        dtype* buffer_offset = buffer.get();
+
+        int i = 0;
+        for(auto& c : content_data){
+            int s = sizes[i];
+            memcpy(c, buffer_offset, s * sizeof(dtype));
+
+            buffer_offset += s;
+            i++;
+        }
+    }
+
+    MPI_Irecv(buffer.get(), size, MPI_DOUBLE, src, tag, comm, &request);
+
+    run_dbg(*this);
+}
+
+string MergedMPISend::to_string() const{
     stringstream out;
 
-    out << "MPIBarrier:" << endl;
-    out << "step: " << step << endl;
-    out << "barrier period: " << BARRIER_PERIOD << endl;
+    out << "MergedMPISend:" << endl;
+    out << "tag: " << tag << endl;
+    out << "dst: " << dst << endl;
+    out << "size: " << size << endl;
+    //out << "content:" << endl;
+    //out << content << endl;
+
+    out << "buffer:" << endl;
+
+    for(int i = 0; i < size; i++){
+        out << buffer.get()[i] << ", " << endl;
+    }
 
     return out.str();
 }
+
+string MergedMPIRecv::to_string() const{
+    stringstream out;
+
+    out << "MergedMPIRecv:" << endl;
+    out << "tag: " << tag << endl;
+    out << "src: " << src << endl;
+    out << "size: " << size << endl;
+    //out << "content:" << endl;
+    //out << content << endl;
+
+    out << "buffer:" << endl;
+
+    for(int i = 0; i < size; i++){
+        out << buffer.get()[i] << ", " << endl;
+    }
+
+    return out.str();
+}
+
+

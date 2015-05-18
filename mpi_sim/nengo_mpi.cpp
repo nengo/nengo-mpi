@@ -115,10 +115,9 @@ void start_worker(MPI_Comm comm){
                 throw runtime_error("Worker received invalid flag from master.");
             }
         }
-    }
 
-    dbg("Worker " << my_id << " setting up MPI operators...");
-    chunk.set_communicator(comm);
+        chunk.finalize_build(comm);
+    }
 
     // Worker barrier 1
     MPI_Barrier(comm);

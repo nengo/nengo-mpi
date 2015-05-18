@@ -90,8 +90,8 @@ public:
     /* Add MPI-related operators. These have to be added separately,
      * because we need to initialize them in a special way before the
      * simulation begins. */
-    void add_mpi_send(unique_ptr<MPISend> mpi_send);
-    void add_mpi_recv(unique_ptr<MPIRecv> mpi_recv);
+    void add_mpi_send(int dst, int tag, SignalView content);
+    void add_mpi_recv(int src, int tag, SignalView content);
 
     // *** Probes ***
 
@@ -114,17 +114,14 @@ public:
 
     // *** Miscellaneous ***
 
-    // Set the simulation log object which records the results of the simulation
-    void setup_simulation_log();
-    void setup_simulation_log(MPI_Comm comm);
+    void finalize_build();
+    void finalize_build(MPI_Comm comm);
+
     void set_log_filename(string lf);
     bool is_logging();
     void close_simulation_log();
 
     void flush_probes();
-
-    // Set the communicator used by the mpi ops
-    void set_communicator(MPI_Comm comm);
 
     // Used to pass the simulation time to python functions
     dtype* get_time_pointer(){return &time;}
@@ -160,11 +157,24 @@ private:
     // have unique_ptr's for all these ops in the lists below.
     list<Operator*> operator_list;
 
-    // Contains non-mpi operators
+    // Operator store contains only non-mpi operators
     list<unique_ptr<Operator>> operator_store;
 
-    list<unique_ptr<MPISend>> mpi_sends;
-    list<unique_ptr<MPIRecv>> mpi_recvs;
+    list<unique_ptr<MPIOperator>> mpi_sends;
+    list<unique_ptr<MPIOperator>> mpi_recvs;
+
+    bool mpi_merged;
+
+    // Used at build time to construct the merged mpi operators, if mpi_merged is true
+    map<int, vector<SignalView>> merged_sends;
+    map<int, vector<SignalView>> merged_recvs;
+    map<int, int> send_tags;
+    map<int, int> recv_tags;
+
+    // Iterators pointing to locations in operator_list
+    // where the merged mpi ops should be added.
+    map<int, list<Operator*>::iterator> send_indices;
+    map<int, list<Operator*>::iterator> recv_indices;
 };
 
 #endif
