@@ -48,7 +48,7 @@ parser.add_argument(
 parser.add_argument(
     '--pfunc', type=str, default='',
     help='Specify the algorithm to use for partitioning. '
-         'Possible values are: metis, random, spectral, work.'
+         'Possible values are: default, metis, random, spectral, work.'
          'If not supplied, an assignment scheme is used.')
 
 parser.add_argument(
@@ -71,7 +71,7 @@ N = args.npd
 D = args.d
 seed = 10
 
-num_streams = args.ns
+n_streams = args.ns
 stream_length = args.sl
 
 n_processors = args.p
@@ -82,13 +82,13 @@ save_file = args.save
 if save_file == 'bench':
     save_file = (
         'bench_p{0}_sl{1}_ns{2}.net'.format(
-            args.p, stream_length, num_streams))
+            args.p, stream_length, n_streams))
 
 mpi_log = args.mpi_log
 if mpi_log == 'bench':
     mpi_log = (
         'bench_p{0}_sl{1}_ns{2}.h5'.format(
-            args.p, stream_length, num_streams))
+            args.p, stream_length, n_streams))
 
 sim_time = args.t
 
@@ -102,12 +102,13 @@ if not partitioner:
     denom = int(np.ceil(float(stream_length) / n_processors))
 else:
     fmap = {
+        'default': None,
         'metis': metis_partitioner, 'spectral': spectral_partitioner,
         'random': random_partitioner, 'work': work_balanced_partitioner}
 
     partitioner = nengo_mpi.Partitioner(n_processors, func=fmap[partitioner])
 
-assert num_streams > 0
+assert n_streams > 0
 assert stream_length > 0
 assert n_processors >= 1
 assert sim_time > 0
@@ -123,7 +124,7 @@ with m:
     input_p = nengo.Probe(input_node, synapse=0.01)
 
     probes = []
-    for i in range(num_streams):
+    for i in range(n_streams):
         ensembles.append([])
 
         for j in range(stream_length):
@@ -178,10 +179,10 @@ if not save_file:
             print "Stream %d result: " % i
             print sim.data[p][-10:]
 
-    num_neurons = N * D * num_streams * stream_length
+    n_neurons = N * D * n_streams * stream_length
     print "Total simulation time:", t1 - t0, "seconds"
     print "Parameters were: ", args
-    print "Number of neurons in simulations: ", num_neurons
+    print "Number of neurons in simulations: ", n_neurons
 
     import pandas as pd
     import os
@@ -192,7 +193,7 @@ if not save_file:
 
         vals = vars(args).copy()
         vals['runtime'] = t1 - t0
-        vals['num_neurons'] = num_neurons
+        vals['n_neurons'] = n_neurons
 
         now = pd.datetime.now()
         df = pd.DataFrame(vals, index=pd.date_range(now, periods=1))

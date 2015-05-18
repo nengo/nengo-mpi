@@ -55,10 +55,12 @@ void MPIRecv::set_communicator(MPI_Comm comm){
 }
 
 void MPISend::complete(){
+    // Complete the send that was initiated on final step of simulation
     MPI_Wait(&request, &status);
 }
 
 void MPIRecv::complete(){
+    // Complete the recv that was initiated on final step of simulation
     MPI_Wait(&request, &status);
 }
 

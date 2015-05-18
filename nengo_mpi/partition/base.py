@@ -8,6 +8,7 @@ from nengo.ensemble import Neurons
 from nengo.utils.builder import find_all_io
 
 from .spectral import spectral_partitioner
+from .metis import metis_available, metis_partitioner
 
 import logging
 logger = logging.getLogger(__name__)
@@ -95,7 +96,12 @@ class Partitioner(object):
 
     @property
     def default_partition_func(self):
-        return spectral_partitioner
+        if metis_available():
+            print "Defaulting to metis partitioner"
+            return metis_partitioner
+        else:
+            print "Defaulting to spectral partitioner"
+            return spectral_partitioner
 
     def partition(self, network):
         """
@@ -604,8 +610,8 @@ def evaluate_partition(
     print "Min number of neurons", np.min(component_neuron_counts)
     print "Max number of neurons", np.max(component_neuron_counts)
     print (
-        "Number of empty partitions",
-        n_components - np.count_nonzero(component_neuron_counts))
+        "Number of empty partitions: "
+        "%d" % (n_components - np.count_nonzero(component_neuron_counts)))
 
     mean_item_count = np.mean(component_item_counts)
     item_count_std = np.std(component_item_counts)
@@ -613,8 +619,8 @@ def evaluate_partition(
     print "*" * 10
 
     print (
-        "Total number of nengo items (nodes and ensembles): ",
-        len(network.all_nodes + network.all_ensembles))
+        "Total number of nengo items (nodes and ensembles): "
+        "%d" % len(network.all_nodes + network.all_ensembles))
     print "Mean items per cluster: ", mean_item_count
     print "Standard deviation of items per cluster", item_count_std
     print "Min number of items", np.min(component_item_counts)
@@ -638,4 +644,33 @@ def evaluate_partition(
     print "Total number of filtered dimensions: ", total_weight
     print (
         "Percentage of filtered dimensions that are "
-        "communicated: ", float(communication_weight) / total_weight)
+        "communicated: %f" % (float(communication_weight) / total_weight))
+
+    send_partners = [set() for i in range(n_components)]
+    recv_partners = [set() for i in range(n_components)]
+    for conn in network.all_connections:
+        if is_update(conn):
+            pre_obj = neurons2ensemble(conn.pre_obj)
+            post_obj = neurons2ensemble(conn.post_obj)
+
+            pre_component = assignments[pre_obj]
+            post_component = assignments[post_obj]
+
+            if pre_component != post_component:
+                send_partners[pre_component].add(post_component)
+                recv_partners[post_component].add(pre_component)
+
+    n_send_partners = [len(s) for s in send_partners]
+    n_recv_partners = [len(s) for s in recv_partners]
+
+    print "*" * 10
+    print "Mean number of send partners: ", np.mean(n_send_partners)
+    print "Standard dev of send partners: ", np.std(n_send_partners)
+    print "Max number of send partners: ", np.max(n_send_partners)
+    print "Min number of send partners: ", np.min(n_send_partners)
+
+    print "*" * 10
+    print "Mean number of recv partners: ", np.mean(n_recv_partners)
+    print "Standard dev of recv partners: ", np.std(n_recv_partners)
+    print "Max number of recv partners: ", np.max(n_recv_partners)
+    print "Min number of recv partners: ", np.min(n_recv_partners)
