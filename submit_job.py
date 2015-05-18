@@ -23,8 +23,8 @@ def write_bgq_jobfile(
         outf.write('# @ job_name           = %s\n' % network_name)
         outf.write('# @ job_type           = bluegene\n')
         outf.write('# @ comment            = "nengo_mpi BGQ Job"\n')
-        outf.write('# @ error              = $(job_name).$(Host).$(jobid).err\n')
-        outf.write('# @ output             = $(job_name).$(Host).$(jobid).out\n')
+        outf.write('# @ error              = %s.err\n' % network_name)
+        outf.write('# @ output             = %s.out\n' % network_name)
         outf.write('# @ bg_size            = 64\n')
         outf.write('# @ wall_clock_limit   = %s\n' % wall_time)
         outf.write('# @ bg_connectivity    = Torus\n')
@@ -109,10 +109,6 @@ if __name__ == "__main__":
                     "BGQ llsubmit or GPC qsub.")
 
     parser.add_argument(
-        'platform', type=str,
-        help="The platform we're running on. Must be either 'bgq' or 'gpc'.")
-
-    parser.add_argument(
         'network', default="", type=str,
         help="The network file to run.")
 
@@ -129,7 +125,7 @@ if __name__ == "__main__":
         help="The simulation time.")
 
     parser.add_argument(
-        '-w', default="0:30:00",
+        '-w', default="",
         help="Upper bound on required wall time.")
 
     parser.add_argument(
@@ -139,9 +135,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print args
 
-    platform = args.platform.lower()
-    assert platform == 'gpc' or platform == 'bgq', (
-        "Platform must be either 'gpc' or 'bgq'")
+    host_name = os.getenv("HOSTNAME")
+    if 'gpc' in host_name:
+        platform = 'gpc'
+    elif 'bgq' in host_name:
+        platform = 'bgq'
+    else:
+        raise NotImplementedError("submit_job.py only works on bgq or gpc")
 
     network_file = args.network
     assert network_file, "Must supply a network file to run."
@@ -158,7 +158,10 @@ if __name__ == "__main__":
     if log:
         log = " --log " + log
 
-    wall_time = args.w
+    if not args.w:
+        wall_time = {'gpc': '0:15:00', 'bgq': '0:30:00'}[platform]
+    else:
+        wall_time = args.w
 
     # Define constants
     submit_script = "submit_script.sh"
@@ -190,7 +193,7 @@ if __name__ == "__main__":
     make_sym_link(working_dir, path.join(experiments_dir, 'latest'))
 
     # Make a symlink in the working dir to the
-    # file containing the network to simulate
+    # file containing the network that we want to load and simulate
     make_sym_link(
         path.join(os.getcwd(), network_file),
         path.join(working_dir, path.split(network_file)[-1]))
