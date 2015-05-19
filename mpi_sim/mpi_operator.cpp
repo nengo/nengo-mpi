@@ -28,7 +28,7 @@ void MPISend::operator() (){
 
     MPI_Isend(buffer.get(), size, MPI_DOUBLE, dst, tag, comm, &request);
 
-    run_dbg(*this);
+    mpi_dbg(*this);
 }
 
 void MPIRecv::operator() (){
@@ -43,7 +43,7 @@ void MPIRecv::operator() (){
 
     MPI_Irecv(buffer.get(), size, MPI_DOUBLE, src, tag, comm, &request);
 
-    run_dbg(*this);
+    mpi_dbg(*this);
 }
 
 string MPISend::to_string() const{
@@ -148,7 +148,7 @@ void MergedMPISend::operator() (){
 
     MPI_Isend(buffer.get(), size, MPI_DOUBLE, dst, tag, comm, &request);
 
-    run_dbg(*this);
+    mpi_dbg(*this);
 }
 
 void MergedMPIRecv::operator() (){
@@ -172,7 +172,7 @@ void MergedMPIRecv::operator() (){
 
     MPI_Irecv(buffer.get(), size, MPI_DOUBLE, src, tag, comm, &request);
 
-    run_dbg(*this);
+    mpi_dbg(*this);
 }
 
 string MergedMPISend::to_string() const{

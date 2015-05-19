@@ -311,6 +311,8 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
 
 void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
+    dbgfile(label);
+
     if(rank == 0){
         sim_log->prep_for_simulation(log_filename, steps);
     }else{
@@ -334,14 +336,19 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         eta.start();
     }
 
+
     for(unsigned step = 0; step < steps; ++step){
         if(step % FLUSH_PROBES_EVERY == 0 && step != 0){
-            dbg("rank " << rank << " beginning step: " << step << ", flushing probes." << endl);
+            dbg("Rank " << rank << " beginning step: " << step << ", flushing probes." << endl);
             flush_probes();
         }
 
         if(!progress && rank == 0 && step % 100 == 0){
             cout << "Master beginning step: " << step << endl;
+        }
+
+        if(!progress){
+            dbg("Rank " << rank << " beginning step: " << step << endl);
         }
 
         // Update time before calling operators, as refimpl does
@@ -371,6 +378,8 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
     for(auto& recv : mpi_recvs){
         recv->complete();
     }
+
+    clsdbgfile();
 }
 
 void MpiSimulatorChunk::add_base_signal(

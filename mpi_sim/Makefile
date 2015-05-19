@@ -36,9 +36,8 @@ else
 	CXXFLAGS= ${PYTHON_INC} ${DEFS} -fPIC -std=${STD}
 endif
 
-OBJS=simulator.o operator.o custom_ops.o probe.o chunk.o sim_log.o
-MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o
-
+OBJS=simulator.o operator.o custom_ops.o probe.o chunk.o sim_log.o debug.o
+MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o 
 BIN=${HOME}/nengo_mpi/bin
 
 DEFS=-O3
@@ -46,14 +45,17 @@ DEFS=-O3
 all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG
 all: build
 
-run_debug: DEFS+= -DRUN_DEBUG
-run_debug: debug
+run_dbg: DEFS+= -DRUN_DEBUG
+run_dbg: mpi_dbg
 
-build_debug: DEFS+= -DBUILD_DEBUG
-build_debug: debug
+build_dbg: DEFS+= -DBUILD_DEBUG
+build_dbg: dbg
 
-debug: DEFS+= -DDEBUG -g
-debug: build
+mpi_dbg: DEFS+= -DMPI_DEBUG
+mpi_dbg: dbg
+
+dbg: DEFS+= -DDEBUG -g
+dbg: build
 
 build: nengo_cpp nengo_mpi mpi_sim.so
 
@@ -104,6 +106,7 @@ chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp custom_ops.hpp probe.
 simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_simulator.hpp debug.hpp
 custom_ops.o: custom_ops.cpp custom_ops.hpp operator.hpp debug.hpp
 sim_log.o: sim_log.cpp sim_log.hpp operator.hpp debug.hpp
+debug.o: debug.cpp debug.hpp
 
 ${BIN}:
 	mkdir ${BIN}
