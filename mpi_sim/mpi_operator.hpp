@@ -10,8 +10,8 @@ using namespace std;
 class MPIOperator: public Operator{
 
 public:
-    MPIOperator():first_call(false){}
-    MPIOperator(int tag):tag(tag), first_call(false){}
+    MPIOperator():first_call(true){}
+    MPIOperator(int tag):tag(tag), first_call(true){}
     string classname() const { return "MPIOperator"; }
 
     virtual void operator() () = 0;

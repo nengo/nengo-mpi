@@ -1,11 +1,11 @@
 #include "chunk.hpp"
 
 MpiSimulatorChunk::MpiSimulatorChunk()
-:time(0.0), dt(0.001), n_steps(0){
+:time(0.0), dt(0.001), n_steps(0), mpi_merged(true){
 }
 
 MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors)
-:rank(rank), time(0.0), dt(0.001), n_steps(0), n_processors(n_processors){
+:rank(rank), time(0.0), dt(0.001), n_steps(0), n_processors(n_processors), mpi_merged(true){
     stringstream ss;
     ss << "Chunk " << rank;
     label = ss.str();
@@ -13,10 +13,6 @@ MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors)
 
 void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist){
     from_file(filename, file_plist, read_plist, MPI_COMM_NULL);
-}
-
-bool compare_indices(pair<float, string>& left, pair<float, string>& right){
-    return (left.first < right.first);
 }
 
 void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist, MPI_Comm comm){
@@ -169,7 +165,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
             component_op_strings.push_back({index, op_string});
         }
 
-        all_op_strings.merge(component_op_strings, compare_indices);
+        all_op_strings.merge(component_op_strings, compare_first);
 
         H5Dclose(operators);
 
@@ -270,12 +266,25 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
 
     if(mpi_merged){
         for(auto& kv : merged_sends){
+
             int dst = kv.first;
-            vector<SignalView> content = kv.second;
+            vector<pair<int, SignalView>> content = kv.second;
+            vector<pair<int, SignalView*>> content_prime;
+            for(auto& p : content){
+                content_prime.push_back({p.first, &(p.second)});
+            }
+
+            stable_sort(content_prime.begin(), content_prime.end(), compare_first);
+            vector<SignalView> signals_only;
+
+            for(auto& p : content_prime){
+                signals_only.push_back(*(p.second));
+            }
+
             int tag = send_tags[dst];
 
             // Create the merged op, put it in the op list
-            auto merged_send = unique_ptr<MPIOperator>(new MergedMPISend(dst, tag, content));
+            auto merged_send = unique_ptr<MPIOperator>(new MergedMPISend(dst, tag, signals_only));
 
             auto it = send_indices.at(dst);
             it++;
@@ -284,12 +293,24 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
         }
 
         for(auto& kv : merged_recvs){
+
             int src = kv.first;
-            vector<SignalView> content = kv.second;
+            vector<pair<int, SignalView>> content = kv.second;
+            vector<pair<int, SignalView*>> content_prime;
+            for(auto& p : content){
+                content_prime.push_back({p.first, &(p.second)});
+            }
+            stable_sort(content_prime.begin(), content_prime.end(), compare_first);
+
+            vector<SignalView> signals_only;
+            for(auto& p : content_prime){
+                signals_only.push_back(*(p.second));
+            }
+
             int tag = recv_tags[src];
 
             // Create the merged op, put it in the op list
-            auto merged_recv = unique_ptr<MPIOperator>(new MergedMPIRecv(src, tag, content));
+            auto merged_recv = unique_ptr<MPIOperator>(new MergedMPIRecv(src, tag, signals_only));
 
             auto it = recv_indices.at(src);
             if(it != operator_list.begin()){
@@ -631,16 +652,21 @@ void MpiSimulatorChunk::add_op(string op_string){
 void MpiSimulatorChunk::add_mpi_send(int dst, int tag, SignalView content){
 
     if(mpi_merged){
-
-        merged_sends.at(dst).push_back(content);
-        send_tags[dst] = tag;
-
         if(operator_list.empty()){
             send_indices[dst] = operator_list.begin();
         }else{
             send_indices[dst] = operator_list.end();
             send_indices[dst]--;
         }
+
+        if(merged_sends.find(dst) == merged_sends.end()){
+            send_tags[dst] = tag;
+        }else{
+            send_tags[dst] = min(send_tags[dst], tag);
+        }
+
+        merged_sends[dst].push_back({tag, content});
+
     }else{
         auto mpi_send = unique_ptr<MPIOperator>(new MPISend(dst, tag, content));
         operator_list.push_back((Operator *) mpi_send.get());
@@ -651,16 +677,21 @@ void MpiSimulatorChunk::add_mpi_send(int dst, int tag, SignalView content){
 void MpiSimulatorChunk::add_mpi_recv(int src, int tag, SignalView content){
 
     if(mpi_merged){
+        if(merged_recvs.find(src) == merged_recvs.end()){
+            if(operator_list.empty()){
+                recv_indices[src] = operator_list.begin();
+            }else{
+                recv_indices[src] = operator_list.end();
+                recv_indices[src]--;
+            }
 
-        merged_recvs.at(src).push_back(content);
-        recv_tags[src] = tag;
-
-        if(operator_list.empty()){
-            recv_indices[src] = operator_list.begin();
+            recv_tags[src] = tag;
         }else{
-            recv_indices[src] = operator_list.end();
-            recv_indices[src]--;
+            recv_tags[src] = min(recv_tags[src], tag);
         }
+
+        merged_recvs[src].push_back({tag, content});
+
     }else{
         auto mpi_recv = unique_ptr<MPIOperator>(new MPIRecv(src, tag, content));
         operator_list.push_back((Operator *) mpi_recv.get());

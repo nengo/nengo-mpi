@@ -6,7 +6,9 @@
 #include <string>
 #include <sstream>
 #include <vector>
-#include <memory>
+#include <memory> // unique_ptr
+#include <algorithm> // sort_stable
+#include <utility> // pair
 #include <exception>
 #include <string>
 #include <mpi.h>
@@ -22,7 +24,13 @@
 
 const int FLUSH_PROBES_EVERY = 1000;
 
-bool compare_indices(pair<float, string>& left, pair<float, string>& right);
+inline bool compare_first(const pair<float, SignalView*> &left, const pair<float, SignalView*> &right){
+    return (left.first < right.first);
+}
+
+inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
+    return (left.first < right.first);
+}
 
 /* An MpiSimulatorChunk represents the portion of a Nengo
  * network that is simulated by a single MPI process. */
@@ -168,8 +176,8 @@ private:
     bool mpi_merged;
 
     // Used at build time to construct the merged mpi operators, if mpi_merged is true
-    map<int, vector<SignalView>> merged_sends;
-    map<int, vector<SignalView>> merged_recvs;
+    map<int, vector<pair<int, SignalView>>> merged_sends;
+    map<int, vector<pair<int, SignalView>>> merged_recvs;
     map<int, int> send_tags;
     map<int, int> recv_tags;
 
