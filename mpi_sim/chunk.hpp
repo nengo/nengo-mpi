@@ -24,13 +24,7 @@
 
 const int FLUSH_PROBES_EVERY = 1000;
 
-inline bool compare_first(const pair<float, SignalView*> &left, const pair<float, SignalView*> &right){
-    return (left.first < right.first);
-}
-
-inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
-    return (left.first < right.first);
-}
+bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right);
 
 /* An MpiSimulatorChunk represents the portion of a Nengo
  * network that is simulated by a single MPI process. */

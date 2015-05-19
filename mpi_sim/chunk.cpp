@@ -1,5 +1,9 @@
 #include "chunk.hpp"
 
+bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
+    return (left.first < right.first);
+}
+
 MpiSimulatorChunk::MpiSimulatorChunk()
 :time(0.0), dt(0.001), n_steps(0), mpi_merged(true){
 }
@@ -165,7 +169,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
             component_op_strings.push_back({index, op_string});
         }
 
-        all_op_strings.merge(component_op_strings, compare_first);
+        all_op_strings.merge(component_op_strings);
 
         H5Dclose(operators);
 
@@ -332,7 +336,9 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
 
 void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
-    dbgfile(label);
+    stringstream ss;
+    ss << "chunk_" << rank << "_dbg";
+    dbgfile(ss.str());
 
     if(rank == 0){
         sim_log->prep_for_simulation(log_filename, steps);
