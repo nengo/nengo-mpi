@@ -24,8 +24,6 @@
 
 const int FLUSH_PROBES_EVERY = 1000;
 
-bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right);
-
 /* An MpiSimulatorChunk represents the portion of a Nengo
  * network that is simulated by a single MPI process. */
 class MpiSimulatorChunk{
@@ -180,5 +178,13 @@ private:
     map<int, list<Operator*>::iterator> send_indices;
     map<int, list<Operator*>::iterator> recv_indices;
 };
+
+inline bool compare_indices(pair<float, string>& left, pair<float, string>& right){
+    return (left.first < right.first);
+}
+
+inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
+    return (left.first < right.first);
+}
 
 #endif

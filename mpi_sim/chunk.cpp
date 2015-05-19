@@ -1,9 +1,5 @@
 #include "chunk.hpp"
 
-bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
-    return (left.first < right.first);
-}
-
 MpiSimulatorChunk::MpiSimulatorChunk()
 :time(0.0), dt(0.001), n_steps(0), n_processors(0), mpi_merged(false){
 }
@@ -288,7 +284,7 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
 
             int tag = send_tags[dst];
 
-            // Create the mpi_merged op, put it in the op list
+            // Create the merged op, put it in the op list
             auto merged_send = unique_ptr<MPIOperator>(new MergedMPISend(dst, tag, signals_only));
 
             auto it = send_indices.at(dst);
@@ -314,7 +310,7 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
 
             int tag = recv_tags[src];
 
-            // Create the mpi_merged op, put it in the op list
+            // Create the merged op, put it in the op list
             auto merged_recv = unique_ptr<MPIOperator>(new MergedMPIRecv(src, tag, signals_only));
 
             auto it = recv_indices.at(src);
