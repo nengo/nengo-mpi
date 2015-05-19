@@ -568,7 +568,9 @@ class MpiModel(builder.Model):
               for component in range(self.n_components)]))
 
         dg = operator_depencency_graph(all_ops)
-        [node for node in toposort(dg) if hasattr(node, 'make_step')]
+        global_ordering = [
+            op for op in toposort(dg) if hasattr(op, 'make_step')]
+        self.global_ordering = {op: i for i, op in enumerate(global_ordering)}
 
         for component in range(self.n_components):
             self.add_ops_to_mpi(component)
@@ -643,6 +645,7 @@ class MpiModel(builder.Model):
         for signal, tag, dst in recv_signals:
             self.component_ops[component].append(
                 builder.operator.PreserveValue(signal))
+            self
 
         dg = operator_depencency_graph(self.component_ops[component])
         step_order = [
@@ -657,6 +660,9 @@ class MpiModel(builder.Model):
 
             assert len(update_indices) == 1
 
+            self.global_ordering[mpi_send] = (
+                self.global_ordering[step_order[update_indices[0]]] + 0.5)
+
             # Put the send after the op that updates the signal.
             step_order.insert(update_indices[0]+1, mpi_send)
 
@@ -666,6 +672,9 @@ class MpiModel(builder.Model):
             read_indices = filter(
                 lambda i: signal in step_order[i].reads,
                 range(len(step_order)))
+
+            self.global_ordering[mpi_recv] = (
+                self.global_ordering[step_order[read_indices[0]]] - 0.5)
 
             # Put the recv in front of the first op that reads the signal.
             step_order.insert(read_indices[0], mpi_recv)
@@ -710,6 +719,9 @@ class MpiModel(builder.Model):
                 op_string = self.op_to_string(op)
 
                 if op_string:
+                    op_string += (
+                        MpiModel.op_string_delim
+                        + str(self.global_ordering[op]))
                     logger.debug(
                         "Component %d: Adding operator with string: %s",
                         component, op_string)

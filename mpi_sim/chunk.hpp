@@ -22,6 +22,8 @@
 
 const int FLUSH_PROBES_EVERY = 1000;
 
+bool compare_indices(pair<float, string>& left, pair<float, string>& right);
+
 /* An MpiSimulatorChunk represents the portion of a Nengo
  * network that is simulated by a single MPI process. */
 class MpiSimulatorChunk{

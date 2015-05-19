@@ -15,6 +15,10 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
     from_file(filename, file_plist, read_plist, MPI_COMM_NULL);
 }
 
+bool compare_indices(pair<float, string>& left, pair<float, string>& right){
+    return (left.first < right.first);
+}
+
 void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist, MPI_Comm comm){
     herr_t err;
     hid_t f = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, file_plist);
@@ -44,8 +48,12 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
     H5Tset_size(str_type, MAX_LENGTH);
     H5Tset_strpad(str_type, H5T_STR_NULLTERM);
 
+    list<pair<float, string>>  all_op_strings;
+
     int component = rank;
     while(component < n_components){
+
+        list<pair<float, string>> component_op_strings;
 
         stringstream ss;
         ss << component;
@@ -153,8 +161,15 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
         for(int i = 0; i < shape[0]; i++){
             string op_string = op_buffer.get() + i * width;
-            add_op(op_string);
+
+            int idx = op_string.find_last_of(";");
+            float index = boost::lexical_cast<float>(op_string.substr(idx+1));
+            op_string = op_string.substr(0, idx);
+
+            component_op_strings.push_back({index, op_string});
         }
+
+        all_op_strings.merge(component_op_strings, compare_indices);
 
         H5Dclose(operators);
 
@@ -188,6 +203,11 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         H5Gclose(component_group);
 
         component += n_processors;
+    }
+
+    for(auto& p : all_op_strings){
+        string op_string = p.second;
+        add_op(op_string);
     }
 
     // Open the dataset
