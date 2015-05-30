@@ -26,10 +26,10 @@ const int probe_tag = 2;
 
 class MpiSimulator: public Simulator{
 public:
-    MpiSimulator();
+    MpiSimulator(bool mpi_merged);
 
     // Used when we need to spaun extra process (e.g. when run through python)
-    MpiSimulator(int n_processors, dtype dt);
+    MpiSimulator(int n_processors, dtype dt, bool mpi_merged);
 
     ~MpiSimulator();
 
@@ -61,6 +61,7 @@ public:
 
 protected:
     int n_processors;
+    bool mpi_merged;
 
     MPI_Comm comm;
 
@@ -83,5 +84,8 @@ void send_key(key_type i, int dst, int tag, MPI_Comm comm);
 
 unique_ptr<BaseSignal> recv_matrix(int src, int tag, MPI_Comm comm);
 void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm);
+
+int bcast_recv_int(MPI_Comm comm);
+void bcast_send_int(int i, MPI_Comm comm);
 
 #endif

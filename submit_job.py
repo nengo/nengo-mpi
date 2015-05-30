@@ -15,7 +15,8 @@ import numpy as np
 
 def write_bgq_jobfile(
         filename, n_processors, network_file, network_name,
-        working_dir, wall_time, exe_loc, t, log, ranks_per_node=16):
+        working_dir, wall_time, exe_loc, t, log, merged,
+        ranks_per_node=16):
 
     network_file = path.split(network_file)[-1]
     with open(filename, 'w') as outf:
@@ -33,14 +34,14 @@ def write_bgq_jobfile(
         outf.write(
             'runjob --np {p} --ranks-per-node={ranks_per_node} '
             '--envs OMP_NUM_THREADS=1 HOME=$HOME --cwd={wd} : '
-            '{exe_loc} {log} {network_file} {t}'.format(
+            '{exe_loc} {log} {merged} {network_file} {t}'.format(
                 p=n_processors, ranks_per_node=ranks_per_node, exe_loc=exe_loc,
-                log=log, network_file=network_file, t=t, wd=working_dir))
+                log=log, merged=merged, network_file=network_file, t=t, wd=working_dir))
 
 
 def write_gpc_jobfile(
         filename, n_processors, network_file, network_name,
-        working_dir, wall_time, exe_loc, t, log, ranks_per_node=8):
+        working_dir, wall_time, exe_loc, t, log, merged, ranks_per_node=8):
 
     network_file = path.split(network_file)[-1]
 
@@ -77,10 +78,10 @@ def write_gpc_jobfile(
 
         outf.write("# EXECUTION COMMAND;\n")
         outf.write(
-            "mpirun -np {p} --mca pml ob1 {exe_loc} {log} {network_file} {t}"
+            "mpirun -np {p} --mca pml ob1 {exe_loc} {log} {merged} {network_file} {t}"
             "\n".format(
                 p=n_processors, ranks_per_node=ranks_per_node, exe_loc=exe_loc,
-                log=log, network_file=network_file, t=t))
+                log=log, merged=merged, network_file=network_file, t=t))
 
 
 def make_directory_name(experiments_dir, network_name):
@@ -121,6 +122,10 @@ if __name__ == "__main__":
         help="Location to save results to.")
 
     parser.add_argument(
+        '--merged', action="store_true",
+        help="Supply to run using merged mpi communication.")
+
+    parser.add_argument(
         '-t', default=1.0, type=float,
         help="The simulation time.")
 
@@ -157,6 +162,8 @@ if __name__ == "__main__":
     log = args.log
     if log:
         log = " --log " + log
+
+    merged = "--merged" if args.merged else ""
 
     if not args.w:
         wall_time = {'gpc': '0:15:00', 'bgq': '0:30:00'}[platform]

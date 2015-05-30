@@ -39,7 +39,8 @@ void start_worker(MPI_Comm comm){
 
     string filename = recv_string(0, setup_tag, comm);
 
-    MpiSimulatorChunk chunk(my_id, n_processors);
+    int mpi_merged = bcast_recv_int(comm);
+    MpiSimulatorChunk chunk(my_id, n_processors, bool(mpi_merged));
 
     if(filename.length() != 0){
         // Use parallel property lists
@@ -190,7 +191,7 @@ struct Arg: public option::Arg
      }
  };
 
-enum serialOptionIndex {UNKNOWN, HELP, LOG, PROGRESS};
+enum serialOptionIndex {UNKNOWN, HELP, PROGRESS, LOG, MERGED};
 
 const option::Descriptor serial_usage[] =
 {
@@ -204,6 +205,7 @@ const option::Descriptor serial_usage[] =
  {LOG,      0, "",  "log",      Arg::NonEmpty,     "  --log  \tName of file to log results to using HDF5. "
                                                                "If not specified, the log filename is the same as the "
                                                                "name of the network file, but with the .h5 extension."},
+ {MERGED,   0, "",  "merged",   option::Arg::None, "  --merged  \tSupply to use merged communication mode."},
  {UNKNOWN,  0, "" , ""   ,      option::Arg::None, "\nExamples:\n"
                                                    "  nengo_mpi --progress basal_ganglia.net 1.0\n"
                                                    "  nengo_mpi --log ~/spaun_results.h5 spaun.net 7.5\n" },
@@ -253,6 +255,10 @@ int start_master(int argc, char **argv){
     cout << "Will run simulation for " << sim_length << " second(s)." << endl;
 
     bool show_progress = bool(options[PROGRESS]);
+    cout << "Show progress bar: " << show_progress << endl;
+
+    bool mpi_merged = bool(options[MERGED]);
+    cout << "Merged communication mode: " << mpi_merged << endl;
 
     string log_filename;
     if(options[LOG]){
@@ -263,7 +269,7 @@ int start_master(int argc, char **argv){
     cout << "Will write simulation results to " << log_filename << endl;
 
     cout << "Building network..." << endl;
-    auto sim = unique_ptr<MpiSimulator>(new MpiSimulator);
+    auto sim = unique_ptr<MpiSimulator>(new MpiSimulator(mpi_merged));
     sim->from_file(net_filename);
 
     cout << "Done building network..." << endl;

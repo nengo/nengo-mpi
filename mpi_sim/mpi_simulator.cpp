@@ -1,13 +1,13 @@
 #include "mpi_simulator.hpp"
 
 // This constructor assumes that MPI_Initialize has already been called.
-MpiSimulator::MpiSimulator()
-:n_processors(0), comm(MPI_COMM_NULL){
+MpiSimulator::MpiSimulator(bool mpi_merged)
+:n_processors(0), comm(MPI_COMM_NULL), mpi_merged(mpi_merged){
     init();
 }
 
-MpiSimulator::MpiSimulator(int n_processors, dtype dt)
-:n_processors(n_processors){
+MpiSimulator::MpiSimulator(int n_processors, dtype dt, bool mpi_merged)
+:n_processors(n_processors), mpi_merged(mpi_merged){
     this->dt = dt;
 
     spawn_processors();
@@ -68,7 +68,8 @@ void MpiSimulator::init(){
          << rank << " (should be 0)." << endl;
     cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, n_processors));
+    bcast_send_int(mpi_merged ? 1 : 0, comm);
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, n_processors, mpi_merged));
 
     for(int i = 0; i < n_processors; i++){
         probe_counts[i] = 0;
@@ -362,4 +363,19 @@ void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm)
     }
 
     MPI_Send(data_buffer.get(), size1 * size2, MPI_DOUBLE, dst, tag, comm);
+}
+
+
+int bcast_recv_int(MPI_Comm comm){
+    int src = 0;
+
+    int i;
+    MPI_Bcast(&i, 1, MPI_INT, src, comm);
+    return i;
+}
+
+void bcast_send_int(int i, MPI_Comm comm){
+    int src = 0;
+
+    MPI_Bcast(&i, 1, MPI_INT, src, comm);
 }

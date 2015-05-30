@@ -4,12 +4,12 @@ char Simulator::delim = '|';
 
 Simulator::Simulator()
 :dt(0.001){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, 1));
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk);
 }
 
 Simulator::Simulator(dtype dt)
 :dt(dt){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, 1));
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk);
 }
 
 void Simulator::add_base_signal(

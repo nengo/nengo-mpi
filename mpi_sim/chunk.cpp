@@ -5,11 +5,11 @@ bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalVie
 }
 
 MpiSimulatorChunk::MpiSimulatorChunk()
-:time(0.0), dt(0.001), n_steps(0), mpi_merged(true){
+:time(0.0), dt(0.001), n_steps(0), n_processors(0), mpi_merged(false){
 }
 
-MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors)
-:rank(rank), time(0.0), dt(0.001), n_steps(0), n_processors(n_processors), mpi_merged(true){
+MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged)
+:time(0.0), dt(0.001), n_steps(0), rank(rank), n_processors(n_processors), mpi_merged(mpi_merged){
     stringstream ss;
     ss << "Chunk " << rank;
     label = ss.str();
@@ -268,6 +268,7 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
         sim_log = unique_ptr<SimulationLog>(new SimulationLog(probe_info, dt));
     }
 
+    cout << "Chunk: " << label << "using merged: " << mpi_merged << endl;
     if(mpi_merged){
         for(auto& kv : merged_sends){
 
@@ -287,7 +288,7 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
 
             int tag = send_tags[dst];
 
-            // Create the merged op, put it in the op list
+            // Create the mpi_merged op, put it in the op list
             auto merged_send = unique_ptr<MPIOperator>(new MergedMPISend(dst, tag, signals_only));
 
             auto it = send_indices.at(dst);
@@ -313,7 +314,7 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
 
             int tag = recv_tags[src];
 
-            // Create the merged op, put it in the op list
+            // Create the mpi_merged op, put it in the op list
             auto merged_recv = unique_ptr<MPIOperator>(new MergedMPIRecv(src, tag, signals_only));
 
             auto it = recv_indices.at(src);

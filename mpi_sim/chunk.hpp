@@ -32,7 +32,7 @@ class MpiSimulatorChunk{
 
 public:
     MpiSimulatorChunk();
-    MpiSimulatorChunk(int rank, int n_processors);
+    MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged);
     const string classname() { return "MpiSimulatorChunk"; }
 
     /*
