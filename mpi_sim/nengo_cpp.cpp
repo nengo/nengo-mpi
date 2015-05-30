@@ -37,7 +37,7 @@ struct Arg: public option::Arg
  };
 
 
-enum serialOptionIndex {UNKNOWN, HELP, LOG, PROGRESS};
+enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, LOG};
 
 const option::Descriptor serial_usage[] =
 {
@@ -45,9 +45,10 @@ const option::Descriptor serial_usage[] =
                                                    "where <network file> is a file specifying a network to simulate,\n"
                                                    "and <simulation time> is the amount of time to simulate the network\n"
                                                    "for, in seconds. Simulation results are logged to an HDF5 file.\n"
+                                                   "Note that the options must come before the network file.\n"
                                                    "Options:" },
  {HELP,     0, "" , "help",     option::Arg::None, "  --help  \tPrint usage and exit." },
- {PROGRESS, 0, "",  "progress", option::Arg::None, "  --progress  \tSupply to show progress bar." },
+ {NO_PROG,  0, "",  "noprog",   option::Arg::None, "  --noprog  \tSupply to omit the progress bar." },
  {LOG,      0, "",  "log",      Arg::NonEmpty,     "  --log  \tName of file to log results to using HDF5. "
                                                                "If not specified, the log filename is the same as the "
                                                                "name of the network file, but with the .h5 extension."},
@@ -99,7 +100,7 @@ int main(int argc, char **argv){
     cout << "Will load network from file: " << net_filename << "." << endl;
     cout << "Will run simulation for " << sim_length << " second(s)." << endl;
 
-    bool show_progress = bool(options[PROGRESS]);
+    bool show_progress = !bool(options[NO_PROG]);
 
     string log_filename;
     if(options[LOG]){

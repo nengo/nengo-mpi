@@ -1,7 +1,7 @@
 #include "chunk.hpp"
 
 MpiSimulatorChunk::MpiSimulatorChunk()
-:time(0.0), dt(0.001), n_steps(0), n_processors(0), mpi_merged(false){
+:time(0.0), dt(0.001), n_steps(0), rank(0), n_processors(1), mpi_merged(false){
 }
 
 MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged)
@@ -87,7 +87,8 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
             }
 
             if(ndim != 1 && ndim != 2){
-                throw runtime_error("Got impropr value of ndim while reading signal.");
+                throw runtime_error(
+                    "Got improper value of ndim while reading signal.");
             }
 
             // Get the signal label

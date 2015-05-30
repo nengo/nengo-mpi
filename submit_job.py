@@ -34,7 +34,7 @@ def write_bgq_jobfile(
         outf.write(
             'runjob --np {p} --ranks-per-node={ranks_per_node} '
             '--envs OMP_NUM_THREADS=1 HOME=$HOME --cwd={wd} : '
-            '{exe_loc} {log} {merged} {network_file} {t}'.format(
+            '{exe_loc} --noprog {log} {merged} {network_file} {t}'.format(
                 p=n_processors, ranks_per_node=ranks_per_node, exe_loc=exe_loc,
                 log=log, merged=merged, network_file=network_file, t=t, wd=working_dir))
 
@@ -78,7 +78,7 @@ def write_gpc_jobfile(
 
         outf.write("# EXECUTION COMMAND;\n")
         outf.write(
-            "mpirun -np {p} --mca pml ob1 {exe_loc} {log} {merged} {network_file} {t}"
+            "mpirun -np {p} --mca pml ob1 {exe_loc} --noprog {log} {merged} {network_file} {t}"
             "\n".format(
                 p=n_processors, ranks_per_node=ranks_per_node, exe_loc=exe_loc,
                 log=log, merged=merged, network_file=network_file, t=t))
