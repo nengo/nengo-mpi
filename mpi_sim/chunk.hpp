@@ -179,10 +179,6 @@ private:
     map<int, list<Operator*>::iterator> recv_indices;
 };
 
-inline bool compare_indices(pair<float, string>& left, pair<float, string>& right){
-    return (left.first < right.first);
-}
-
 inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
     return (left.first < right.first);
 }

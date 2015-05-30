@@ -264,7 +264,6 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
         sim_log = unique_ptr<SimulationLog>(new SimulationLog(probe_info, dt));
     }
 
-    cout << "Chunk: " << label << "using merged: " << mpi_merged << endl;
     if(mpi_merged){
         for(auto& kv : merged_sends){
 
