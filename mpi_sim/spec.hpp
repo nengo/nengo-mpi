@@ -63,7 +63,7 @@ public:
     key_type probe_key;
     string signal_string;
     SignalSpec signal_spec;
-    int period;
+    dtype period;
     string name;
 
     string to_string() const override;

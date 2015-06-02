@@ -464,89 +464,89 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
     try{
         if(type_string.compare("Reset") == 0){
-            SignalView dst = get_signal_view(args[1]);
-            dtype value = boost::lexical_cast<dtype>(args[2]);
+            SignalView dst = get_signal_view(args[0]);
+            dtype value = boost::lexical_cast<dtype>(args[1]);
 
             add_op(unique_ptr<Operator>(new Reset(dst, value)));
 
         }else if(type_string.compare("Copy") == 0){
 
-            SignalView dst = get_signal_view(args[1]);
-            SignalView src = get_signal_view(args[2]);
+            SignalView dst = get_signal_view(args[0]);
+            SignalView src = get_signal_view(args[1]);
 
             add_op(unique_ptr<Operator>(new Copy(dst, src)));
 
         }else if(type_string.compare("DotInc") == 0){
-            SignalView A = get_signal_view(args[1]);
-            SignalView X = get_signal_view(args[2]);
-            SignalView Y = get_signal_view(args[3]);
+            SignalView A = get_signal_view(args[0]);
+            SignalView X = get_signal_view(args[1]);
+            SignalView Y = get_signal_view(args[2]);
 
             add_op(unique_ptr<Operator>(new DotInc(A, X, Y)));
 
         }else if(type_string.compare("ElementwiseInc") == 0){
-            SignalView A = get_signal_view(args[1]);
-            SignalView X = get_signal_view(args[2]);
-            SignalView Y = get_signal_view(args[3]);
+            SignalView A = get_signal_view(args[0]);
+            SignalView X = get_signal_view(args[1]);
+            SignalView Y = get_signal_view(args[2]);
 
             add_op(unique_ptr<Operator>(new ElementwiseInc(A, X, Y)));
 
         }else if(type_string.compare("LIF") == 0){
-            int num_neurons = boost::lexical_cast<int>(args[1]);
-            dtype tau_ref = boost::lexical_cast<dtype>(args[2]);
-            dtype tau_rc = boost::lexical_cast<dtype>(args[3]);
-            dtype dt = boost::lexical_cast<dtype>(args[4]);
-
-            SignalView J = get_signal_view(args[5]);
-            SignalView output = get_signal_view(args[6]);
-
-            add_op(unique_ptr<Operator>(new SimLIF(num_neurons, tau_ref, tau_rc, dt, J, output)));
-
-        }else if(type_string.compare("LIFRate") == 0){
-            int num_neurons = boost::lexical_cast<int>(args[1]);
-            dtype tau_ref = boost::lexical_cast<dtype>(args[2]);
-            dtype tau_rc = boost::lexical_cast<dtype>(args[3]);
+            int num_neurons = boost::lexical_cast<int>(args[0]);
+            dtype tau_ref = boost::lexical_cast<dtype>(args[1]);
+            dtype tau_rc = boost::lexical_cast<dtype>(args[2]);
+            dtype dt = boost::lexical_cast<dtype>(args[3]);
 
             SignalView J = get_signal_view(args[4]);
             SignalView output = get_signal_view(args[5]);
 
+            add_op(unique_ptr<Operator>(new SimLIF(num_neurons, tau_ref, tau_rc, dt, J, output)));
+
+        }else if(type_string.compare("LIFRate") == 0){
+            int num_neurons = boost::lexical_cast<int>(args[0]);
+            dtype tau_ref = boost::lexical_cast<dtype>(args[1]);
+            dtype tau_rc = boost::lexical_cast<dtype>(args[2]);
+
+            SignalView J = get_signal_view(args[3]);
+            SignalView output = get_signal_view(args[4]);
+
             add_op(unique_ptr<Operator>(new SimLIFRate(num_neurons, tau_ref, tau_rc, J, output)));
 
         }else if(type_string.compare("RectifiedLinear") == 0){
-            int num_neurons = boost::lexical_cast<int>(args[1]);
+            int num_neurons = boost::lexical_cast<int>(args[0]);
 
-            SignalView J = get_signal_view(args[2]);
-            SignalView output = get_signal_view(args[3]);
+            SignalView J = get_signal_view(args[1]);
+            SignalView output = get_signal_view(args[2]);
 
             add_op(unique_ptr<Operator>(new SimRectifiedLinear(num_neurons, J, output)));
 
         }else if(type_string.compare("Sigmoid") == 0){
-            int num_neurons = boost::lexical_cast<int>(args[1]);
-            dtype tau_ref = boost::lexical_cast<dtype>(args[2]);
+            int num_neurons = boost::lexical_cast<int>(args[0]);
+            dtype tau_ref = boost::lexical_cast<dtype>(args[1]);
 
-            SignalView J = get_signal_view(args[3]);
-            SignalView output = get_signal_view(args[4]);
+            SignalView J = get_signal_view(args[2]);
+            SignalView output = get_signal_view(args[3]);
 
             add_op(unique_ptr<Operator>(new SimSigmoid(num_neurons, tau_ref, J, output)));
 
         }else if(type_string.compare("LinearFilter") == 0){
 
-            SignalView input = get_signal_view(args[1]);
-            SignalView output = get_signal_view(args[2]);
+            SignalView input = get_signal_view(args[0]);
+            SignalView output = get_signal_view(args[1]);
 
-            unique_ptr<BaseSignal> numerator = extract_float_list(args[3]);
-            unique_ptr<BaseSignal> denominator = extract_float_list(args[4]);
+            unique_ptr<BaseSignal> numerator = extract_float_list(args[2]);
+            unique_ptr<BaseSignal> denominator = extract_float_list(args[3]);
 
             add_op(unique_ptr<Operator>(new Synapse(input, output, *numerator, *denominator)));
 
         }else if(type_string.compare("MpiSend") == 0){
 
             if(n_processors > 1){
-                int dst = boost::lexical_cast<int>(args[1]);
+                int dst = boost::lexical_cast<int>(args[0]);
                 dst = dst % n_processors;
                 if(dst != rank){
 
-                    int tag = boost::lexical_cast<int>(args[2]);
-                    key_type signal_key = boost::lexical_cast<key_type>(args[3]);
+                    int tag = boost::lexical_cast<int>(args[1]);
+                    key_type signal_key = boost::lexical_cast<key_type>(args[2]);
                     SignalView content = get_signal_view(signal_key);
 
                     add_mpi_send(dst, tag, content);
@@ -556,12 +556,12 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
         }else if(type_string.compare("MpiRecv") == 0){
 
             if(n_processors > 1){
-                int src = boost::lexical_cast<int>(args[1]);
+                int src = boost::lexical_cast<int>(args[0]);
                 src = src % n_processors;
 
                 if(src != rank){
-                    int tag = boost::lexical_cast<int>(args[2]);
-                    key_type signal_key = boost::lexical_cast<key_type>(args[3]);
+                    int tag = boost::lexical_cast<int>(args[1]);
+                    key_type signal_key = boost::lexical_cast<key_type>(args[2]);
                     SignalView content = get_signal_view(signal_key);
 
                     add_mpi_recv(src, tag, content);
@@ -569,9 +569,9 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             }
 
         }else if(type_string.compare("SpaunStimulus") == 0){
-            SignalView output = get_signal_view(args[1]);
+            SignalView output = get_signal_view(args[0]);
 
-            string stim_seq_str = args[2];
+            string stim_seq_str = args[1];
             boost::trim_if(stim_seq_str, boost::is_any_of("[]"));
             boost::replace_all(stim_seq_str, "\"", "");
             boost::replace_all(stim_seq_str, "\'", "");
@@ -579,8 +579,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             vector<string> stim_seq;
             boost::split(stim_seq, stim_seq_str, boost::is_any_of(","));
 
-            float present_interval = boost::lexical_cast<float>(args[3]);
-            float present_blanks = boost::lexical_cast<float>(args[4]);
+            float present_interval = boost::lexical_cast<float>(args[2]);
+            float present_blanks = boost::lexical_cast<float>(args[3]);
 
             auto op = unique_ptr<Operator>(
                 new SpaunStimulus(

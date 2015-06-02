@@ -28,6 +28,10 @@ import h5py as h5
 import logging
 logger = logging.getLogger(__name__)
 
+OP_DELIM = ";"
+SIGNAL_DELIM = ":"
+PROBE_DELIM = "|"
+
 
 def make_builder(base):
     """
@@ -312,7 +316,7 @@ def make_key(obj):
         return id(obj)
 
 
-def signal_to_string(signal, delim=':'):
+def signal_to_string(signal, delim=SIGNAL_DELIM):
     """
     Takes in a signal, and encodes the relevant information in a string.
     The format of the returned string:
@@ -371,9 +375,6 @@ class MpiModel(builder.Model):
     specified in terms of the high-level nengo objects like nodes,
     networks and ensembles).
     """
-
-    op_string_delim = ";"
-    signal_string_delim = ":"
 
     def __init__(
             self, n_components, assignments, dt=0.001, label=None,
@@ -832,15 +833,13 @@ class MpiModel(builder.Model):
                 "nengo_mpi cannot handle operator of "
                 "type %s" % str(op_type))
 
-        op_string = MpiModel.op_string_delim.join(map(str, op_args))
+        op_string = OP_DELIM.join(map(str, op_args))
         op_string = op_string.replace(" ", "")
         op_string = op_string.replace("(", "")
         op_string = op_string.replace(")", "")
 
         if op_string:
-            op_string += (
-                MpiModel.op_string_delim
-                + str(self.global_ordering[op]))
+            op_string += OP_DELIM + str(self.global_ordering[op])
 
         return op_string
 
@@ -862,7 +861,7 @@ class MpiModel(builder.Model):
             component, str(signal), probe_key,
             signal_string, period)
 
-        probe_string = MpiModel.op_string_delim.join(
+        probe_string = PROBE_DELIM.join(
             str(i)
             for i
             in [component, probe_key, signal_string, period, str(probe)])

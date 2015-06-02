@@ -143,7 +143,8 @@ void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
 
 void PythonMpiSimulator::add_probe(bpy::object probe_string){
     string c_probe_string = bpy::extract<string>(probe_string);
-    sim->add_probe(ProbeSpec(c_probe_string));
+    ProbeSpec ps(c_probe_string);
+    sim->add_probe(ps);
 }
 
 void PythonMpiSimulator::create_PyFunc(bpy::object py_fn, bpy::object t_in){

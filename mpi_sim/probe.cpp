@@ -26,15 +26,15 @@ void Probe::init_for_simulation(int n_steps, int fe){
         buffer = shared_ptr<dtype>(NULL);
     }
 
-    int num_samples = (int) floor(n_steps / period);
+    int n_samples = (int) floor(n_steps / period);
 
     if(flush_every > 0){
-        num_samples = min(num_samples, flush_every);
+        n_samples = min(n_samples, flush_every);
     }
 
-    data.reserve(num_samples);
+    data.reserve(n_samples);
 
-    for(unsigned i = 0; i < num_samples; i++){
+    for(unsigned i = 0; i < n_samples; i++){
         data.push_back(unique_ptr<BaseSignal>(new BaseSignal(signal)));
     }
 }
