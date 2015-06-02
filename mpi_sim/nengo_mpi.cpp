@@ -12,13 +12,6 @@
 
 using namespace std;
 
-// This file can be used in two ways. First, if using nengo_mpi from python, this
-// code is the entry point for the workers that are spawned by the initial process.
-// If using nengo_mpi straight from C++, then this file is the entry point for ALL
-// processes in the simulation. In that case, the process with rank 0 will create an
-// MpiSimulator object and load a built nengo network from a file specified on the
-// command line, and the rest of the processes will jump straight into start_worker.
-
 // comm: The communicator for the worker to communicate on. Must
 // be an intracommunicator involving all processes, with the master
 // process having rank 0.
@@ -80,9 +73,9 @@ void start_worker(MPI_Comm comm){
 
                 dbg("Worker " << my_id  << " done receiving signal.");
 
-                dbg("key; " << key);
-                dbg("label; " << key);
-                dbg("data; " << *data);
+                dbg("key: " << key);
+                dbg("label: " << key);
+                dbg("data: " << *data);
 
                 chunk.add_base_signal(key, label, move(data));
 
@@ -98,15 +91,11 @@ void start_worker(MPI_Comm comm){
             }else if(s == add_probe_flag){
                 dbg("Worker " << my_id  << " receiving probe.");
 
-                key_type probe_key = recv_key(0, setup_tag, comm);
-
-                string signal_string = recv_string(0, setup_tag, comm);
-
-                dtype period = recv_dtype(0, setup_tag, comm);
+                string probe_string = recv_string(0, setup_tag, comm);
 
                 dbg("Worker " << my_id  << " done receiving probe.");
 
-                chunk.add_probe(probe_key, signal_string, period);
+                chunk.add_probe(ProbeSpec(probe_string));
 
             }else if(s == stop_flag){
                 dbg("Worker " << my_id  << " done receiving network.");
@@ -294,13 +283,19 @@ int main(int argc, char **argv){
     MPI_Comm_get_parent(&parent);
 
     if (parent != MPI_COMM_NULL){
-        MPI_Comm everyone;
+        // We have a parent, so we must be a worker process spawned
+        // by the master, which must be running through python.
+        // Get a communicator that includes the parent and all children.
 
-        // We have a parent, so get a communicator that includes the
-        // parent and all children
+        MPI_Comm everyone;
         MPI_Intercomm_merge(parent, true, &everyone);
         start_worker(everyone);
     }else{
+        // We don't have a parent, so we must be either the master process
+        // or a worker process, in either case created at the beginning of
+        // a call to nengo_mpi run using mpirun. Can use the MPI_COMM_WORLD
+        // communicator, as it will contain all processes in the simulation.
+
         int rank;
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 

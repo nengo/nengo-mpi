@@ -11,6 +11,7 @@
 #include "mpi_simulator.hpp"
 #include "operator.hpp"
 #include "probe.hpp"
+#include "spec.hpp"
 #include "debug.hpp"
 
 using namespace std;
@@ -46,9 +47,7 @@ public:
 
     void add_op(bpy::object component, bpy::object op_string);
 
-    void add_probe(
-        bpy::object component, bpy::object probe_key,
-        bpy::object signal_string, bpy::object period, bpy::object name);
+    void add_probe(bpy::object probe_string);
 
     /* Methods for creating PyFunc operators. */
     void create_PyFunc(bpy::object py_fn, bpy::object t_in);

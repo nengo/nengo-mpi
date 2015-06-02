@@ -14,7 +14,6 @@ Simulator::Simulator(dtype dt)
 
 void Simulator::add_base_signal(
         key_type key, string label, unique_ptr<BaseSignal> data){
-
     build_dbg("SIGNAL" << delim << 0 << delim << key << delim << label << delim << *data);
 
     chunk->add_base_signal(key, label, move(data));
@@ -26,35 +25,21 @@ void Simulator::add_base_signal(
     add_base_signal(key, label, move(data));
 }
 
-void Simulator::add_op(string op_string){
+void Simulator::add_op(OpSpec os){
+    build_dbg("OP" << delim << 0 << delim << os);
 
-    build_dbg("OP" << delim << 0 << delim << op_string);
-
-    chunk->add_op(op_string);
+    chunk->add_op(os);
 }
 
-void Simulator::add_op(int component, string op_string){
-
-    add_op(op_string);
+void Simulator::add_op(int component, OpSpec os){
+    add_op(os);
 }
 
-void Simulator::add_probe(
-        key_type probe_key, string signal_string, dtype period, string name){
+void Simulator::add_probe(ProbeSpec ps){
+    probe_info.push_back(ps);
 
-    stringstream ss;
-    ss << "PROBE" << delim << 0 << delim << probe_key << delim
-                  << signal_string << delim << period << delim << name;
-    probe_info.push_back(ss.str());
-    build_dbg("Adding probe info: " << ss.str());
-
-    chunk->add_probe(probe_key, signal_string, period);
-    probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();
-}
-
-void Simulator::add_probe(
-        int component, key_type probe_key, string signal_string, dtype period, string name){
-
-    add_probe(probe_key, signal_string, period, name);
+    probe_data[ps.probe_key] = vector<unique_ptr<BaseSignal>>();
+    chunk->add_probe(ps);
 }
 
 SignalView Simulator::get_signal(string signal_string){

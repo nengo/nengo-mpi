@@ -138,21 +138,12 @@ void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
     int c_component = bpy::extract<int>(component);
     string c_op_string = bpy::extract<string>(op_string);
 
-    sim->add_op(c_component, c_op_string);
+    sim->add_op(c_component, OpSpec(c_op_string));
 }
 
-void PythonMpiSimulator::add_probe(
-        bpy::object component, bpy::object probe_key,
-        bpy::object signal_string, bpy::object period,
-        bpy::object name){
-
-    int c_component = bpy::extract<int>(component);
-    key_type c_probe_key = bpy::extract<key_type>(probe_key);
-    string c_signal_string = bpy::extract<string>(signal_string);
-    dtype c_period = bpy::extract<dtype>(period);
-    string c_name = bpy::extract<string>(name);
-
-    sim->add_probe(c_component, c_probe_key, c_signal_string, c_period, c_name);
+void PythonMpiSimulator::add_probe(bpy::object probe_string){
+    string c_probe_string = bpy::extract<string>(probe_string);
+    sim->add_probe(ProbeSpec(c_probe_string));
 }
 
 void PythonMpiSimulator::create_PyFunc(bpy::object py_fn, bpy::object t_in){

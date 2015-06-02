@@ -64,8 +64,7 @@ void MpiSimulator::init(){
     MPI_Comm_rank(comm, &rank);
 
     cout << "Master host: " << name << endl;
-    cout << "Master rank in merged communicator: "
-         << rank << " (should be 0)." << endl;
+    cout << "Master rank in merged communicator: " << rank << " (should be 0)." << endl;
     cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
     bcast_send_int(mpi_merged ? 1 : 0, comm);
@@ -139,36 +138,35 @@ void MpiSimulator::add_base_signal(
     }
 }
 
-void MpiSimulator::add_op(int component, string op_string){
+void MpiSimulator::add_op(int component, OpSpec os){
 
     int processor_index = component % n_processors;
 
-    build_dbg("OP" << delim << processor_index << delim << op_string);
+    build_dbg("OP" << delim << processor_index << delim << os);
 
     if(processor_index == 0){
-        chunk->add_op(op_string);
+        chunk->add_op(os);
     }else{
+        // TODO: fix, not currently sending op args or index
         send_int(add_op_flag, processor_index, setup_tag, comm);
-        send_string(op_string, processor_index, setup_tag, comm);
+        send_string(os.type_string, processor_index, setup_tag, comm);
     }
 }
 
-void MpiSimulator::add_probe(
-        int component, key_type probe_key, string signal_string, dtype period, string name){
-
-    int processor_index = component % n_processors;
+void MpiSimulator::add_probe(ProbeSpec ps){
+    int processor_index = ps.component % n_processors;
 
     probe_counts[processor_index] += 1;
-    probe_data[probe_key] = vector<unique_ptr<BaseSignal>>();
+    probe_data[ps.probe_key] = vector<unique_ptr<BaseSignal>>();
 
     if(processor_index == 0){
-        chunk->add_probe(probe_key, signal_string, period);
+        chunk->add_probe(ps);
     }else{
         send_int(add_probe_flag, processor_index, setup_tag, comm);
 
-        send_key(probe_key, processor_index, setup_tag, comm);
-        send_string(signal_string, processor_index, setup_tag, comm);
-        send_dtype(period, processor_index, setup_tag, comm);
+        send_key(ps.probe_key, processor_index, setup_tag, comm);
+        send_string(ps.signal_string, processor_index, setup_tag, comm);
+        send_dtype(ps.period, processor_index, setup_tag, comm);
     }
 }
 

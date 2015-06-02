@@ -11,6 +11,7 @@
 #include <mpi.h>
 
 #include "sim_log.hpp"
+#include "spec.hpp"
 #include "debug.hpp"
 
 // A parallel version of SimulationLog. Represents an HDF5 file to which we
@@ -21,7 +22,7 @@ public:
     ParallelSimulationLog(){};
 
     ParallelSimulationLog(
-        int n_processors, int processor, vector<string> probe_strings,
+        int n_processors, int processor, vector<ProbeSpec> probe_info,
         dtype dt, MPI_Comm comm);
 
     // Called by master

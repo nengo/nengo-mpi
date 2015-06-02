@@ -14,6 +14,7 @@
 #include <mpi.h>
 
 #include "operator.hpp"
+#include "spec.hpp"
 #include "mpi_operator.hpp"
 #include "custom_ops.hpp"
 #include "probe.hpp"
@@ -22,6 +23,7 @@
 #include "debug.hpp"
 #include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
 
+// How frequently to flush the probe buffers, in units of number of steps.
 const int FLUSH_PROBES_EVERY = 1000;
 
 /* An MpiSimulatorChunk represents the portion of a Nengo
@@ -66,11 +68,12 @@ public:
     SignalView get_signal_view(
         key_type key, int shape1, int shape2, int stride1, int stride2, int offset);
 
-    /* Get a ``view'' on a stored base signal from a string containing the key
-     * of the base signal and parameters of the view.
-     * Expected format of signal_string:
-     *     key:(shape1, shape2):(stride1, stride2):offset */
-    SignalView get_signal_view(string signal_string);
+    /* Get a ``view'' on a stored base signal from a SignalSpec object. */
+    SignalView get_signal_view(SignalSpec ss);
+
+    /* Get a ``view'' on a stored base signal from a string
+     * (by converting it into a SignalSpec first) . */
+    SignalView get_signal_view(string ss);
 
     /* Get a ``view'' on a stored base signal from a key. Parameters of the view
      * are derived from the signal itself (so the view will have the same shape
@@ -80,14 +83,18 @@ public:
     // *** Operators ***
 
     /* Functions used to add operators to the chunk. These
-     * operators access views of the BaseMatrices stored in the chunk,
+     * operators access views of the BaseSignals stored in the chunk,
      * and operate on the data in those views to carry out the simulation.
-     * At the time an operator is added, all data that it operates on must
+     * At the time an operator is added, all BaseSignals that it operates on must
      * have already been added to the chunk. Also note that the order in which
      * operators are added to the chunk determines the order they will
      * be executed in at simulation time. */
     void add_op(unique_ptr<Operator> op);
-    void add_op(string op_string);
+
+    /* Add an operator from an OpSpec object, which stores the type of operator
+     * to add, as well as any parameters that operator needs (e.g. the Signals
+     * that it operates on). */
+    void add_op(OpSpec os);
 
     /* Add MPI-related operators. These have to be added separately,
      * because we need to initialize them in a special way before the
@@ -97,22 +104,8 @@ public:
 
     // *** Probes ***
 
-    /* Add a probe to the chunk. A probe can be used to record the state
-     * of a signal as the simulation progresses.
-     *
-     *     probe_key     : Unique key which can later be used to retrieve the probe.
-     *
-     *     signal_string : A string specifying a base signal and a view thereof.
-     *                     Specifies what data the probe will record.
-     *
-     *     period        : How often the signal is sampled. */
-    void add_probe(key_type probe_key, string signal_string, dtype period);
-
-    // Add a pre-created probe to the chunk.
-    void add_probe(key_type probe_key, shared_ptr<Probe> probe);
-
-    // Add a a probe from a string
-    void add_probe(string probe_string);
+    // Add a a probe from a ProbeSpec object.
+    void add_probe(ProbeSpec ps);
 
     // *** Miscellaneous ***
 
@@ -141,7 +134,7 @@ public:
     string label;
 
     map<key_type, shared_ptr<Probe>> probe_map;
-    vector<string> probe_info;
+    vector<ProbeSpec> probe_info;
 
 private:
     dtype time;
@@ -167,7 +160,7 @@ private:
 
     bool mpi_merged;
 
-    // Used at build time to construct the merged mpi operators, if mpi_merged is true
+    // Used at build time to construct the merged mpi operators if mpi_merged is true
     map<int, vector<pair<int, SignalView>>> merged_sends;
     map<int, vector<pair<int, SignalView>>> merged_recvs;
     map<int, int> send_tags;
@@ -181,6 +174,10 @@ private:
 
 inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
     return (left.first < right.first);
+}
+
+inline bool compare_indices(const OpSpec &left, const OpSpec &right){
+    return (left.index < right.index);
 }
 
 #endif

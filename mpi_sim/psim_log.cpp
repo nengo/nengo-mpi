@@ -1,8 +1,8 @@
 #include "psim_log.hpp"
 
 ParallelSimulationLog::ParallelSimulationLog(
-    int n_processors, int processor, vector<string> probe_strings, dtype dt, MPI_Comm comm)
-:SimulationLog(probe_strings, dt), n_processors(n_processors), processor(processor), comm(comm){}
+    int n_processors, int processor, vector<ProbeSpec> probe_info, dtype dt, MPI_Comm comm)
+:SimulationLog(probe_info, dt), n_processors(n_processors), processor(processor), comm(comm){}
 
 // Master version
 void ParallelSimulationLog::prep_for_simulation(string filename, int num_steps){
@@ -70,13 +70,13 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
     H5Tset_size(str_type, MAX_PROBE_NAME_LENGTH);
     H5Tset_strpad(str_type, H5T_STR_NULLTERM);
 
-    for(ProbeInfo pi : probe_info){
-        hsize_t dset_dims[] = {num_steps, pi.shape1};
+    for(ProbeSpec ps : probe_info){
+        hsize_t dset_dims[] = {num_steps, ps.signal_spec.shape1};
 
         // Create the dataspace for the dataset.
         dataspace_id = H5Screate_simple(2, dset_dims, NULL);
 
-        string dspace_key = to_string(pi.probe_key);
+        string dspace_key = to_string(ps.probe_key);
 
         // Create the dataset with default properties
         dset_id = H5Dcreate(
@@ -86,7 +86,7 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
         // Set the ``name'' attribute of the dataset so we know which probe the data came from
         att_dataspace_id  = H5Screate(H5S_SCALAR);
         att_id = H5Acreate2(dset_id, "name", str_type, att_dataspace_id, H5P_DEFAULT, H5P_DEFAULT);
-        H5Awrite(att_id, str_type, pi.name.substr(0, MAX_PROBE_NAME_LENGTH).c_str());
+        H5Awrite(att_id, str_type, ps.name.substr(0, MAX_PROBE_NAME_LENGTH).c_str());
 
         H5Sclose(att_dataspace_id);
         H5Aclose(att_id);
@@ -95,10 +95,10 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
         plist_id = H5Pcreate(H5P_DATASET_XFER);
         H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_INDEPENDENT);
 
-        HDF5Dataset d(pi.name, pi.shape1, dset_id, dataspace_id, plist_id);
+        HDF5Dataset d(ps.name, ps.signal_spec.shape1, dset_id, dataspace_id, plist_id);
 
-        if(pi.component % n_processors == processor){
-            dset_map[pi.probe_key] = d;
+        if(ps.component % n_processors == processor){
+            dset_map[ps.probe_key] = d;
         }
 
         datasets.push_back(d);

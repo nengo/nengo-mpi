@@ -10,6 +10,7 @@
 #include <mpi.h>
 
 #include "simulator.hpp"
+#include "spec.hpp"
 #include "chunk.hpp"
 #include "psim_log.hpp"
 
@@ -38,10 +39,10 @@ public:
 
     void add_base_signal(
         int component, key_type key, string label, unique_ptr<BaseSignal> data) override;
-    void add_op(int component, string op_string) override;
-    void add_probe(
-        int component, key_type probe_key, string signal_string, dtype period, string name) override;
+    void add_op(int component, OpSpec os) override;
+    void add_probe(ProbeSpec ps) override;
 
+    // Methods which operate on the master's chunk.
     SignalView get_signal(string signal_string) override;
     void add_op(unique_ptr<Operator> op) override;
 

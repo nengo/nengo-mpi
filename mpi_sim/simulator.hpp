@@ -12,6 +12,7 @@
 #include <ctime>
 
 #include "chunk.hpp"
+#include "spec.hpp"
 #include "debug.hpp"
 
 using namespace std;
@@ -31,12 +32,10 @@ public:
     virtual void add_base_signal(key_type key, string label, unique_ptr<BaseSignal> data);
     virtual void add_base_signal(int component, key_type key, string label, unique_ptr<BaseSignal> data);
 
-    virtual void add_op(string op_string);
-    virtual void add_op(int component, string op_string);
+    virtual void add_op(OpSpec os);
+    virtual void add_op(int component, OpSpec os);
 
-    virtual void add_probe(key_type probe_key, string signal_string, dtype period, string name);
-    virtual void add_probe(
-        int component, key_type probe_key, string signal_string, dtype period, string name);
+    virtual void add_probe(ProbeSpec ps);
 
     virtual SignalView get_signal(string signal_string);
     virtual void add_op(unique_ptr<Operator> op);
@@ -75,7 +74,7 @@ protected:
     // Store the probe info so that we can scatter it to all
     // the other processes, which will allow all processes to
     // build the HDF5 output file correctly.
-    vector<string> probe_info;
+    vector<ProbeSpec> probe_info;
 };
 
 #endif

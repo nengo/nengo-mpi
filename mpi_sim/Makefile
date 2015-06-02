@@ -36,7 +36,7 @@ else
 	CXXFLAGS= ${PYTHON_INC} ${DEFS} -fPIC -std=${STD}
 endif
 
-OBJS=simulator.o operator.o custom_ops.o probe.o chunk.o sim_log.o debug.o
+OBJS=simulator.o operator.o spec.o custom_ops.o probe.o chunk.o sim_log.o debug.o
 MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o 
 BIN=${HOME}/nengo_mpi/bin
 
@@ -104,6 +104,7 @@ probe.o: probe.cpp probe.hpp operator.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
 chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp custom_ops.hpp probe.hpp debug.hpp sim_log.hpp
 simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_simulator.hpp debug.hpp
+spec.o: spec.cpp spec.hpp
 custom_ops.o: custom_ops.cpp custom_ops.hpp operator.hpp debug.hpp
 sim_log.o: sim_log.cpp sim_log.hpp operator.hpp debug.hpp
 debug.o: debug.cpp debug.hpp

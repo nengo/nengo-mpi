@@ -719,9 +719,6 @@ class MpiModel(builder.Model):
                 op_string = self.op_to_string(op)
 
                 if op_string:
-                    op_string += (
-                        MpiModel.op_string_delim
-                        + str(self.global_ordering[op]))
                     logger.debug(
                         "Component %d: Adding operator with string: %s",
                         component, op_string)
@@ -848,6 +845,11 @@ class MpiModel(builder.Model):
         op_string = op_string.replace("(", "")
         op_string = op_string.replace(")", "")
 
+        if op_string:
+            op_string += (
+                MpiModel.op_string_delim
+                + str(self.global_ordering[op]))
+
         return op_string
 
     def add_probe(self, probe, signal, sample_every=None):
@@ -868,17 +870,13 @@ class MpiModel(builder.Model):
             component, str(signal), probe_key,
             signal_string, period)
 
+        probe_string = MpiModel.op_string_delim.join(
+            str(i)
+            for i
+            in [component, probe_key, signal_string, period, str(probe)])
+
         if self.save_file:
-            probe_string = MpiModel.op_string_delim.join(
-                str(i)
-                for i
-                in [probe_key, signal_string, period, str(probe)])
-
             self.probe_strings[component].append(probe_string)
-
-            self.all_probe_strings.append(
-                str(component) + MpiModel.op_string_delim + probe_string)
+            self.all_probe_strings.append(probe_string)
         else:
-            self.mpi_sim.add_probe(
-                component, self.probe_keys[probe],
-                signal_string, period, str(probe))
+            self.mpi_sim.add_probe(probe_string)
