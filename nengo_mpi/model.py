@@ -9,7 +9,6 @@ from nengo.utils.graphs import toposort
 from nengo.utils.builder import full_transform
 from nengo.utils.simulator import operator_depencency_graph
 from nengo.cache import NoDecoderCache
-
 from nengo.network import Network
 from nengo.connection import Connection
 from nengo.ensemble import Ensemble
@@ -640,46 +639,39 @@ class MpiModel(builder.Model):
 
         send_signals = self.send_signals[component]
         recv_signals = self.recv_signals[component]
-
-        # Required for the dependency-graph-creation to work properly.
-        for signal, tag, dst in recv_signals:
-            self.component_ops[component].append(
-                builder.operator.PreserveValue(signal))
-            self
-
-        dg = operator_depencency_graph(self.component_ops[component])
-        step_order = [
-            node for node in toposort(dg) if hasattr(node, 'make_step')]
+        component_ops = self.component_ops[component]
 
         for signal, tag, dst in send_signals:
             mpi_send = MpiSend(dst, tag, signal)
 
             update_indices = filter(
-                lambda i: signal in step_order[i].updates,
-                range(len(step_order)))
+                lambda i: signal in component_ops[i].updates,
+                range(len(component_ops)))
 
             assert len(update_indices) == 1
 
             self.global_ordering[mpi_send] = (
-                self.global_ordering[step_order[update_indices[0]]] + 0.5)
+                self.global_ordering[component_ops[update_indices[0]]] + 0.5)
 
             # Put the send after the op that updates the signal.
-            step_order.insert(update_indices[0]+1, mpi_send)
+            component_ops.insert(update_indices[0]+1, mpi_send)
 
         for signal, tag, src in recv_signals:
             mpi_recv = MpiRecv(src, tag, signal)
 
             read_indices = filter(
-                lambda i: signal in step_order[i].reads,
-                range(len(step_order)))
+                lambda i: signal in component_ops[i].reads,
+                range(len(component_ops)))
 
             self.global_ordering[mpi_recv] = (
-                self.global_ordering[step_order[read_indices[0]]] - 0.5)
+                self.global_ordering[component_ops[read_indices[0]]] - 0.5)
 
             # Put the recv in front of the first op that reads the signal.
-            step_order.insert(read_indices[0], mpi_recv)
+            component_ops.insert(read_indices[0], mpi_recv)
 
-        for op in step_order:
+        op_order = sorted(component_ops, key=self.global_ordering.__getitem__)
+
+        for op in op_order:
             op_type = type(op)
 
             if op_type == builder.node.SimPyFunc:
