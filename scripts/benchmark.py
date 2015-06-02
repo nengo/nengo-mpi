@@ -90,6 +90,9 @@ if mpi_log == 'bench':
         'bench_p{0}_sl{1}_ns{2}.h5'.format(
             args.p, stream_length, n_streams))
 
+if mpi_log:
+    print "Logging simulation results to", mpi_log
+
 sim_time = args.t
 
 progress_bar = not args.noprog
@@ -156,6 +159,8 @@ if use_mpi:
         sim = nengo_mpi.Simulator(
             m, dt=0.001, assignments=assignments, save_file=save_file)
 
+    if save_file:
+        print "Saved network to", save_file
 else:
     sim = nengo.Simulator(m, dt=0.001)
 

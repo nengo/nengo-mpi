@@ -100,16 +100,19 @@ if mpi_log == 'random_graph':
         'random_graph_p{0}_n{1}_q{2}.h5'.format(
             args.p, n_nodes, pct_connections))
 
+if mpi_log:
+    print "Logging simulation results to", mpi_log
+
 sim_time = args.t
 
 progress_bar = not args.noprog
 
 partitioner = args.pfunc
 
-assert n_nodes > 1
-assert pct_connections > 0 and pct_connections < 1
-assert pct_self_loops > 0 and pct_self_loops < 1
-assert pct_probed > 0 and pct_probed < 1
+assert n_nodes > 0
+assert pct_connections >= 0 and pct_connections <= 1
+assert pct_self_loops >= 0 and pct_self_loops <= 1
+assert pct_probed >= 0 and pct_probed <= 1
 assert n_processors >= 1
 assert sim_time > 0
 
@@ -161,6 +164,9 @@ if use_mpi:
 
     sim = nengo_mpi.Simulator(
         m, dt=0.001, partitioner=partitioner, save_file=save_file)
+
+    if save_file:
+        print "Saved network to", save_file
 else:
     sim = nengo.Simulator(m, dt=0.001)
 
