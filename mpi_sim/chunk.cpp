@@ -140,7 +140,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         int ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
         H5Sclose(dspace);
 
-
         // Get the length of the strings (the width variable). The length
         // of all the strings in the dataset is equal to the length of the longest
         // string (have to do this since HDF5 does not support reading variable-length
@@ -157,7 +156,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
         list<OpSpec> component_ops;
         for(int i = 0; i < shape[0]; i++){
-            string op_string(op_buffer.get() + i * width, width);
+            string op_string(op_buffer.get() + i * width);
             component_ops.push_back(OpSpec(op_string));
         }
 
@@ -186,7 +185,8 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         err = H5Dread(probes, memtype, H5S_ALL, H5S_ALL, read_plist, probe_buffer.get());
 
         for(int i = 0; i < shape[0]; i++){
-            string probe_string(probe_buffer.get() + i * width, width);
+            string probe_string(probe_buffer.get() + i * width);
+
             add_probe(ProbeSpec(probe_string));
         }
 
@@ -222,7 +222,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
     err = H5Dread(all_probes, memtype, H5S_ALL, H5S_ALL, read_plist, probe_buffer.get());
 
     for(int i = 0; i < shape[0]; i++){
-        string probe_string(probe_buffer.get() + i * width, width);
+        string probe_string(probe_buffer.get() + i * width);
         probe_info.push_back(ProbeSpec(probe_string));
     }
 
