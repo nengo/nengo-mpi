@@ -3,6 +3,7 @@
 from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
+from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate
 from nengo.synapses import LinearFilter, Lowpass, Alpha
 from nengo.utils.filter_design import cont2discrete
 from nengo.utils.graphs import toposort
@@ -758,12 +759,12 @@ class MpiModel(builder.Model):
                 min_voltage = op.neurons.min_voltage
 
                 voltage_signal = signal_to_string(op.states[0])
-                refactory_time_signal = signal_to_string(op.states[1])
+                ref_time_signal = signal_to_string(op.states[1])
 
                 op_args = [
                     "LIF", n_neurons, tau_rc, tau_ref, min_voltage, self.dt,
                     signal_to_string(op.J), signal_to_string(op.output),
-                    voltage_signal, refactory_time_signal]
+                    voltage_signal, ref_time_signal]
 
             elif neuron_type is LIFRate:
                 tau_ref = op.neurons.tau_ref
@@ -771,6 +772,39 @@ class MpiModel(builder.Model):
                 op_args = [
                     "LIFRate", n_neurons, tau_rc, tau_ref,
                     signal_to_string(op.J), signal_to_string(op.output)]
+
+            elif neuron_type is AdaptiveLIF:
+                tau_n = op.neurons.tau_n
+                inc_n = op.neurons.inc_n
+
+                tau_rc = op.neurons.tau_rc
+                tau_ref = op.neurons.tau_ref
+
+                min_voltage = op.neurons.min_voltage
+
+                voltage_signal = signal_to_string(op.states[0])
+                ref_time_signal = signal_to_string(op.states[1])
+                adaptation = signal_to_string(op.states[2])
+
+                op_args = [
+                    "AdaptiveLIF", n_neurons, tau_n, inc_n, tau_rc, tau_ref,
+                    min_voltage, self.dt, signal_to_string(op.J),
+                    signal_to_string(op.output), voltage_signal,
+                    ref_time_signal, adaptation]
+
+            elif neuron_type is AdaptiveLIFRate:
+                tau_n = op.neurons.tau_n
+                inc_n = op.neurons.inc_n
+
+                tau_rc = op.neurons.tau_rc
+                tau_ref = op.neurons.tau_ref
+
+                adaptation = signal_to_string(op.states[0])
+
+                op_args = [
+                    "AdaptiveLIFRate", n_neurons, tau_n, inc_n,
+                    tau_rc, tau_ref, self.dt, signal_to_string(op.J),
+                    signal_to_string(op.output), adaptation]
 
             elif neuron_type is RectifiedLinear:
                 op_args = [

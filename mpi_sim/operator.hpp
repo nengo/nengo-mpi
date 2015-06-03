@@ -48,9 +48,11 @@ typedef long long int key_type;
 class Operator{
 
 public:
-    string classname() const { return "Operator"; }
+    virtual string classname() const { return "Operator"; }
     virtual void operator() () = 0;
-    virtual string to_string() const = 0;
+    virtual string to_string() const{
+        return classname() + '\n';
+    };
 
     friend ostream& operator << (ostream &out, const Operator &op){
         out << op.to_string();
@@ -62,7 +64,7 @@ class Reset: public Operator{
 
 public:
     Reset(SignalView dst, dtype value);
-    string classname() const { return "Reset"; }
+    virtual string classname() const { return "Reset"; }
 
     void operator()();
     virtual string to_string() const;
@@ -76,7 +78,7 @@ protected:
 class Copy: public Operator{
 public:
     Copy(SignalView dst, SignalView src);
-    string classname() const { return "Copy"; }
+    virtual string classname() const { return "Copy"; }
 
     void operator()();
     virtual string to_string() const;
@@ -90,7 +92,7 @@ protected:
 class DotInc: public Operator{
 public:
     DotInc(SignalView A, SignalView X, SignalView Y);
-    string classname() const { return "DotInc"; }
+    virtual string classname() const { return "DotInc"; }
 
     void operator()();
     virtual string to_string() const;
@@ -105,7 +107,7 @@ protected:
 class ElementwiseInc: public Operator{
 public:
     ElementwiseInc(SignalView A, SignalView X, SignalView Y);
-    string classname() const { return "ElementwiseInc"; }
+    virtual string classname() const { return "ElementwiseInc"; }
 
     void operator()();
     virtual string to_string() const;
@@ -132,7 +134,7 @@ public:
         SignalView input, SignalView output,
         BaseSignal numer, BaseSignal denom);
 
-    string classname() const { return "Synapse"; }
+    virtual string classname() const { return "Synapse"; }
 
     void operator()();
     virtual string to_string() const;
@@ -154,7 +156,7 @@ public:
         int n_neuron, dtype tau_rc, dtype tau_ref, dtype min_voltage,
         dtype dt, SignalView J, SignalView output, SignalView voltage,
         SignalView ref_time);
-    string classname() const { return "SimLIF"; }
+    virtual string classname() const { return "SimLIF"; }
 
     void operator()();
     virtual string to_string() const;
@@ -182,7 +184,7 @@ class SimLIFRate: public Operator{
 
 public:
     SimLIFRate(int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output);
-    string classname() const { return "SimLIFRate"; }
+    virtual string classname() const { return "SimLIFRate"; }
 
     void operator()();
     virtual string to_string() const;
@@ -199,10 +201,45 @@ protected:
     SignalView output;
 };
 
+class SimAdaptiveLIF: public SimLIF{
+public:
+    SimAdaptiveLIF(
+        int n_neuron, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
+        dtype min_voltage, dtype dt, SignalView J, SignalView output, SignalView voltage,
+        SignalView ref_time, SignalView adaptation);
+    virtual string classname() const { return "SimAdaptiveLIF"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    dtype tau_n;
+    dtype inc_n;
+    SignalView adaptation;
+};
+
+class SimAdaptiveLIFRate: public SimLIFRate{
+
+public:
+    SimAdaptiveLIFRate(
+        int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
+        dtype dt, SignalView J, SignalView output, SignalView adaptation);
+    virtual string classname() const { return "SimAdaptiveLIFRate"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    dtype dt;
+    dtype tau_n;
+    dtype inc_n;
+    SignalView adaptation;
+};
+
 class SimRectifiedLinear: public Operator{
 public:
     SimRectifiedLinear(int n_neurons, SignalView J, SignalView output);
-    string classname() const { return "SimRectifiedLinear"; }
+    virtual string classname() const { return "SimRectifiedLinear"; }
 
     void operator()();
     virtual string to_string() const;
@@ -217,7 +254,7 @@ protected:
 class SimSigmoid: public Operator{
 public:
     SimSigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output);
-    string classname() const { return "SimSigmoid"; }
+    virtual string classname() const { return "SimSigmoid"; }
 
     void operator()();
     virtual string to_string() const;

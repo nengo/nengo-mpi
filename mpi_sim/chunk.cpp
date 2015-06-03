@@ -491,9 +491,9 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             add_op(unique_ptr<Operator>(new ElementwiseInc(A, X, Y)));
 
         }else if(type_string.compare("LIF") == 0){
-            int num_neurons = boost::lexical_cast<int>(args[0]);
-            dtype tau_ref = boost::lexical_cast<dtype>(args[1]);
-            dtype tau_rc = boost::lexical_cast<dtype>(args[2]);
+            int n_neurons = boost::lexical_cast<int>(args[0]);
+            dtype tau_rc = boost::lexical_cast<dtype>(args[1]);
+            dtype tau_ref = boost::lexical_cast<dtype>(args[2]);
             dtype min_voltage = boost::lexical_cast<dtype>(args[3]);
             dtype dt = boost::lexical_cast<dtype>(args[4]);
 
@@ -503,35 +503,77 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView ref_time = get_signal_view(args[8]);
 
             add_op(unique_ptr<Operator>(
-                new SimLIF(num_neurons, tau_ref, tau_rc, min_voltage,
+                new SimLIF(n_neurons, tau_rc, tau_ref, min_voltage,
                            dt, J, output, voltage, ref_time)));
 
         }else if(type_string.compare("LIFRate") == 0){
-            int num_neurons = boost::lexical_cast<int>(args[0]);
-            dtype tau_ref = boost::lexical_cast<dtype>(args[1]);
-            dtype tau_rc = boost::lexical_cast<dtype>(args[2]);
+            int n_neurons = boost::lexical_cast<int>(args[0]);
+            dtype tau_rc = boost::lexical_cast<dtype>(args[1]);
+            dtype tau_ref = boost::lexical_cast<dtype>(args[2]);
 
             SignalView J = get_signal_view(args[3]);
             SignalView output = get_signal_view(args[4]);
 
-            add_op(unique_ptr<Operator>(new SimLIFRate(num_neurons, tau_ref, tau_rc, J, output)));
+            add_op(unique_ptr<Operator>(new SimLIFRate(n_neurons, tau_rc, tau_ref, J, output)));
+
+        }else if(type_string.compare("AdaptiveLIF") == 0){
+            int n_neurons = boost::lexical_cast<int>(args[0]);
+
+            dtype tau_n = boost::lexical_cast<dtype>(args[1]);
+            dtype inc_n = boost::lexical_cast<dtype>(args[2]);
+
+            dtype tau_rc = boost::lexical_cast<dtype>(args[3]);
+            dtype tau_ref = boost::lexical_cast<dtype>(args[4]);
+            dtype min_voltage = boost::lexical_cast<dtype>(args[5]);
+            dtype dt = boost::lexical_cast<dtype>(args[6]);
+
+            SignalView J = get_signal_view(args[7]);
+            SignalView output = get_signal_view(args[8]);
+            SignalView voltage = get_signal_view(args[9]);
+            SignalView ref_time = get_signal_view(args[10]);
+            SignalView adaptation = get_signal_view(args[11]);
+
+            add_op(unique_ptr<Operator>(
+                new SimAdaptiveLIF(
+                    n_neurons, tau_n, inc_n, tau_rc, tau_ref,
+                    min_voltage, dt, J, output, voltage, ref_time, adaptation)));
+
+        }else if(type_string.compare("AdaptiveLIFRate") == 0){
+            int n_neurons = boost::lexical_cast<int>(args[0]);
+
+            dtype tau_n = boost::lexical_cast<dtype>(args[1]);
+            dtype inc_n = boost::lexical_cast<dtype>(args[2]);
+
+            dtype tau_rc = boost::lexical_cast<dtype>(args[3]);
+            dtype tau_ref = boost::lexical_cast<dtype>(args[4]);
+
+            dtype dt = boost::lexical_cast<dtype>(args[5]);
+
+            SignalView J = get_signal_view(args[6]);
+            SignalView output = get_signal_view(args[7]);
+            SignalView adaptation = get_signal_view(args[8]);
+
+            add_op(unique_ptr<Operator>(
+                new SimAdaptiveLIFRate(
+                    n_neurons, tau_n, inc_n, tau_rc, tau_ref,
+                    dt, J, output, adaptation)));
 
         }else if(type_string.compare("RectifiedLinear") == 0){
-            int num_neurons = boost::lexical_cast<int>(args[0]);
+            int n_neurons = boost::lexical_cast<int>(args[0]);
 
             SignalView J = get_signal_view(args[1]);
             SignalView output = get_signal_view(args[2]);
 
-            add_op(unique_ptr<Operator>(new SimRectifiedLinear(num_neurons, J, output)));
+            add_op(unique_ptr<Operator>(new SimRectifiedLinear(n_neurons, J, output)));
 
         }else if(type_string.compare("Sigmoid") == 0){
-            int num_neurons = boost::lexical_cast<int>(args[0]);
+            int n_neurons = boost::lexical_cast<int>(args[0]);
             dtype tau_ref = boost::lexical_cast<dtype>(args[1]);
 
             SignalView J = get_signal_view(args[2]);
             SignalView output = get_signal_view(args[3]);
 
-            add_op(unique_ptr<Operator>(new SimSigmoid(num_neurons, tau_ref, J, output)));
+            add_op(unique_ptr<Operator>(new SimSigmoid(n_neurons, tau_ref, J, output)));
 
         }else if(type_string.compare("LinearFilter") == 0){
 
@@ -604,6 +646,12 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
         msg << "Caught bad lexical cast while extracting operator from OpSpec "
                "with error " << e.what() << endl;
         msg << "The operator type was: " << type_string << endl;
+        msg << "The arguments were: " << endl;
+        int i = 0;
+        for(auto& s: args){
+            msg << i << ": " << s << endl;
+            i++;
+        }
 
         throw runtime_error(msg.str());
     }

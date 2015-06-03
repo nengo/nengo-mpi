@@ -65,6 +65,19 @@ SimLIFRate::SimLIFRate(
     one = ScalarSignal(n_neurons, 1, 1.0);
 }
 
+SimAdaptiveLIF::SimAdaptiveLIF(
+    int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
+    dtype min_voltage, dtype dt, SignalView J, SignalView output, SignalView voltage,
+    SignalView ref_time, SignalView adaptation)
+:SimLIF(n_neurons, tau_rc, tau_ref, min_voltage, dt, J, output, voltage, ref_time),
+tau_n(tau_n), inc_n(inc_n), adaptation(adaptation){}
+
+SimAdaptiveLIFRate::SimAdaptiveLIFRate(
+    int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref, dtype dt,
+    SignalView J, SignalView output, SignalView adaptation)
+:SimLIFRate(n_neurons, tau_rc, tau_ref, J, output),
+tau_n(tau_n), inc_n(inc_n), dt(dt), adaptation(adaptation){}
+
 SimRectifiedLinear::SimRectifiedLinear(int n_neurons, SignalView J, SignalView output)
 :n_neurons(n_neurons), J(J), output(output){}
 
@@ -187,6 +200,24 @@ void SimLIFRate::operator() (){
     run_dbg(*this);
 }
 
+void SimAdaptiveLIF::operator() (){
+    J -= adaptation;
+    SimLIF::operator()();
+    J += adaptation;
+    adaptation += (dt / tau_n) * (inc_n * output - adaptation);
+
+    run_dbg(*this);
+}
+
+void SimAdaptiveLIFRate::operator() (){
+    J -= adaptation;
+    SimLIFRate::operator()();
+    J += adaptation;
+    adaptation += (dt / tau_n) * (inc_n * output - adaptation);
+
+    run_dbg(*this);
+}
+
 void SimRectifiedLinear::operator() (){
     dtype j = 0;
     for(unsigned i = 0; i < n_neurons; ++i){
@@ -207,9 +238,9 @@ void SimSigmoid::operator() (){
 
 //to_string
 string Reset::to_string() const {
-    stringstream out;
 
-    out << "Reset:" << endl;
+    stringstream out;
+    out << Operator::to_string();
     out << "dst:" << endl;
     out << dst << endl;
 
@@ -217,9 +248,9 @@ string Reset::to_string() const {
 }
 
 string Copy::to_string() const  {
-    stringstream out;
 
-    out << "Copy:" << endl;
+    stringstream out;
+    out << Operator::to_string();
     out << "dst:" << endl;
     out << dst << endl;
     out << "src:" << endl;
@@ -229,9 +260,9 @@ string Copy::to_string() const  {
 }
 
 string DotInc::to_string() const{
-    stringstream out;
 
-    out << "DotInc:" << endl;
+    stringstream out;
+    out << Operator::to_string();
     out << "A:" << endl;
     out << A << endl;
     out << "X:" << endl;
@@ -243,9 +274,9 @@ string DotInc::to_string() const{
 }
 
 string ElementwiseInc::to_string() const{
-    stringstream out;
 
-    out << "ElementwiseInc:" << endl;
+    stringstream out;
+    out << Operator::to_string();
     out << "A:" << endl;
     out << A << endl;
     out << "X:" << endl;
@@ -264,10 +295,9 @@ string ElementwiseInc::to_string() const{
 }
 
 string Synapse::to_string() const{
+
     stringstream out;
-
-    out << "Synapse:" << endl;
-
+    out << Operator::to_string();
     out << "input:" << endl;
     out << input << endl;
     out << "output:" << endl;
@@ -300,18 +330,19 @@ string Synapse::to_string() const{
 }
 
 string SimLIF::to_string() const{
+
     stringstream out;
 
-    out << "SimLIF:" << endl;
+    out << Operator::to_string();
     out << "J:" << endl;
     out << J << endl;
     out << "output:" << endl;
     out << output << endl;
     out << "voltage:" << endl;
-    out << voltage << endl << endl;
+    out << voltage << endl;
     out << "refractory_time:" << endl;
     out << ref_time << endl;
-    out << "n_neurons: " << n_neurons;
+    out << "n_neurons: " << n_neurons << endl;;
     out << "tau_rc: " << tau_rc << endl;
     out << "tau_ref: " << tau_ref << endl;
     out << "min_voltage: " << min_voltage << endl;
@@ -320,24 +351,47 @@ string SimLIF::to_string() const{
 }
 
 string SimLIFRate::to_string() const{
-    stringstream out;
 
-    out << "SimLIFRate:" << endl;
+    stringstream out;
+    out << Operator::to_string();
     out << "J:" << endl;
     out << J << endl;
     out << "output:" << endl;
     out << output << endl;
-    out << "n_neurons: " << n_neurons;
+    out << "n_neurons: " << n_neurons << endl;
     out << "tau_rc: " << tau_rc << endl;
     out << "tau_ref: " << tau_ref << endl;
 
     return out.str();
 }
 
-string SimRectifiedLinear::to_string() const{
-    stringstream out;
+string SimAdaptiveLIF::to_string() const{
 
-    out << "SimRectifiedLinear:" << endl;
+    stringstream out;
+    out << SimLIF::to_string();
+    out << "tau_n: " << tau_n << endl;
+    out << "inc_n: " << inc_n << endl;
+    out << "adaptation: " << adaptation << endl;
+
+    return out.str();
+}
+
+string SimAdaptiveLIFRate::to_string() const{
+
+    stringstream out;
+    out << SimLIFRate::to_string();
+    out << "tau_n: " << tau_n << endl;
+    out << "inc_n: " << inc_n << endl;
+    out << "dt: " << dt << endl;
+    out << "adaptation: " << adaptation << endl;
+
+    return out.str();
+}
+
+string SimRectifiedLinear::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
     out << "n_neurons: " << n_neurons << endl;
     out << "J:" << endl;
     out << J << endl;
@@ -348,9 +402,9 @@ string SimRectifiedLinear::to_string() const{
 }
 
 string SimSigmoid::to_string() const{
-    stringstream out;
 
-    out << "SimSigmoid:" << endl;
+    stringstream out;
+    out << Operator::to_string();
     out << "n_neurons: " << n_neurons << endl;
     out << "tau_ref: " << tau_ref << endl;
     out << "J:" << endl;
