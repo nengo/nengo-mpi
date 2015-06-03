@@ -749,31 +749,37 @@ class MpiModel(builder.Model):
                 signal_to_string(op.X), signal_to_string(op.Y)]
 
         elif op_type == builder.neurons.SimNeurons:
-            num_neurons = op.J.size
+            n_neurons = op.J.size
             neuron_type = type(op.neurons)
 
             if neuron_type is LIF:
                 tau_ref = op.neurons.tau_ref
                 tau_rc = op.neurons.tau_rc
+                min_voltage = op.neurons.min_voltage
+
+                voltage_signal = signal_to_string(op.states[0])
+                refactory_time_signal = signal_to_string(op.states[1])
+
                 op_args = [
-                    "LIF", num_neurons, tau_rc, tau_ref, self.dt,
-                    signal_to_string(op.J), signal_to_string(op.output)]
+                    "LIF", n_neurons, tau_rc, tau_ref, min_voltage, self.dt,
+                    signal_to_string(op.J), signal_to_string(op.output),
+                    voltage_signal, refactory_time_signal]
 
             elif neuron_type is LIFRate:
                 tau_ref = op.neurons.tau_ref
                 tau_rc = op.neurons.tau_rc
                 op_args = [
-                    "LIFRate", num_neurons, tau_rc, tau_ref,
+                    "LIFRate", n_neurons, tau_rc, tau_ref,
                     signal_to_string(op.J), signal_to_string(op.output)]
 
             elif neuron_type is RectifiedLinear:
                 op_args = [
-                    "RectifiedLinear", num_neurons, signal_to_string(op.J),
+                    "RectifiedLinear", n_neurons, signal_to_string(op.J),
                     signal_to_string(op.output)]
 
             elif neuron_type is Sigmoid:
                 op_args = [
-                    "Sigmoid", num_neurons, op.neurons.tau_ref,
+                    "Sigmoid", n_neurons, op.neurons.tau_ref,
                     signal_to_string(op.J), signal_to_string(op.output)]
             else:
                 raise NotImplementedError(

@@ -494,12 +494,17 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             int num_neurons = boost::lexical_cast<int>(args[0]);
             dtype tau_ref = boost::lexical_cast<dtype>(args[1]);
             dtype tau_rc = boost::lexical_cast<dtype>(args[2]);
-            dtype dt = boost::lexical_cast<dtype>(args[3]);
+            dtype min_voltage = boost::lexical_cast<dtype>(args[3]);
+            dtype dt = boost::lexical_cast<dtype>(args[4]);
 
-            SignalView J = get_signal_view(args[4]);
-            SignalView output = get_signal_view(args[5]);
+            SignalView J = get_signal_view(args[5]);
+            SignalView output = get_signal_view(args[6]);
+            SignalView voltage = get_signal_view(args[7]);
+            SignalView ref_time = get_signal_view(args[8]);
 
-            add_op(unique_ptr<Operator>(new SimLIF(num_neurons, tau_ref, tau_rc, dt, J, output)));
+            add_op(unique_ptr<Operator>(
+                new SimLIF(num_neurons, tau_ref, tau_rc, min_voltage,
+                           dt, J, output, voltage, ref_time)));
 
         }else if(type_string.compare("LIFRate") == 0){
             int num_neurons = boost::lexical_cast<int>(args[0]);

@@ -150,7 +150,10 @@ protected:
 
 class SimLIF: public Operator{
 public:
-    SimLIF(int n_neuron, dtype tau_rc, dtype tau_ref, dtype dt, SignalView J, SignalView output);
+    SimLIF(
+        int n_neuron, dtype tau_rc, dtype tau_ref, dtype min_voltage,
+        dtype dt, SignalView J, SignalView output, SignalView voltage,
+        SignalView ref_time);
     string classname() const { return "SimLIF"; }
 
     void operator()();
@@ -161,13 +164,13 @@ protected:
     dtype dt_inv;
     dtype tau_rc;
     dtype tau_ref;
+    dtype min_voltage;
     int n_neurons;
 
     SignalView J;
     SignalView output;
-
-    BaseSignal voltage;
-    BaseSignal refractory_time;
+    SignalView voltage;
+    SignalView ref_time;
 
     ScalarSignal dt_vec;
     ScalarSignal one;

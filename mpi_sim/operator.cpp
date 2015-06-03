@@ -46,13 +46,13 @@ Synapse::Synapse(
 }
 
 SimLIF::SimLIF(
-    int n_neurons, dtype tau_rc, dtype tau_ref,
-    dtype dt, SignalView J, SignalView output)
+    int n_neurons, dtype tau_rc, dtype tau_ref, dtype min_voltage,
+    dtype dt, SignalView J, SignalView output, SignalView voltage,
+    SignalView ref_time)
 :n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref),
-dt_inv(1.0 / dt), J(J), output(output){
+min_voltage(min_voltage), dt_inv(1.0 / dt), J(J), output(output),
+voltage(voltage), ref_time(ref_time){
 
-    voltage = BaseSignal(n_neurons, 1, 0.0);
-    refractory_time = BaseSignal(n_neurons, 1, 0.0);
     one = ScalarSignal(n_neurons, 1, 1.0);
     dt_vec = ScalarSignal(n_neurons, 1, dt);
 }
@@ -142,12 +142,12 @@ void SimLIF::operator() (){
     dV = -expm1(-dt / tau_rc) * (J - voltage);
     voltage += dV;
     for(unsigned i = 0; i < n_neurons; ++i){
-        voltage(i, 0) = voltage(i, 0) < 0 ? 0.0 : voltage(i, 0);
+        voltage(i, 0) = voltage(i, 0) < min_voltage ? min_voltage : voltage(i, 0);
     }
 
-    refractory_time -= dt_vec;
+    ref_time -= dt_vec;
 
-    mult = (one - refractory_time * dt_inv);
+    mult = (one - ref_time * dt_inv);
 
     for(unsigned i = 0; i < n_neurons; ++i){
         mult(i, 0) = mult(i, 0) > 1 ? 1.0 : mult(i, 0);
@@ -160,7 +160,7 @@ void SimLIF::operator() (){
         if (voltage(i, 0) > 1.0){
             output(i, 0) = dt_inv;
             overshoot = (voltage(i, 0) - 1.0) / dV(i, 0);
-            refractory_time(i, 0) = tau_ref + dt * (1.0 - overshoot);
+            ref_time(i, 0) = tau_ref + dt * (1.0 - overshoot);
             voltage(i, 0) = 0.0;
         }
         else
@@ -310,7 +310,11 @@ string SimLIF::to_string() const{
     out << "voltage:" << endl;
     out << voltage << endl << endl;
     out << "refractory_time:" << endl;
-    out << refractory_time << endl;
+    out << ref_time << endl;
+    out << "n_neurons: " << n_neurons;
+    out << "tau_rc: " << tau_rc << endl;
+    out << "tau_ref: " << tau_ref << endl;
+    out << "min_voltage: " << min_voltage << endl;
 
     return out.str();
 }
@@ -323,6 +327,9 @@ string SimLIFRate::to_string() const{
     out << J << endl;
     out << "output:" << endl;
     out << output << endl;
+    out << "n_neurons: " << n_neurons;
+    out << "tau_rc: " << tau_rc << endl;
+    out << "tau_ref: " << tau_ref << endl;
 
     return out.str();
 }
