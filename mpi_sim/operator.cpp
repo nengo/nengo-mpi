@@ -53,7 +53,7 @@ Synapse::Synapse(
     }
 }
 
-SimLIF::SimLIF(
+LIF::LIF(
     int n_neurons, dtype tau_rc, dtype tau_ref, dtype min_voltage,
     dtype dt, SignalView J, SignalView output, SignalView voltage,
     SignalView ref_time)
@@ -65,30 +65,30 @@ voltage(voltage), ref_time(ref_time){
     dt_vec = ScalarSignal(n_neurons, 1, dt);
 }
 
-SimLIFRate::SimLIFRate(
+LIFRate::LIFRate(
     int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output)
 :n_neurons(n_neurons), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){}
 
-SimAdaptiveLIF::SimAdaptiveLIF(
+AdaptiveLIF::AdaptiveLIF(
     int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
     dtype min_voltage, dtype dt, SignalView J, SignalView output, SignalView voltage,
     SignalView ref_time, SignalView adaptation)
-:SimLIF(n_neurons, tau_rc, tau_ref, min_voltage, dt, J, output, voltage, ref_time),
+:LIF(n_neurons, tau_rc, tau_ref, min_voltage, dt, J, output, voltage, ref_time),
 tau_n(tau_n), inc_n(inc_n), adaptation(adaptation){}
 
-SimAdaptiveLIFRate::SimAdaptiveLIFRate(
+AdaptiveLIFRate::AdaptiveLIFRate(
     int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref, dtype dt,
     SignalView J, SignalView output, SignalView adaptation)
-:SimLIFRate(n_neurons, tau_rc, tau_ref, J, output),
+:LIFRate(n_neurons, tau_rc, tau_ref, J, output),
 tau_n(tau_n), inc_n(inc_n), dt(dt), adaptation(adaptation){}
 
-SimRectifiedLinear::SimRectifiedLinear(int n_neurons, SignalView J, SignalView output)
+RectifiedLinear::RectifiedLinear(int n_neurons, SignalView J, SignalView output)
 :n_neurons(n_neurons), J(J), output(output){}
 
-SimSigmoid::SimSigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output)
+Sigmoid::Sigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output)
 :n_neurons(n_neurons), tau_ref(tau_ref), tau_ref_inv(1.0 / tau_ref), J(J), output(output){}
 
-SimIzhikevich::SimIzhikevich(
+Izhikevich::Izhikevich(
     int n_neurons, dtype tau_recovery, dtype coupling, dtype reset_voltage,
     dtype reset_recovery, dtype dt, SignalView J, SignalView output,
     SignalView voltage, SignalView recovery)
@@ -175,7 +175,7 @@ void Synapse::operator() (){
     run_dbg(*this);
 }
 
-void SimLIF::operator() (){
+void LIF::operator() (){
     dV = -expm1(-dt / tau_rc) * (J - voltage);
     voltage += dV;
     for(unsigned i = 0; i < n_neurons; ++i){
@@ -211,7 +211,7 @@ void SimLIF::operator() (){
     run_dbg(*this);
 }
 
-void SimLIFRate::operator() (){
+void LIFRate::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         if(J(i, 0) > 1.0){
             output(i, 0) = 1.0 / (tau_ref + tau_rc * log1p(1.0 / (J(i, 0) - 1.0)));
@@ -223,10 +223,10 @@ void SimLIFRate::operator() (){
     run_dbg(*this);
 }
 
-void SimAdaptiveLIF::operator() (){
+void AdaptiveLIF::operator() (){
     temp = J;
     J -= adaptation;
-    SimLIF::operator()();
+    LIF::operator()();
     J = temp;
 
     adaptation += (dt / tau_n) * (inc_n * output - adaptation);
@@ -234,10 +234,10 @@ void SimAdaptiveLIF::operator() (){
     run_dbg(*this);
 }
 
-void SimAdaptiveLIFRate::operator() (){
+void AdaptiveLIFRate::operator() (){
     temp = J;
     J -= adaptation;
-    SimLIFRate::operator()();
+    LIFRate::operator()();
     J = temp;
 
     adaptation += (dt / tau_n) * (inc_n * output - adaptation);
@@ -245,7 +245,7 @@ void SimAdaptiveLIFRate::operator() (){
     run_dbg(*this);
 }
 
-void SimRectifiedLinear::operator() (){
+void RectifiedLinear::operator() (){
     dtype j = 0;
     for(unsigned i = 0; i < n_neurons; ++i){
         j = J(i, 0);
@@ -255,7 +255,7 @@ void SimRectifiedLinear::operator() (){
     run_dbg(*this);
 }
 
-void SimSigmoid::operator() (){
+void Sigmoid::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         output(i, 0) = tau_ref_inv / (1.0 + exp(-J(i, 0)));
     }
@@ -263,7 +263,7 @@ void SimSigmoid::operator() (){
     run_dbg(*this);
 }
 
-void SimIzhikevich::operator() (){
+void Izhikevich::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         J(i, 0) = J(i, 0) > -30 ? J(i, 0) : -30;
     }
@@ -419,7 +419,7 @@ string Synapse::to_string() const{
     return out.str();
 }
 
-string SimLIF::to_string() const{
+string LIF::to_string() const{
 
     stringstream out;
 
@@ -440,7 +440,7 @@ string SimLIF::to_string() const{
     return out.str();
 }
 
-string SimLIFRate::to_string() const{
+string LIFRate::to_string() const{
 
     stringstream out;
     out << Operator::to_string();
@@ -455,10 +455,10 @@ string SimLIFRate::to_string() const{
     return out.str();
 }
 
-string SimAdaptiveLIF::to_string() const{
+string AdaptiveLIF::to_string() const{
 
     stringstream out;
-    out << SimLIF::to_string();
+    out << LIF::to_string();
     out << "tau_n: " << tau_n << endl;
     out << "inc_n: " << inc_n << endl;
     out << "adaptation: " << adaptation << endl;
@@ -466,10 +466,10 @@ string SimAdaptiveLIF::to_string() const{
     return out.str();
 }
 
-string SimAdaptiveLIFRate::to_string() const{
+string AdaptiveLIFRate::to_string() const{
 
     stringstream out;
-    out << SimLIFRate::to_string();
+    out << LIFRate::to_string();
     out << "tau_n: " << tau_n << endl;
     out << "inc_n: " << inc_n << endl;
     out << "dt: " << dt << endl;
@@ -478,7 +478,7 @@ string SimAdaptiveLIFRate::to_string() const{
     return out.str();
 }
 
-string SimRectifiedLinear::to_string() const{
+string RectifiedLinear::to_string() const{
 
     stringstream out;
     out << Operator::to_string();
@@ -491,7 +491,7 @@ string SimRectifiedLinear::to_string() const{
     return out.str();
 }
 
-string SimSigmoid::to_string() const{
+string Sigmoid::to_string() const{
 
     stringstream out;
     out << Operator::to_string();
@@ -505,7 +505,7 @@ string SimSigmoid::to_string() const{
     return out.str();
 }
 
-string SimIzhikevich::to_string() const{
+string Izhikevich::to_string() const{
 
     stringstream out;
     out << Operator::to_string();

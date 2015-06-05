@@ -185,13 +185,13 @@ protected:
     vector< boost::circular_buffer<dtype> > y;
 };
 
-class SimLIF: public Operator{
+class LIF: public Operator{
 public:
-    SimLIF(
+    LIF(
         int n_neuron, dtype tau_rc, dtype tau_ref, dtype min_voltage,
         dtype dt, SignalView J, SignalView output, SignalView voltage,
         SignalView ref_time);
-    virtual string classname() const { return "SimLIF"; }
+    virtual string classname() const { return "LIF"; }
 
     void operator()();
     virtual string to_string() const;
@@ -215,10 +215,10 @@ protected:
     BaseSignal dV;
 };
 
-class SimLIFRate: public Operator{
+class LIFRate: public Operator{
 public:
-    SimLIFRate(int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output);
-    virtual string classname() const { return "SimLIFRate"; }
+    LIFRate(int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output);
+    virtual string classname() const { return "LIFRate"; }
 
     void operator()();
     virtual string to_string() const;
@@ -232,13 +232,13 @@ protected:
     SignalView output;
 };
 
-class SimAdaptiveLIF: public SimLIF{
+class AdaptiveLIF: public LIF{
 public:
-    SimAdaptiveLIF(
+    AdaptiveLIF(
         int n_neuron, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
         dtype min_voltage, dtype dt, SignalView J, SignalView output, SignalView voltage,
         SignalView ref_time, SignalView adaptation);
-    virtual string classname() const { return "SimAdaptiveLIF"; }
+    virtual string classname() const { return "AdaptiveLIF"; }
 
     void operator()();
     virtual string to_string() const;
@@ -250,13 +250,13 @@ protected:
     BaseSignal temp;
 };
 
-class SimAdaptiveLIFRate: public SimLIFRate{
+class AdaptiveLIFRate: public LIFRate{
 
 public:
-    SimAdaptiveLIFRate(
+    AdaptiveLIFRate(
         int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
         dtype dt, SignalView J, SignalView output, SignalView adaptation);
-    virtual string classname() const { return "SimAdaptiveLIFRate"; }
+    virtual string classname() const { return "AdaptiveLIFRate"; }
 
     void operator()();
     virtual string to_string() const;
@@ -269,10 +269,10 @@ protected:
     BaseSignal temp;
 };
 
-class SimRectifiedLinear: public Operator{
+class RectifiedLinear: public Operator{
 public:
-    SimRectifiedLinear(int n_neurons, SignalView J, SignalView output);
-    virtual string classname() const { return "SimRectifiedLinear"; }
+    RectifiedLinear(int n_neurons, SignalView J, SignalView output);
+    virtual string classname() const { return "RectifiedLinear"; }
 
     void operator()();
     virtual string to_string() const;
@@ -284,10 +284,10 @@ protected:
     SignalView output;
 };
 
-class SimSigmoid: public Operator{
+class Sigmoid: public Operator{
 public:
-    SimSigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output);
-    virtual string classname() const { return "SimSigmoid"; }
+    Sigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output);
+    virtual string classname() const { return "Sigmoid"; }
 
     void operator()();
     virtual string to_string() const;
@@ -301,14 +301,14 @@ protected:
     SignalView output;
 };
 
-class SimIzhikevich: public Operator{
+class Izhikevich: public Operator{
 public:
-    SimIzhikevich(
+    Izhikevich(
         int n_neurons, dtype tau_recovery, dtype coupling,
         dtype reset_voltage, dtype reset_recovery, dtype dt,
         SignalView J, SignalView output, SignalView voltage,
         SignalView recovery);
-    virtual string classname() const { return "SimIzhikevich"; }
+    virtual string classname() const { return "Izhikevich"; }
 
     void operator()();
     virtual string to_string() const;

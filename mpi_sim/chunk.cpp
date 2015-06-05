@@ -503,7 +503,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView ref_time = get_signal_view(args[8]);
 
             add_op(unique_ptr<Operator>(
-                new SimLIF(n_neurons, tau_rc, tau_ref, min_voltage,
+                new LIF(n_neurons, tau_rc, tau_ref, min_voltage,
                            dt, J, output, voltage, ref_time)));
 
         }else if(type_string.compare("LIFRate") == 0){
@@ -514,7 +514,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView J = get_signal_view(args[3]);
             SignalView output = get_signal_view(args[4]);
 
-            add_op(unique_ptr<Operator>(new SimLIFRate(n_neurons, tau_rc, tau_ref, J, output)));
+            add_op(unique_ptr<Operator>(new LIFRate(n_neurons, tau_rc, tau_ref, J, output)));
 
         }else if(type_string.compare("AdaptiveLIF") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);
@@ -534,7 +534,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView adaptation = get_signal_view(args[11]);
 
             add_op(unique_ptr<Operator>(
-                new SimAdaptiveLIF(
+                new AdaptiveLIF(
                     n_neurons, tau_n, inc_n, tau_rc, tau_ref,
                     min_voltage, dt, J, output, voltage, ref_time,
                     adaptation)));
@@ -555,7 +555,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView adaptation = get_signal_view(args[8]);
 
             add_op(unique_ptr<Operator>(
-                new SimAdaptiveLIFRate(
+                new AdaptiveLIFRate(
                     n_neurons, tau_n, inc_n, tau_rc, tau_ref,
                     dt, J, output, adaptation)));
 
@@ -565,7 +565,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView J = get_signal_view(args[1]);
             SignalView output = get_signal_view(args[2]);
 
-            add_op(unique_ptr<Operator>(new SimRectifiedLinear(n_neurons, J, output)));
+            add_op(unique_ptr<Operator>(new RectifiedLinear(n_neurons, J, output)));
 
         }else if(type_string.compare("Sigmoid") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);
@@ -574,7 +574,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView J = get_signal_view(args[2]);
             SignalView output = get_signal_view(args[3]);
 
-            add_op(unique_ptr<Operator>(new SimSigmoid(n_neurons, tau_ref, J, output)));
+            add_op(unique_ptr<Operator>(new Sigmoid(n_neurons, tau_ref, J, output)));
 
         }else if(type_string.compare("Izhikevich") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);
@@ -591,7 +591,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView recovery = get_signal_view(args[9]);
 
             add_op(unique_ptr<Operator>(
-                new SimIzhikevich(
+                new Izhikevich(
                     n_neurons, tau_recovery, coupling, reset_voltage,
                     reset_recovery, dt, J, output, voltage, recovery)));
 
