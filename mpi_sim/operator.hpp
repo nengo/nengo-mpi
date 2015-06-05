@@ -268,6 +268,39 @@ protected:
     SignalView output;
 };
 
+class SimIzhikevich: public Operator{
+public:
+    SimIzhikevich(
+        int n_neurons, dtype tau_recovery, dtype coupling,
+        dtype reset_voltage, dtype reset_recovery, dtype dt,
+        SignalView J, SignalView output, SignalView voltage,
+        SignalView recovery);
+    virtual string classname() const { return "SimIzhikevich"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    int n_neurons;
+    dtype tau_recovery;
+    dtype coupling;
+    dtype reset_voltage;
+    dtype reset_recovery;
+    dtype dt;
+    dtype dt_inv;
+
+    SignalView J;
+    SignalView output;
+    SignalView voltage;
+    SignalView recovery;
+
+    BaseSignal dV;
+    BaseSignal dU;
+    BaseSignal voltage_squared;
+    ScalarSignal bias;
+};
+
+
 /* Helper function to extract a BaseSignal from a string. Assumes
  * the data for the BaseSignal is encoded in the string as a python list. */
 unique_ptr<BaseSignal> extract_float_list(string s);

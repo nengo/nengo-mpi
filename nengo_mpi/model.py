@@ -3,7 +3,7 @@
 from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
-from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate
+from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
 from nengo.synapses import LinearFilter, Lowpass, Alpha
 from nengo.utils.filter_design import cont2discrete
 from nengo.utils.graphs import toposort
@@ -815,6 +815,22 @@ class MpiModel(builder.Model):
                 op_args = [
                     "Sigmoid", n_neurons, op.neurons.tau_ref,
                     signal_to_string(op.J), signal_to_string(op.output)]
+
+            elif neuron_type is Izhikevich:
+                tau_recovery = op.neurons.tau_recovery
+                coupling = op.neurons.coupling
+                reset_voltage = op.neurons.reset_voltage
+                reset_recovery = op.neurons.reset_recovery
+
+                voltage = signal_to_string(op.states[0])
+                recovery = signal_to_string(op.states[1])
+
+                op_args = [
+                    "Izhikevich", n_neurons, tau_recovery, coupling,
+                    reset_voltage, reset_recovery, self.dt,
+                    signal_to_string(op.J), signal_to_string(op.output),
+                    voltage, recovery]
+
             else:
                 raise NotImplementedError(
                     'nengo_mpi cannot handle neurons of type ' +

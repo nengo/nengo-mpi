@@ -84,6 +84,17 @@ SimRectifiedLinear::SimRectifiedLinear(int n_neurons, SignalView J, SignalView o
 SimSigmoid::SimSigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output)
 :n_neurons(n_neurons), tau_ref(tau_ref), tau_ref_inv(1.0 / tau_ref), J(J), output(output){}
 
+SimIzhikevich::SimIzhikevich(
+    int n_neurons, dtype tau_recovery, dtype coupling, dtype reset_voltage,
+    dtype reset_recovery, dtype dt, SignalView J, SignalView output,
+    SignalView voltage, SignalView recovery)
+:n_neurons(n_neurons), tau_recovery(tau_recovery), coupling(coupling),
+reset_voltage(reset_voltage), reset_recovery(reset_recovery), dt(dt), dt_inv(1.0/dt),
+J(J), output(output), voltage(voltage), recovery(recovery){
+
+    bias = ScalarSignal(n_neurons, 1, 140);
+}
+
 // Function operator overloads
 void Reset::operator() (){
 
@@ -160,7 +171,7 @@ void SimLIF::operator() (){
 
     ref_time -= dt_vec;
 
-    mult = (one - ref_time * dt_inv);
+    mult = one - ref_time * dt_inv;
 
     for(unsigned i = 0; i < n_neurons; ++i){
         mult(i, 0) = mult(i, 0) > 1 ? 1.0 : mult(i, 0);
@@ -170,7 +181,7 @@ void SimLIF::operator() (){
     dtype overshoot;
     for(unsigned i = 0; i < n_neurons; ++i){
         voltage(i, 0) *= mult(i, 0);
-        if (voltage(i, 0) > 1.0){
+        if(voltage(i, 0) > 1.0){
             output(i, 0) = dt_inv;
             overshoot = (voltage(i, 0) - 1.0) / dV(i, 0);
             ref_time(i, 0) = tau_ref + dt * (1.0 - overshoot);
@@ -231,6 +242,44 @@ void SimRectifiedLinear::operator() (){
 void SimSigmoid::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         output(i, 0) = tau_ref_inv / (1.0 + exp(-J(i, 0)));
+    }
+
+    run_dbg(*this);
+}
+
+void SimIzhikevich::operator() (){
+    for(unsigned i = 0; i < n_neurons; ++i){
+        J(i, 0) = J(i, 0) > -30 ? J(i, 0) : -30;
+    }
+
+    voltage_squared = element_prod(voltage, voltage);
+    voltage_squared *= 0.04;
+
+    dV = voltage;
+    dV *= 5;
+    dV += voltage_squared + bias + J - recovery;
+    dV *= 1000 * dt;
+    voltage += dV;
+
+    for(unsigned i = 0; i < n_neurons; ++i){
+        if(voltage(i, 0) >= 30){
+            output(i, 0) = dt_inv;
+            voltage(i, 0) = reset_voltage;
+        }else{
+            output(i, 0) = 0.0;
+        }
+    }
+
+    dU = voltage;
+    dU *= coupling;
+    dU -= recovery;
+    dU *= tau_recovery * 1000 * dt;
+    recovery += dU;
+
+    for(unsigned i = 0; i < n_neurons; ++i){
+        if(output(i, 0) > 0){
+            recovery(i, 0) += reset_recovery;
+        }
     }
 
     run_dbg(*this);
@@ -411,6 +460,29 @@ string SimSigmoid::to_string() const{
     out << J << endl;
     out << "output:" << endl;
     out << output << endl;
+
+    return out.str();
+}
+
+string SimIzhikevich::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "n_neurons: " << n_neurons << endl;
+    out << "tau_recovery: " << tau_recovery << endl;
+    out << "coupling: " << coupling << endl;
+    out << "reset_voltage: " << reset_voltage << endl;
+    out << "reset_recovery: " << reset_recovery << endl;
+    out << "dt: " << dt << endl;
+
+    out << "J:" << endl;
+    out << J << endl;
+    out << "output:" << endl;
+    out << output << endl;
+    out << "voltage:" << endl;
+    out << voltage << endl;
+    out << "recovery:" << endl;
+    out << recovery << endl;
 
     return out.str();
 }

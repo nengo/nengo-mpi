@@ -575,6 +575,25 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
             add_op(unique_ptr<Operator>(new SimSigmoid(n_neurons, tau_ref, J, output)));
 
+        }else if(type_string.compare("Izhikevich") == 0){
+            int n_neurons = boost::lexical_cast<int>(args[0]);
+
+            dtype tau_recovery = boost::lexical_cast<dtype>(args[1]);
+            dtype coupling = boost::lexical_cast<dtype>(args[2]);
+            dtype reset_voltage = boost::lexical_cast<dtype>(args[3]);
+            dtype reset_recovery = boost::lexical_cast<dtype>(args[4]);
+            dtype dt = boost::lexical_cast<dtype>(args[5]);
+
+            SignalView J = get_signal_view(args[6]);
+            SignalView output = get_signal_view(args[7]);
+            SignalView voltage = get_signal_view(args[8]);
+            SignalView recovery = get_signal_view(args[9]);
+
+            add_op(unique_ptr<Operator>(
+                new SimIzhikevich(
+                    n_neurons, tau_recovery, coupling, reset_voltage,
+                    reset_recovery, dt, J, output, voltage, recovery)));
+
         }else if(type_string.compare("LinearFilter") == 0){
 
             SignalView input = get_signal_view(args[0]);
