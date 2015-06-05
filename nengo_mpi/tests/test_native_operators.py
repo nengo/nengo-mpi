@@ -1,8 +1,9 @@
 #import pytest
 
+import nengo_mpi
 from nengo_mpi.model import MpiModel
-from nengo_mpi.simulator import Simulator
 
+import nengo
 from nengo.builder.signal import Signal
 from nengo.builder.operator import DotInc, ElementwiseInc, Reset, Copy
 from nengo.builder.node import SimPyFunc
@@ -10,7 +11,7 @@ from nengo.builder.neurons import SimNeurons
 from nengo.builder.synapses import SimSynapse
 
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
-# from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
+from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
 
 from nengo.synapses import Lowpass  # , LinearFilter, Alpha
 
@@ -19,6 +20,8 @@ import nengo.utils.numpy as npext
 
 import numpy as np
 from collections import defaultdict
+
+import pytest
 
 
 def Mpi2Simulator(*args, **kwargs):
@@ -33,7 +36,8 @@ def pytest_funcarg__Simulator(request):
 def pytest_generate_tests(metafunc):
     if "neuron_type" in metafunc.funcargnames:
         metafunc.parametrize(
-            "neuron_type", [LIFRate, Sigmoid, RectifiedLinear])
+            "neuron_type",
+            [LIFRate, Sigmoid, RectifiedLinear, AdaptiveLIFRate])
 
 
 class SignalProbe(object):
@@ -46,7 +50,7 @@ class SignalProbe(object):
         return self._signal
 
 
-class TestSimulator(Simulator):
+class TestSimulator(nengo_mpi.Simulator):
     """
     Simulator for testing C++ operators.
 
@@ -233,9 +237,6 @@ def test_lif(Simulator):
     math_rates = lif.rates(
         input, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
 
-    print sim_rates
-    print math_rates
-
     assert np.allclose(np.squeeze(sim_rates), math_rates, atol=1, rtol=0.02)
 
 
@@ -265,11 +266,52 @@ def test_neurons(Simulator, neuron_type):
     math_rates = neurons.rates(
         input, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
 
-    print sim_rates
-    print math_rates
-
     assert np.allclose(
         np.squeeze(sim_rates), math_rates, atol=0.0001, rtol=0.02)
+
+all_neurons = [
+    LIF, LIFRate, RectifiedLinear, Sigmoid,
+    AdaptiveLIF, AdaptiveLIFRate, Izhikevich]
+
+
+@pytest.mark.parametrize("nrn", all_neurons)
+def test_exact_match(nrn):
+    n_neurons = 40
+
+    sequence = np.random.random((1000, 3))
+
+    def f(t):
+        val = sequence[int(t * 1000)]
+        return val
+
+    m = nengo.Network(seed=1)
+    with m:
+        A = nengo.Ensemble(
+            n_neurons, dimensions=3, neuron_type=nrn())
+
+        B = nengo.Ensemble(
+            n_neurons, dimensions=3, neuron_type=nrn())
+
+        nengo.Connection(A, B, synapse=0.05)
+
+        A_p = nengo.Probe(A)
+        B_p = nengo.Probe(B)
+
+        input = nengo.Node(f)
+        nengo.Connection(input, A, synapse=0.05)
+
+    sim_time = 0.2
+
+    refimpl_sim = nengo.Simulator(m)
+    refimpl_sim.run(sim_time)
+
+    mpi_sim = nengo_mpi.Simulator(m)
+    mpi_sim.run(sim_time)
+
+    assert np.allclose(
+        refimpl_sim.data[A_p], mpi_sim.data[A_p], atol=0.00001, rtol=0.00)
+    assert np.allclose(
+        refimpl_sim.data[B_p], mpi_sim.data[B_p], atol=0.00001, rtol=0.00)
 
 
 def test_filter(Simulator):
@@ -294,8 +336,6 @@ def test_filter(Simulator):
 
     sim = Simulator([synapse, input_func], probes)
     sim.run(0.2)
-
-    print sim.data[probes[0]]
 
 
 def test_element_wise_inc(Simulator):
