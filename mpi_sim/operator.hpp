@@ -127,6 +127,41 @@ protected:
     int X_col_stride;
 };
 
+class NoDenSynapse: public Operator{
+
+public:
+    NoDenSynapse(SignalView input, SignalView output, dtype b);
+
+    virtual string classname() const { return "NoDenSynapse"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    SignalView input;
+    SignalView output;
+
+    dtype b;
+};
+
+class SimpleSynapse: public Operator{
+
+public:
+    SimpleSynapse(SignalView input, SignalView output, dtype a, dtype b);
+
+    virtual string classname() const { return "SimpleSynapse"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    SignalView input;
+    SignalView output;
+
+    dtype a;
+    dtype b;
+};
+
 class Synapse: public Operator{
 
 public:
@@ -181,7 +216,6 @@ protected:
 };
 
 class SimLIFRate: public Operator{
-
 public:
     SimLIFRate(int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output);
     virtual string classname() const { return "SimLIFRate"; }
@@ -193,9 +227,6 @@ protected:
     dtype tau_rc;
     dtype tau_ref;
     int n_neurons;
-
-    BaseSignal j;
-    ScalarSignal one;
 
     SignalView J;
     SignalView output;
@@ -216,6 +247,7 @@ protected:
     dtype tau_n;
     dtype inc_n;
     SignalView adaptation;
+    BaseSignal temp;
 };
 
 class SimAdaptiveLIFRate: public SimLIFRate{
@@ -234,6 +266,7 @@ protected:
     dtype tau_n;
     dtype inc_n;
     SignalView adaptation;
+    BaseSignal temp;
 };
 
 class SimRectifiedLinear: public Operator{

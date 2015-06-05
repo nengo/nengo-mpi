@@ -35,6 +35,14 @@ ElementwiseInc::ElementwiseInc(SignalView A, SignalView X, SignalView Y)
     }
 }
 
+NoDenSynapse::NoDenSynapse(
+    SignalView input, SignalView output, dtype b)
+:input(input), output(output), b(b){}
+
+SimpleSynapse::SimpleSynapse(
+    SignalView input, SignalView output, dtype a, dtype b)
+:input(input), output(output), a(a), b(b){}
+
 Synapse::Synapse(
     SignalView input, SignalView output, BaseSignal numer, BaseSignal denom)
 :input(input), output(output), numer(numer), denom(denom){
@@ -59,11 +67,7 @@ voltage(voltage), ref_time(ref_time){
 
 SimLIFRate::SimLIFRate(
     int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output)
-:n_neurons(n_neurons), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
-
-    j = BaseSignal(n_neurons, 1);
-    one = ScalarSignal(n_neurons, 1, 1.0);
-}
+:n_neurons(n_neurons), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){}
 
 SimAdaptiveLIF::SimAdaptiveLIF(
     int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
@@ -141,6 +145,15 @@ void ElementwiseInc::operator() (){
     run_dbg(*this);
 }
 
+void NoDenSynapse::operator() (){
+    output = b * input;
+}
+
+void SimpleSynapse::operator() (){
+    output *= -a;
+    output += b * input;
+}
+
 void Synapse::operator() (){
     for(int i = 0; i < input.size1(); i++){
 
@@ -171,7 +184,9 @@ void SimLIF::operator() (){
 
     ref_time -= dt_vec;
 
-    mult = one - ref_time * dt_inv;
+    mult = ref_time;
+    mult *= -dt_inv;
+    mult += one;
 
     for(unsigned i = 0; i < n_neurons; ++i){
         mult(i, 0) = mult(i, 0) > 1 ? 1.0 : mult(i, 0);
@@ -197,12 +212,9 @@ void SimLIF::operator() (){
 }
 
 void SimLIFRate::operator() (){
-
-    j = J - one;
-
     for(unsigned i = 0; i < n_neurons; ++i){
-        if(j(i, 0) > 0.0){
-            output(i, 0) = 1.0 / (tau_ref + tau_rc * log1p(1.0 / j(i, 0)));
+        if(J(i, 0) > 1.0){
+            output(i, 0) = 1.0 / (tau_ref + tau_rc * log1p(1.0 / (J(i, 0) - 1.0)));
         }else{
             output(i, 0) = 0.0;
         }
@@ -212,18 +224,22 @@ void SimLIFRate::operator() (){
 }
 
 void SimAdaptiveLIF::operator() (){
+    temp = J;
     J -= adaptation;
     SimLIF::operator()();
-    J += adaptation;
+    J = temp;
+
     adaptation += (dt / tau_n) * (inc_n * output - adaptation);
 
     run_dbg(*this);
 }
 
 void SimAdaptiveLIFRate::operator() (){
+    temp = J;
     J -= adaptation;
     SimLIFRate::operator()();
-    J += adaptation;
+    J = temp;
+
     adaptation += (dt / tau_n) * (inc_n * output - adaptation);
 
     run_dbg(*this);
@@ -252,11 +268,9 @@ void SimIzhikevich::operator() (){
         J(i, 0) = J(i, 0) > -30 ? J(i, 0) : -30;
     }
 
-    voltage_squared = element_prod(voltage, voltage);
-    voltage_squared *= 0.04;
+    voltage_squared = 0.04 * element_prod(voltage, voltage);
 
-    dV = voltage;
-    dV *= 5;
+    dV = 5 * voltage;
     dV += voltage_squared + bias + J - recovery;
     dV *= 1000 * dt;
     voltage += dV;
@@ -270,8 +284,7 @@ void SimIzhikevich::operator() (){
         }
     }
 
-    dU = voltage;
-    dU *= coupling;
+    dU = coupling * voltage;
     dU -= recovery;
     dU *= tau_recovery * 1000 * dt;
     recovery += dU;
@@ -339,6 +352,34 @@ string ElementwiseInc::to_string() const{
 
     out << "X_row_stride: " << X_row_stride << endl;
     out << "X_col_stride: " << X_col_stride << endl;
+
+    return out.str();
+}
+
+string NoDenSynapse::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "input:" << endl;
+    out << input << endl;
+    out << "output:" << endl;
+    out << output << endl;
+    out << "b: " << b << endl;
+
+    return out.str();
+}
+
+
+string SimpleSynapse::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "input:" << endl;
+    out << input << endl;
+    out << "output:" << endl;
+    out << output << endl;
+    out << "a: " << a << endl;
+    out << "b: " << b << endl;
 
     return out.str();
 }

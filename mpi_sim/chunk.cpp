@@ -536,7 +536,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             add_op(unique_ptr<Operator>(
                 new SimAdaptiveLIF(
                     n_neurons, tau_n, inc_n, tau_rc, tau_ref,
-                    min_voltage, dt, J, output, voltage, ref_time, adaptation)));
+                    min_voltage, dt, J, output, voltage, ref_time,
+                    adaptation)));
 
         }else if(type_string.compare("AdaptiveLIFRate") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);
@@ -594,7 +595,24 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
                     n_neurons, tau_recovery, coupling, reset_voltage,
                     reset_recovery, dt, J, output, voltage, recovery)));
 
-        }else if(type_string.compare("LinearFilter") == 0){
+        }else if(type_string.compare("NoDenSynapse") == 0){
+
+            SignalView input = get_signal_view(args[0]);
+            SignalView output = get_signal_view(args[1]);
+            dtype b = boost::lexical_cast<dtype>(args[2]);
+
+            add_op(unique_ptr<Operator>(new NoDenSynapse(input, output, b)));
+
+        }else if(type_string.compare("SimpleSynapse") == 0){
+
+            SignalView input = get_signal_view(args[0]);
+            SignalView output = get_signal_view(args[1]);
+            dtype a = boost::lexical_cast<dtype>(args[2]);
+            dtype b = boost::lexical_cast<dtype>(args[3]);
+
+            add_op(unique_ptr<Operator>(new SimpleSynapse(input, output, a, b)));
+
+        }else if(type_string.compare("Synapse") == 0){
 
             SignalView input = get_signal_view(args[0]);
             SignalView output = get_signal_view(args[1]);

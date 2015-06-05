@@ -150,19 +150,39 @@ class DummyNdarray(object):
         self.strides = value.strides
 
 
-def adjust_linear_filter(op, synapse, num, den, dt, method='zoh'):
+def no_den_synapse_args(input, output, b):
+    return [
+        "NoDenSynapse", signal_to_string(input),
+        signal_to_string(output), b]
+
+
+def simple_synapse_args(input, output, a, b):
+    return [
+        "SimpleSynapse", signal_to_string(input),
+        signal_to_string(output), a, b]
+
+
+def linear_filter_synapse_args(op, dt, method='zoh'):
     """
     A copy of some of the functionality that gets applied to
     linear filters in refimpl nengo.
     """
-
+    num, den = op.synapse.num, op.synapse.den
     num, den, _ = cont2discrete(
         (num, den), dt, method=method)
     num = num.flatten()
     num = num[1:] if num[0] == 0 else num
     den = den[1:]  # drop first element (equal to 1)
 
-    return num, den
+    if len(num) == 1 and len(den) == 0:
+        return no_den_synapse_args(op.input, op.output, b=num[0])
+    elif len(num) == 1 and len(den) == 1:
+        return simple_synapse_args(op.input, op.output, a=den[0], b=num[0])
+    else:
+        return [
+            "Synapse", signal_to_string(op.input),
+            signal_to_string(op.output), str(list(num)),
+            str(list(den))]
 
 
 def pyfunc_checks(val):
@@ -840,22 +860,14 @@ class MpiModel(builder.Model):
 
             synapse = op.synapse
 
-            if isinstance(synapse, LinearFilter):
-
-                do_adjust = not((isinstance(synapse, Alpha) or
-                                 isinstance(synapse, Lowpass)) and
-                                synapse.tau <= .03 * self.dt)
-
-                if do_adjust:
-                    num, den = adjust_linear_filter(
-                        op, synapse, synapse.num, synapse.den, self.dt)
+            if isinstance(synapse, Alpha) or isinstance(synapse, Lowpass):
+                if synapse.tau <= .03 * self.dt:
+                    op_args = no_den_synapse_args(op.input, op.output, b=1.0)
                 else:
-                    num, den = synapse.num, synapse.den
+                    op_args = linear_filter_synapse_args(op, self.dt)
 
-                op_args = [
-                    "LinearFilter", signal_to_string(op.input),
-                    signal_to_string(op.output), str(list(num)),
-                    str(list(den))]
+            elif isinstance(synapse, LinearFilter):
+                op_args = linear_filter_synapse_args(op, self.dt)
 
             else:
                 raise NotImplementedError(
