@@ -16,12 +16,6 @@
 
 using namespace std;
 
-const int stop_flag = -1;
-
-const int add_signal_flag = 0;
-const int add_op_flag = 1;
-const int add_probe_flag = 2;
-
 const int setup_tag = 1;
 const int probe_tag = 2;
 
@@ -36,17 +30,6 @@ public:
 
     void spawn_processors();
     void init();
-
-    void add_base_signal(
-        int component, key_type key, string label, unique_ptr<BaseSignal> data) override;
-    void add_op(int component, OpSpec os) override;
-    void add_probe(ProbeSpec ps) override;
-
-    // Methods which operate on the master's chunk.
-    SignalView get_signal(string signal_string) override;
-    void add_op(unique_ptr<Operator> op) override;
-
-    void finalize_build() override;
 
     void run_n_steps(int steps, bool progress, string log_filename) override;
 

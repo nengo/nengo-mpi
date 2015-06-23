@@ -66,8 +66,9 @@ PythonMpiSimulator::PythonMpiSimulator(bpy::object num_components, bpy::object d
     }
 }
 
-void PythonMpiSimulator::finalize_build(){
-    sim->finalize_build();
+void PythonMpiSimulator::finalize_build(bpy::object filename){
+    string c_filename = bpy::extract<string>(filename);
+    sim->from_file(c_filename);
 }
 
 void PythonMpiSimulator::run_n_steps(
@@ -123,41 +124,20 @@ void PythonMpiSimulator::reset(){
     sim->reset();
 }
 
-void PythonMpiSimulator::add_signal(
-        bpy::object component, bpy::object key, bpy::object label, bpyn::array data){
-
-    int c_component = bpy::extract<int>(component);
-    key_type c_key = bpy::extract<key_type>(key);
-    string c_label = bpy::extract<string>(label);
-    unique_ptr<BaseSignal> c_data = ndarray_to_matrix(data);
-
-    sim->add_base_signal(c_component, c_key, c_label, move(c_data));
-}
-
-void PythonMpiSimulator::add_op(bpy::object component, bpy::object op_string){
-    int c_component = bpy::extract<int>(component);
-    string c_op_string = bpy::extract<string>(op_string);
-
-    sim->add_op(c_component, OpSpec(c_op_string));
-}
-
-void PythonMpiSimulator::add_probe(bpy::object probe_string){
-    string c_probe_string = bpy::extract<string>(probe_string);
-    ProbeSpec ps(c_probe_string);
-    sim->add_probe(ps);
-}
-
-void PythonMpiSimulator::create_PyFunc(bpy::object py_fn, bpy::object t_in){
+void PythonMpiSimulator::create_PyFunc(
+        bpy::object py_fn, bpy::object t_in, bpy::object order){
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
+    int c_order = bpy::extract<int>(order);
 
-    sim->add_op(unique_ptr<Operator>(new PyFunc(py_fn, time_pointer)));
+    auto pyfunc = unique_ptr<Operator>(new PyFunc(py_fn, time_pointer));
+    sim->add_pyfunc(c_order, move(pyfunc));
 }
 
 void PythonMpiSimulator::create_PyFuncI(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input){
+        bpyn::array py_input, bpy::object order){
 
     string input_signal = bpy::extract<string>(input);
 
@@ -166,13 +146,17 @@ void PythonMpiSimulator::create_PyFuncI(
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
+    int c_order = bpy::extract<int>(order);
 
-    sim->add_op(
-        unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, input_mat, py_input)));
+    auto pyfunc = unique_ptr<Operator>(
+        new PyFunc(py_fn, time_pointer, input_mat, py_input));
+
+    sim->add_pyfunc(c_order, move(pyfunc));
 }
 
 void PythonMpiSimulator::create_PyFuncO(
-        bpy::object py_fn, bpy::object t_in, bpy::object output){
+        bpy::object py_fn, bpy::object t_in,
+        bpy::object output, bpy::object order){
 
     string output_signal = bpy::extract<string>(output);
 
@@ -181,15 +165,16 @@ void PythonMpiSimulator::create_PyFuncO(
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
+    int c_order = bpy::extract<int>(order);
 
-    sim->add_op(
-        unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, output_mat)));
+    auto pyfunc = unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, output_mat));
+    sim->add_pyfunc(c_order, move(pyfunc));
 }
 
 
 void PythonMpiSimulator::create_PyFuncIO(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input, bpy::object output){
+        bpyn::array py_input, bpy::object output, bpy::object order){
 
     build_dbg("Creating PyFuncIO.");
 
@@ -203,9 +188,12 @@ void PythonMpiSimulator::create_PyFuncIO(
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
+    int c_order = bpy::extract<int>(order);
 
-    sim->add_op(
-        unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, input_mat, py_input, output_mat)));
+    auto pyfunc = unique_ptr<Operator>(
+        new PyFunc(py_fn, time_pointer, input_mat, py_input, output_mat));
+
+    sim->add_pyfunc(c_order, move(pyfunc));
 }
 
 string PythonMpiSimulator::to_string() const{
@@ -297,9 +285,6 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
         .def("reset", &PythonMpiSimulator::reset)
-        .def("add_signal", &PythonMpiSimulator::add_signal)
-        .def("add_op", &PythonMpiSimulator::add_op)
-        .def("add_probe", &PythonMpiSimulator::add_probe)
         .def("create_PyFunc", &PythonMpiSimulator::create_PyFunc)
         .def("create_PyFuncO", &PythonMpiSimulator::create_PyFuncO)
         .def("create_PyFuncI", &PythonMpiSimulator::create_PyFuncI)

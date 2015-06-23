@@ -1,5 +1,7 @@
 """MPIModel"""
 
+from mpi_sim import PythonMpiSimulator
+
 from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
@@ -404,25 +406,21 @@ class MpiModel(builder.Model):
         self.n_components = n_components
         self.assignments = assignments
 
-        if save_file:
-            self.h5_compression = 'gzip'
-            self.op_strings = defaultdict(list)
-            self.probe_strings = defaultdict(list)
-            self.all_probe_strings = []
+        self.h5_compression = 'gzip'
+        self.op_strings = defaultdict(list)
+        self.probe_strings = defaultdict(list)
+        self.all_probe_strings = []
 
-            self.save_file = h5.File(save_file, 'w')
-            self.save_file.attrs['dt'] = dt
-            self.save_file.attrs['n_components'] = n_components
+        self.save_file = h5.File(save_file, 'w')
+        self.save_file.attrs['dt'] = dt
+        self.save_file.attrs['n_components'] = n_components
 
-            for i in range(n_components):
-                component_group = self.save_file.create_group(str(i))
+        for i in range(n_components):
+            component_group = self.save_file.create_group(str(i))
+            component_group.create_group('signals')
 
-                component_group.create_group('signals')
-        else:
-            self.save_file = None
-
-            import mpi_sim
-            self.mpi_sim = mpi_sim.PythonMpiSimulator(n_components, dt)
+        self.mpi_sim = (
+            PythonMpiSimulator(n_components, dt) if save_file else None)
 
         # for each component, stores the keys of the signals that have
         # to be sent and received, respectively
@@ -447,11 +445,13 @@ class MpiModel(builder.Model):
 
         self.free_memory = free_memory
 
+        self.pyfunc_args = []
+
         super(MpiModel, self).__init__(dt, label, decoder_cache)
 
     @property
     def runnable(self):
-        return self.save_file is None
+        return self.mpi_sim is not None
 
     def __str__(self):
         return "MpiModel: %s" % self.label
@@ -553,14 +553,11 @@ class MpiModel(builder.Model):
             if A.dtype != np.float64:
                 A = A.astype(np.float64)
 
-            if self.save_file:
-                self.save_file[str(component)]['signals'].create_dataset(
-                    str(key), data=A, compression='gzip')
+            self.save_file[str(component)]['signals'].create_dataset(
+                str(key), data=A, compression='gzip')
 
-                self.save_file[
-                    str(component)]['signals'][str(key)].attrs['label'] = np.string_(label)
-            else:
-                self.mpi_sim.add_signal(component, key, label, A)
+            self.save_file[
+                str(component)]['signals'][str(key)].attrs['label'] = np.string(label)
 
             if delete:
                 # Replace the data stored in the signal by a dummy array,
@@ -583,7 +580,7 @@ class MpiModel(builder.Model):
         been added by this point; they are added to MPI as soon as they
         are built and then deleted from the python level, to save memory.
         """
-        # Do this to throw an exception in case of an invalid graph.
+
         all_ops = list(chain(
             *[self.component_ops[component]
               for component in range(self.n_components)]))
@@ -601,53 +598,60 @@ class MpiModel(builder.Model):
                 probe, self.sig[probe]['in'],
                 sample_every=probe.sample_every)
 
-        if not self.save_file:
-            self.mpi_sim.finalize_build()
-        else:
-            for component in range(self.n_components):
-                component_group = self.save_file[str(component)]
+        for component in range(self.n_components):
+            component_group = self.save_file[str(component)]
 
-                op_strings = self.op_strings[component]
-                max_string_length = (
-                    max(len(s) for s in op_strings)
-                    if op_strings
-                    else 0)
-
-                # + 1 is for null character
-                component_group.create_dataset(
-                    'operators', (len(op_strings), 1),
-                    dtype='S%d' % (max_string_length + 1),
-                    compression=self.h5_compression)
-
-                component_group['operators'][:, 0] = np.array(op_strings)
-
-                probe_strings = self.probe_strings[component]
-                max_string_length = (
-                    max(len(s) for s in probe_strings)
-                    if probe_strings
-                    else 0)
-
-                component_group.create_dataset(
-                    'probes', (len(probe_strings), 1),
-                    dtype='S%d' % (max_string_length + 1),
-                    compression=self.h5_compression)
-
-                component_group['probes'][:, 0] = np.array(probe_strings)
-
+            op_strings = self.op_strings[component]
             max_string_length = (
-                max(len(s) for s in self.all_probe_strings)
-                if self.all_probe_strings
+                max(len(s) for s in op_strings)
+                if op_strings
                 else 0)
 
-            self.save_file.create_dataset(
-                'all_probes', (len(self.all_probe_strings), 1),
+            # + 1 is for null character
+            component_group.create_dataset(
+                'operators', (len(op_strings), 1),
                 dtype='S%d' % (max_string_length + 1),
                 compression=self.h5_compression)
 
-            self.save_file['all_probes'][:, 0] = (
-                np.array(self.all_probe_strings))
+            component_group['operators'][:, 0] = np.array(op_strings)
 
-            self.save_file.close()
+            probe_strings = self.probe_strings[component]
+            max_string_length = (
+                max(len(s) for s in probe_strings)
+                if probe_strings
+                else 0)
+
+            component_group.create_dataset(
+                'probes', (len(probe_strings), 1),
+                dtype='S%d' % (max_string_length + 1),
+                compression=self.h5_compression)
+
+            component_group['probes'][:, 0] = np.array(probe_strings)
+
+        max_string_length = (
+            max(len(s) for s in self.all_probe_strings)
+            if self.all_probe_strings
+            else 0)
+
+        self.save_file.create_dataset(
+            'all_probes', (len(self.all_probe_strings), 1),
+            dtype='S%d' % (max_string_length + 1),
+            compression=self.h5_compression)
+
+        self.save_file['all_probes'][:, 0] = np.array(self.all_probe_strings)
+
+        self.save_file.close()
+
+        if self.mpi_sim is not None:
+            self.mpi_sim.finalize_build()
+
+        for args in self.pyfunc_args:
+            f = {
+                'N': self.mpi_sim.create_PyFunc,
+                'I': self.mpi_sim.create_PyFuncI,
+                'O': self.mpi_sim.create_PyFuncO,
+                'IO': self.mpi_sim.create_PyFuncIO}[args[0]]
+            f(*args[1:])
 
     def add_ops_to_mpi(self, component):
         """
@@ -697,7 +701,7 @@ class MpiModel(builder.Model):
             op_type = type(op)
 
             if op_type == builder.node.SimPyFunc:
-                if self.save_file:
+                if not self.runnable:
                     raise Exception(
                         "Cannot create SimPyFunc operator "
                         "when saving to file.")
@@ -708,11 +712,11 @@ class MpiModel(builder.Model):
 
                 if x is None:
                     if op.output is None:
-                        self.mpi_sim.create_PyFunc(fn, t_in)
+                        pyfunc_args = ["N", fn, t_in]
                     else:
-                        self.mpi_sim.create_PyFuncO(
-                            make_checked_func(fn, t_in, False),
-                            t_in, signal_to_string(op.output))
+                        pyfunc_args = [
+                            "O", make_checked_func(fn, t_in, False),
+                            t_in, signal_to_string(op.output)]
 
                 else:
                     if isinstance(x.value, DummyNdarray):
@@ -721,14 +725,17 @@ class MpiModel(builder.Model):
                         input_array = x.value
 
                     if op.output is None:
-                        self.mpi_sim.create_PyFuncI(
-                            fn, t_in, signal_to_string(x), input_array)
+                        pyfunc_args = [
+                            "I", fn, t_in, signal_to_string(x), input_array]
 
                     else:
-                        self.mpi_sim.create_PyFuncIO(
-                            make_checked_func(fn, t_in, True), t_in,
+                        pyfunc_args = [
+                            "IO", make_checked_func(fn, t_in, True), t_in,
                             signal_to_string(x), input_array,
-                            signal_to_string(op.output))
+                            signal_to_string(op.output)]
+
+                self.pyfunc_args.append(
+                    pyfunc_args + [self.global_ordering[op]])
             else:
                 op_string = self.op_to_string(op)
 
@@ -737,10 +744,7 @@ class MpiModel(builder.Model):
                         "Component %d: Adding operator with string: %s",
                         component, op_string)
 
-                    if self.save_file:
-                        self.op_strings[component].append(op_string)
-                    else:
-                        self.mpi_sim.add_op(component, op_string)
+                    self.op_strings[component].append(op_string)
 
     def op_to_string(self, op):
         """
@@ -934,8 +938,5 @@ class MpiModel(builder.Model):
             for i
             in [component, probe_key, signal_string, period, str(probe)])
 
-        if self.save_file:
-            self.probe_strings[component].append(probe_string)
-            self.all_probe_strings.append(probe_string)
-        else:
-            self.mpi_sim.add_probe(probe_string)
+        self.probe_strings[component].append(probe_string)
+        self.all_probe_strings.append(probe_string)

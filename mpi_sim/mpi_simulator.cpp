@@ -107,6 +107,10 @@ void MpiSimulator::from_file(string filename){
 
     chunk->from_file(filename, file_plist, read_plist, comm);
 
+    for(auto pi : chunk->probe_info){
+        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+    }
+
     H5Pclose(file_plist);
     H5Pclose(read_plist);
 
@@ -116,70 +120,6 @@ void MpiSimulator::from_file(string filename){
     clock_t end = clock();
     cout << "Loading network from file took "
          << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
-}
-
-void MpiSimulator::add_base_signal(
-        int component, key_type key, string label, unique_ptr<BaseSignal> data){
-
-    int processor_index = component % n_processors;
-
-    build_dbg(
-        "SIGNAL" << delim << processor_index << delim
-        << key << delim << label << delim << *data);
-
-    if(processor_index == 0){
-        chunk->add_base_signal(key, label, move(data));
-    }else{
-        send_int(add_signal_flag, processor_index, setup_tag, comm);
-
-        send_key(key, processor_index, setup_tag, comm);
-        send_string(label, processor_index, setup_tag, comm);
-        send_matrix(move(data), processor_index, setup_tag, comm);
-    }
-}
-
-void MpiSimulator::add_op(int component, OpSpec os){
-
-    int processor_index = component % n_processors;
-
-    build_dbg("OP" << delim << processor_index << delim << os);
-
-    if(processor_index == 0){
-        chunk->add_op(os);
-    }else{
-        // TODO: fix, not currently sending op args or index
-        send_int(add_op_flag, processor_index, setup_tag, comm);
-        send_string(os.type_string, processor_index, setup_tag, comm);
-    }
-}
-
-void MpiSimulator::add_probe(ProbeSpec ps){
-    int processor_index = ps.component % n_processors;
-
-    probe_counts[processor_index] += 1;
-    probe_data[ps.probe_key] = vector<unique_ptr<BaseSignal>>();
-
-    if(processor_index == 0){
-        chunk->add_probe(ps);
-    }else{
-        send_int(add_probe_flag, processor_index, setup_tag, comm);
-
-        send_key(ps.probe_key, processor_index, setup_tag, comm);
-        send_string(ps.signal_string, processor_index, setup_tag, comm);
-        send_dtype(ps.period, processor_index, setup_tag, comm);
-    }
-}
-
-SignalView MpiSimulator::get_signal(string signal_string){
-    return chunk->get_signal_view(signal_string);
-}
-
-void MpiSimulator::add_op(unique_ptr<Operator> op){
-    chunk->add_op(move(op));
-}
-
-void MpiSimulator::finalize_build(){
-    chunk->finalize_build(comm);
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){

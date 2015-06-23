@@ -29,18 +29,8 @@ public:
 
     const virtual string classname() { return "Simulator"; }
 
-    virtual void add_base_signal(key_type key, string label, unique_ptr<BaseSignal> data);
-    virtual void add_base_signal(int component, key_type key, string label, unique_ptr<BaseSignal> data);
-
-    virtual void add_op(OpSpec os);
-    virtual void add_op(int component, OpSpec os);
-
-    virtual void add_probe(ProbeSpec ps);
-
     virtual SignalView get_signal(string signal_string);
-    virtual void add_op(unique_ptr<Operator> op);
-
-    virtual void finalize_build();
+    virtual void add_pyfunc(int order, unique_ptr<Operator> pyfunc);
 
     virtual void run_n_steps(int steps, bool progress, string log_filename);
 

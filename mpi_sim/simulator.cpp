@@ -12,49 +12,12 @@ Simulator::Simulator(dtype dt)
     chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk);
 }
 
-void Simulator::add_base_signal(
-        key_type key, string label, unique_ptr<BaseSignal> data){
-    build_dbg("SIGNAL" << delim << 0 << delim << key << delim << label << delim << *data);
-
-    chunk->add_base_signal(key, label, move(data));
-}
-
-void Simulator::add_base_signal(
-        int component, key_type key, string label, unique_ptr<BaseSignal> data){
-
-    add_base_signal(key, label, move(data));
-}
-
-void Simulator::add_op(OpSpec os){
-    build_dbg("OP" << delim << 0 << delim << os);
-
-    chunk->add_op(os);
-}
-
-void Simulator::add_op(int component, OpSpec os){
-    add_op(os);
-}
-
-void Simulator::add_probe(ProbeSpec ps){
-    probe_info.push_back(ps);
-
-    probe_data[ps.probe_key] = vector<unique_ptr<BaseSignal>>();
-    chunk->add_probe(ps);
-}
-
 SignalView Simulator::get_signal(string signal_string){
     return chunk->get_signal_view(signal_string);
 }
 
-void Simulator::add_op(unique_ptr<Operator> op){
-    chunk->add_op(move(op));
-}
-
-// Only called when running from python. Otherwise, chunk->finalize_build
-// is called in chunk->from_file, and the probe_info does not need to be set.
-void Simulator::finalize_build(){
-    chunk->probe_info = probe_info;
-    chunk->finalize_build();
+void Simulator::add_pyfunc(int order, unique_ptr<Operator> pyfunc){
+    chunk->add_pyfunc(order, move(pyfunc));
 }
 
 void Simulator::run_n_steps(int steps, bool progress, string log_filename){
@@ -92,7 +55,7 @@ void Simulator::gather_probe_data(){
 vector<unique_ptr<BaseSignal>> Simulator::get_probe_data(key_type probe_key){
     if(chunk->is_logging()){
         throw logic_error(
-            "Calling get_probe_data, but probe data has all been written to file");
+            "Calling get_probe_data, but probe data has been written to file");
     }
 
     return move(probe_data.at(probe_key));
@@ -148,7 +111,10 @@ void Simulator::from_file(string filename){
     hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
 
     chunk->from_file(filename, file_plist, read_plist);
-    dt = chunk->dt;
+
+    for(auto pi : chunk->probe_info){
+        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+    }
 
     H5Pclose(file_plist);
     H5Pclose(read_plist);

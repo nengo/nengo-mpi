@@ -275,7 +275,8 @@ all_neurons = [
 
 
 @pytest.mark.parametrize("nrn", all_neurons)
-def test_exact_match(nrn):
+@pytest.mark.parametrize("synapse", [None, 0, 0.001, 0.02, 0.05])
+def test_exact_match(nrn, synapse):
     n_neurons = 40
 
     sequence = np.random.random((1000, 3))
@@ -292,7 +293,7 @@ def test_exact_match(nrn):
         B = nengo.Ensemble(
             n_neurons, dimensions=3, neuron_type=nrn())
 
-        nengo.Connection(A, B, synapse=0.05)
+        nengo.Connection(A, B, synapse=synapse)
 
         A_p = nengo.Probe(A)
         B_p = nengo.Probe(B)

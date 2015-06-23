@@ -33,7 +33,7 @@ public:
     PythonMpiSimulator();
     PythonMpiSimulator(bpy::object num_components, bpy::object dt);
 
-    void finalize_build();
+    void finalize_build(bpy::object filename);
 
     /* Methods for controlling simulation. */
     void run_n_steps(bpy::object steps, bpy::object progress, bpy::object log_filename);
@@ -41,25 +41,19 @@ public:
 
     void reset();
 
-    /* Methods for building simulator. */
-    void add_signal(
-        bpy::object component, bpy::object key, bpy::object label, bpyn::array data);
-
-    void add_op(bpy::object component, bpy::object op_string);
-
-    void add_probe(bpy::object probe_string);
-
     /* Methods for creating PyFunc operators. */
-    void create_PyFunc(bpy::object py_fn, bpy::object t_in);
+    void create_PyFunc(bpy::object py_fn, bpy::object t_in, bpy::object order);
 
     void create_PyFuncI(
-        bpy::object py_fn, bpy::object t_in, bpy::object input, bpyn::array py_input);
+        bpy::object py_fn, bpy::object t_in, bpy::object input,
+        bpyn::array py_input, bpy::object order);
 
-    void create_PyFuncO(bpy::object py_fn, bpy::object t_in, bpy::object output);
+    void create_PyFuncO(
+        bpy::object py_fn, bpy::object t_in,bpy::object output, bpy::object order);
 
     void create_PyFuncIO(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input, bpy::object output);
+        bpyn::array py_input, bpy::object output, bpy::object order);
 
     string to_string() const;
 

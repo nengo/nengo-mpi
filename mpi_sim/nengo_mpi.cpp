@@ -35,79 +35,17 @@ void start_worker(MPI_Comm comm){
     int mpi_merged = bcast_recv_int(comm);
     MpiSimulatorChunk chunk(my_id, n_processors, bool(mpi_merged));
 
-    if(filename.length() != 0){
-        // Use parallel property lists
-        hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
-        H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
+    // Use parallel property lists
+    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
 
-        hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
-        H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
+    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
+    H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
 
-        chunk.from_file(filename, file_plist, read_plist, comm);
+    chunk.from_file(filename, file_plist, read_plist, comm);
 
-        H5Pclose(file_plist);
-        H5Pclose(read_plist);
-    }else{
-        chunk.dt = recv_dtype(0, setup_tag, comm);
-
-        int s = 0;
-        string op_string;
-
-        key_type probe_key;
-        string signal_string;
-        dtype period;
-
-        dbg("Worker " << my_id  << " receiving network...");
-
-        while(1){
-            s = recv_int(0, setup_tag, comm);
-
-            if(s == add_signal_flag){
-                dbg("Worker " << my_id  << " receiving signal.");
-
-                key_type key = recv_key(0, setup_tag, comm);
-
-                string label = recv_string(0, setup_tag, comm);
-
-                unique_ptr<BaseSignal> data = recv_matrix(0, setup_tag, comm);
-
-                dbg("Worker " << my_id  << " done receiving signal.");
-
-                dbg("key: " << key);
-                dbg("label: " << key);
-                dbg("data: " << *data);
-
-                chunk.add_base_signal(key, label, move(data));
-
-            }else if(s == add_op_flag){
-                dbg("Worker " << my_id  << " receiving operator.");
-
-                string op_string = recv_string(0, setup_tag, comm);
-
-                dbg("Worker " << my_id  << " done receiving operator.");
-
-                chunk.add_op(op_string);
-
-            }else if(s == add_probe_flag){
-                dbg("Worker " << my_id  << " receiving probe.");
-
-                string probe_string = recv_string(0, setup_tag, comm);
-
-                dbg("Worker " << my_id  << " done receiving probe.");
-
-                chunk.add_probe(ProbeSpec(probe_string));
-
-            }else if(s == stop_flag){
-                dbg("Worker " << my_id  << " done receiving network.");
-                break;
-
-            }else{
-                throw runtime_error("Worker received invalid flag from master.");
-            }
-        }
-
-        chunk.finalize_build(comm);
-    }
+    H5Pclose(file_plist);
+    H5Pclose(read_plist);
 
     // Worker barrier 1
     MPI_Barrier(comm);

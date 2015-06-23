@@ -453,6 +453,12 @@ SignalView MpiSimulatorChunk::get_signal_view(key_type key){
         ublas::slice(0, 1, base_signal->size2()));
 }
 
+void MpiSimulatorChunk::add_pyfunc(int order, unique_ptr<Operator> pyfunc){
+    // TODO: make this do what it is supposed to
+    operator_list.push_back(pyfunc.get());
+    operator_store.push_back(move(pyfunc));
+}
+
 void MpiSimulatorChunk::add_op(unique_ptr<Operator> op){
     operator_list.push_back(op.get());
     operator_store.push_back(move(op));

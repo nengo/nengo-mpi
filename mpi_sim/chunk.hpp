@@ -96,6 +96,8 @@ public:
      * that it operates on). */
     void add_op(OpSpec os);
 
+    void add_pyfunc(int order, unique_ptr<Operator> pyfunc);
+
     /* Add MPI-related operators. These have to be added separately,
      * because we need to initialize them in a special way before the
      * simulation begins. */
