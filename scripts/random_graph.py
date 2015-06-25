@@ -91,14 +91,18 @@ use_mpi = args.mpi
 save_file = args.save
 if save_file == 'random_graph':
     save_file = (
-        'random_graph_p{0}_n{1}_q{2}.net'.format(
+        'random_graph_p{0}_n{1}_q{2}'.format(
             args.p, n_nodes, pct_connections))
+    save_file = save_file.replace('.', '_')
+    save_file += '.net'
+
 
 mpi_log = args.mpi_log
 if mpi_log == 'random_graph':
     mpi_log = (
-        'random_graph_p{0}_n{1}_q{2}.h5'.format(
-            args.p, n_nodes, pct_connections))
+        'random_graph_p{0}_n{1}_q{2}'.format(args.p, n_nodes, pct_connections))
+    mpi_log = mpi_log.replace('.', '_')
+    mpi_log += '.h5'
 
 if mpi_log:
     print "Logging simulation results to", mpi_log

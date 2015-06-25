@@ -36,7 +36,7 @@ def test_basic_cpp(neuron_type, synapse):
         input = nengo.Node([0.1, 0.2, -0.3])
         nengo.Connection(input, A, synapse=0.05)
 
-    sim_time = 0.01
+    sim_time = 1
 
     refimpl_sim = nengo.Simulator(m)
     refimpl_sim.run(sim_time)
