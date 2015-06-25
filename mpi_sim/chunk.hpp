@@ -38,7 +38,6 @@ public:
     /*
      * Add simulation objects to the chunk from an HDF5 file. */
     void from_file(string filename, hid_t file_plist, hid_t read_plist);
-    void from_file(string filename, hid_t file_plist, hid_t read_plist, MPI_Comm comm);
 
     /* Run an integer number of steps. Called by a
      * worker process once it gets a signal from the master
@@ -96,13 +95,11 @@ public:
      * that it operates on). */
     void add_op(OpSpec os);
 
-    void add_pyfunc(int order, unique_ptr<Operator> pyfunc);
-
     /* Add MPI-related operators. These have to be added separately,
      * because we need to initialize them in a special way before the
      * simulation begins. */
-    void add_mpi_send(int dst, int tag, SignalView content);
-    void add_mpi_recv(int src, int tag, SignalView content);
+    void add_mpi_send(float index, int dst, int tag, SignalView content);
+    void add_mpi_recv(float index, int src, int tag, SignalView content);
 
     // *** Probes ***
 
@@ -154,11 +151,14 @@ private:
     // have unique_ptr's for all these ops in the lists below.
     list<Operator*> operator_list;
 
-    // Operator store contains only non-mpi operators
+    // operate_store contains only non-mpi operators
     list<unique_ptr<Operator>> operator_store;
 
     list<unique_ptr<MPIOperator>> mpi_sends;
     list<unique_ptr<MPIOperator>> mpi_recvs;
+
+    // Indices of placeholders in operator_list
+    map<key_type, int> placeholder_indices;
 
     bool mpi_merged;
 
@@ -170,8 +170,8 @@ private:
 
     // Iterators pointing to locations in operator_list
     // where the merged mpi ops should be added.
-    map<int, list<Operator*>::iterator> send_indices;
-    map<int, list<Operator*>::iterator> recv_indices;
+    map<int, float> send_indices;
+    map<int, float> recv_indices;
 };
 
 inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
@@ -181,5 +181,28 @@ inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, Si
 inline bool compare_indices(const OpSpec &left, const OpSpec &right){
     return (left.index < right.index);
 }
+
+inline bool compare_op_ptr(const Operator* left, const Operator* right){
+    return (left->get_index() < right->get_index());
+}
+
+class Placeholder: public Operator{
+
+public:
+    Placeholder(key_type key): key(key) {}
+    virtual string classname() const { return "Placeholder"; }
+
+    void operator()(){ run_dbg(*this);}
+    virtual string to_string() const{
+        stringstream out;
+        out << Operator::to_string();
+        out << "key: " << key << endl;
+
+        return out.str();
+    }
+
+protected:
+    key_type key;
+};
 
 #endif

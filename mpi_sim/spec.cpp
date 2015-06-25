@@ -4,11 +4,12 @@ OpSpec::OpSpec(string op_string){
     try{
         vector<string> tokens;
         boost::split(tokens, op_string, boost::is_any_of(OP_DELIM));
-        type_string = tokens[0];
+
+        index = boost::lexical_cast<float>(tokens[0]);
         tokens.erase(tokens.begin());
 
-        index = boost::lexical_cast<float>(tokens.back());
-        tokens.pop_back();
+        type_string = tokens[0];
+        tokens.erase(tokens.begin());
 
         arguments = tokens;
 

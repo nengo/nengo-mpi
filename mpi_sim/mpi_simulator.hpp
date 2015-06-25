@@ -37,6 +37,7 @@ public:
 
     string to_string() const;
     void from_file(string filename) override;
+    void finalize_build() override;
 
     friend ostream& operator << (ostream &out, const MpiSimulator &sim){
         out << sim.to_string();

@@ -1,5 +1,3 @@
-#import pytest
-
 import nengo_mpi
 from nengo_mpi.model import MpiModel
 
@@ -31,13 +29,6 @@ def Mpi2Simulator(*args, **kwargs):
 def pytest_funcarg__Simulator(request):
     """The Simulator class being tested."""
     return Mpi2Simulator
-
-
-def pytest_generate_tests(metafunc):
-    if "neuron_type" in metafunc.funcargnames:
-        metafunc.parametrize(
-            "neuron_type",
-            [LIFRate, Sigmoid, RectifiedLinear, AdaptiveLIFRate])
 
 
 class SignalProbe(object):
@@ -240,7 +231,8 @@ def test_lif(Simulator):
     assert np.allclose(np.squeeze(sim_rates), math_rates, atol=1, rtol=0.02)
 
 
-def test_neurons(Simulator, neuron_type):
+@pytest.mark.parametrize("neuron_type", [LIFRate, Sigmoid, RectifiedLinear])
+def test_stateless_neurons(Simulator, neuron_type):
     """
     Test that the mpi version of a neuron
     model matches the ref-impl version.
@@ -267,16 +259,16 @@ def test_neurons(Simulator, neuron_type):
         input, gain=np.ones(n_neurons), bias=np.zeros(n_neurons))
 
     assert np.allclose(
-        np.squeeze(sim_rates), math_rates, atol=0.0001, rtol=0.02)
+        np.squeeze(sim_rates[-1, :]), math_rates, atol=0.0001, rtol=0.02)
 
 all_neurons = [
     LIF, LIFRate, RectifiedLinear, Sigmoid,
     AdaptiveLIF, AdaptiveLIFRate, Izhikevich]
 
 
-@pytest.mark.parametrize("nrn", all_neurons)
-@pytest.mark.parametrize("synapse", [None, 0, 0.001, 0.02, 0.05])
-def test_exact_match(nrn, synapse):
+@pytest.mark.parametrize("neuron_type", all_neurons)
+@pytest.mark.parametrize("synapse", [None, 0.0, 0.02, 0.05])
+def test_exact_match(neuron_type, synapse):
     n_neurons = 40
 
     sequence = np.random.random((1000, 3))
@@ -288,10 +280,10 @@ def test_exact_match(nrn, synapse):
     m = nengo.Network(seed=1)
     with m:
         A = nengo.Ensemble(
-            n_neurons, dimensions=3, neuron_type=nrn())
+            n_neurons, dimensions=3, neuron_type=neuron_type())
 
         B = nengo.Ensemble(
-            n_neurons, dimensions=3, neuron_type=nrn())
+            n_neurons, dimensions=3, neuron_type=neuron_type())
 
         nengo.Connection(A, B, synapse=synapse)
 
@@ -301,13 +293,21 @@ def test_exact_match(nrn, synapse):
         input = nengo.Node(f)
         nengo.Connection(input, A, synapse=0.05)
 
-    sim_time = 0.2
+    sim_time = 0.01
 
     refimpl_sim = nengo.Simulator(m)
     refimpl_sim.run(sim_time)
 
     mpi_sim = nengo_mpi.Simulator(m)
     mpi_sim.run(sim_time)
+
+    print refimpl_sim.data[A_p]
+    print mpi_sim.data[A_p]
+    print refimpl_sim.data[A_p] - mpi_sim.data[A_p]
+
+    print refimpl_sim.data[B_p]
+    print mpi_sim.data[B_p]
+    print refimpl_sim.data[B_p] - mpi_sim.data[B_p]
 
     assert np.allclose(
         refimpl_sim.data[A_p], mpi_sim.data[A_p], atol=0.00001, rtol=0.00)
@@ -322,15 +322,6 @@ def test_filter(Simulator):
     output = Signal(np.zeros(D), 'output')
 
     synapse = SimSynapse(input, output, Lowpass(0.05))
-
-    np.random.seed(1)
-    input_sequence = np.random.random(2000)
-
-    def make_func(input_sequence):
-        def f():
-            return input_sequence.next()
-        return f
-
     input_func = SimPyFunc(input, lambda: 1, False, None)
 
     probes = [SignalProbe(output)]

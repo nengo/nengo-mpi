@@ -113,6 +113,7 @@ int main(int argc, char **argv){
     cout << "Building network..." << endl;
     auto sim = unique_ptr<Simulator>(new Simulator);
     sim->from_file(net_filename);
+    sim->finalize_build();
 
     cout << "Done building network..." << endl;
 

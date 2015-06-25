@@ -42,7 +42,8 @@ void start_worker(MPI_Comm comm){
     hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
 
-    chunk.from_file(filename, file_plist, read_plist, comm);
+    chunk.from_file(filename, file_plist, read_plist);
+    chunk.finalize_build(comm);
 
     H5Pclose(file_plist);
     H5Pclose(read_plist);
@@ -199,6 +200,7 @@ int start_master(int argc, char **argv){
     cout << "Building network..." << endl;
     auto sim = unique_ptr<MpiSimulator>(new MpiSimulator(mpi_merged));
     sim->from_file(net_filename);
+    sim->finalize_build();
 
     cout << "Done building network..." << endl;
 

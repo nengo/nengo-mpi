@@ -16,8 +16,8 @@ SignalView Simulator::get_signal(string signal_string){
     return chunk->get_signal_view(signal_string);
 }
 
-void Simulator::add_pyfunc(int order, unique_ptr<Operator> pyfunc){
-    chunk->add_pyfunc(order, move(pyfunc));
+void Simulator::add_pyfunc(unique_ptr<Operator> pyfunc){
+    chunk->add_op(move(pyfunc));
 }
 
 void Simulator::run_n_steps(int steps, bool progress, string log_filename){
@@ -112,14 +112,17 @@ void Simulator::from_file(string filename){
 
     chunk->from_file(filename, file_plist, read_plist);
 
-    for(auto pi : chunk->probe_info){
-        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
-    }
-
     H5Pclose(file_plist);
     H5Pclose(read_plist);
 
     clock_t end = clock();
     cout << "Loading network from file took "
          << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+}
+
+void Simulator::finalize_build(){
+    chunk->finalize_build();
+    for(auto pi : chunk->probe_info){
+        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+    }
 }

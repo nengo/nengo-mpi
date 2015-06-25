@@ -105,7 +105,7 @@ void MpiSimulator::from_file(string filename){
     hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
 
-    chunk->from_file(filename, file_plist, read_plist, comm);
+    chunk->from_file(filename, file_plist, read_plist);
 
     for(auto pi : chunk->probe_info){
         probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
@@ -149,6 +149,13 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     clock_t end = clock();
     cout << "Simulating " << steps << " steps took "
          << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+}
+
+void MpiSimulator::finalize_build(){
+    chunk->finalize_build(comm);
+    for(auto pi : chunk->probe_info){
+        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+    }
 }
 
 void MpiSimulator::gather_probe_data(){

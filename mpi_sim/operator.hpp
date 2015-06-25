@@ -52,12 +52,18 @@ public:
     virtual void operator() () = 0;
     virtual string to_string() const{
         return classname() + '\n';
-    };
+    }
 
     friend ostream& operator << (ostream &out, const Operator &op){
         out << op.to_string();
         return out;
     }
+
+    void set_index(float i){ index = i;}
+    float get_index() const{ return index; }
+
+private:
+    float index;
 };
 
 class Reset: public Operator{

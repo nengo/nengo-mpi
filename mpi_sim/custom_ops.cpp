@@ -7,8 +7,8 @@ SpaunStimulus::SpaunStimulus(
         SignalView output, dtype* time_pointer, vector<string> stim_sequence,
         float present_interval, float present_blanks)
 :output(output), time_pointer(time_pointer), previous_index(-1),
-        stim_sequence(stim_sequence), present_interval(present_interval),
-        present_blanks(present_blanks){
+stim_sequence(stim_sequence), present_interval(present_interval),
+present_blanks(present_blanks){
 
     if(stim_sequence.empty()){
         throw runtime_error("Cannot create SpaunStimulus with empty stimulus sequence.");

@@ -27,6 +27,8 @@ import warnings
 from itertools import chain
 import re
 import h5py as h5
+import os
+import tempfile
 
 import logging
 logger = logging.getLogger(__name__)
@@ -406,11 +408,18 @@ class MpiModel(builder.Model):
         self.n_components = n_components
         self.assignments = assignments
 
+        self.mpi_sim = (
+            PythonMpiSimulator(n_components, dt) if not save_file else None)
+
         self.h5_compression = 'gzip'
         self.op_strings = defaultdict(list)
         self.probe_strings = defaultdict(list)
         self.all_probe_strings = []
 
+        if not save_file:
+            save_file = tempfile.mktemp()
+
+        self.save_file_name = save_file
         self.save_file = h5.File(save_file, 'w')
         self.save_file.attrs['dt'] = dt
         self.save_file.attrs['n_components'] = n_components
@@ -418,9 +427,6 @@ class MpiModel(builder.Model):
         for i in range(n_components):
             component_group = self.save_file.create_group(str(i))
             component_group.create_group('signals')
-
-        self.mpi_sim = (
-            PythonMpiSimulator(n_components, dt) if save_file else None)
 
         # for each component, stores the keys of the signals that have
         # to be sent and received, respectively
@@ -553,11 +559,9 @@ class MpiModel(builder.Model):
             if A.dtype != np.float64:
                 A = A.astype(np.float64)
 
-            self.save_file[str(component)]['signals'].create_dataset(
-                str(key), data=A, compression='gzip')
-
-            self.save_file[
-                str(component)]['signals'][str(key)].attrs['label'] = np.string(label)
+            signals = self.save_file[str(component)]['signals']
+            signals.create_dataset(str(key), data=A, compression='gzip')
+            signals[str(key)].attrs['label'] = np.string_(label)
 
             if delete:
                 # Replace the data stored in the signal by a dummy array,
@@ -643,15 +647,18 @@ class MpiModel(builder.Model):
         self.save_file.close()
 
         if self.mpi_sim is not None:
-            self.mpi_sim.finalize_build()
+            self.mpi_sim.load_network(self.save_file_name)
+            os.remove(self.save_file_name)
 
-        for args in self.pyfunc_args:
-            f = {
-                'N': self.mpi_sim.create_PyFunc,
-                'I': self.mpi_sim.create_PyFuncI,
-                'O': self.mpi_sim.create_PyFuncO,
-                'IO': self.mpi_sim.create_PyFuncIO}[args[0]]
-            f(*args[1:])
+            for args in self.pyfunc_args:
+                f = {
+                    'N': self.mpi_sim.create_PyFunc,
+                    'I': self.mpi_sim.create_PyFuncI,
+                    'O': self.mpi_sim.create_PyFuncO,
+                    'IO': self.mpi_sim.create_PyFuncIO}[args[0]]
+                f(*args[1:])
+
+            self.mpi_sim.finalize_build()
 
     def add_ops_to_mpi(self, component):
         """
@@ -905,13 +912,13 @@ class MpiModel(builder.Model):
                 "nengo_mpi cannot handle operator of "
                 "type %s" % str(op_type))
 
+        if op_args:
+            op_args = [self.global_ordering[op]] + op_args
+
         op_string = OP_DELIM.join(map(str, op_args))
         op_string = op_string.replace(" ", "")
         op_string = op_string.replace("(", "")
         op_string = op_string.replace(")", "")
-
-        if op_string:
-            op_string += OP_DELIM + str(self.global_ordering[op])
 
         return op_string
 

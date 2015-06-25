@@ -33,7 +33,8 @@ public:
     PythonMpiSimulator();
     PythonMpiSimulator(bpy::object num_components, bpy::object dt);
 
-    void finalize_build(bpy::object filename);
+    void load_network(bpy::object filename);
+    void finalize_build();
 
     /* Methods for controlling simulation. */
     void run_n_steps(bpy::object steps, bpy::object progress, bpy::object log_filename);
@@ -42,18 +43,18 @@ public:
     void reset();
 
     /* Methods for creating PyFunc operators. */
-    void create_PyFunc(bpy::object py_fn, bpy::object t_in, bpy::object order);
+    void create_PyFunc(bpy::object py_fn, bpy::object t_in, bpy::object index);
 
     void create_PyFuncI(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input, bpy::object order);
+        bpyn::array py_input, bpy::object index);
 
     void create_PyFuncO(
-        bpy::object py_fn, bpy::object t_in,bpy::object output, bpy::object order);
+        bpy::object py_fn, bpy::object t_in,bpy::object output, bpy::object index);
 
     void create_PyFuncIO(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input, bpy::object output, bpy::object order);
+        bpyn::array py_input, bpy::object output, bpy::object index);
 
     string to_string() const;
 
@@ -64,7 +65,8 @@ private:
 class PyFunc: public Operator{
 public:
     PyFunc(bpy::object py_fn, dtype* t_in);
-    PyFunc(bpy::object py_fn, dtype* t_in, SignalView input, bpyn::array py_input);
+    PyFunc(
+        bpy::object py_fn, dtype* t_in, SignalView input, bpyn::array py_input);
     PyFunc(bpy::object py_fn, dtype* t_in, SignalView output);
     PyFunc(
         bpy::object py_fn, dtype* t_in, SignalView input,

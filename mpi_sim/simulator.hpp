@@ -30,7 +30,7 @@ public:
     const virtual string classname() { return "Simulator"; }
 
     virtual SignalView get_signal(string signal_string);
-    virtual void add_pyfunc(int order, unique_ptr<Operator> pyfunc);
+    virtual void add_pyfunc(unique_ptr<Operator> pyfunc);
 
     virtual void run_n_steps(int steps, bool progress, string log_filename);
 
@@ -42,6 +42,7 @@ public:
 
     virtual string to_string() const;
     virtual void from_file(string filename);
+    virtual void finalize_build();
 
     friend ostream& operator << (ostream &out, const Simulator &sim){
         out << sim.to_string();

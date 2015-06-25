@@ -12,10 +12,6 @@ MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged
 }
 
 void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist){
-    from_file(filename, file_plist, read_plist, MPI_COMM_NULL);
-}
-
-void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist, MPI_Comm comm){
     herr_t err;
     hid_t f = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, file_plist);
 
@@ -228,8 +224,6 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
     H5Dclose(all_probes);
     H5Fclose(f);
-
-    finalize_build(comm);
 }
 
 void MpiSimulatorChunk::finalize_build(){
@@ -264,11 +258,10 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
             int tag = send_tags[dst];
 
             // Create the merged op, put it in the op list
-            auto merged_send = unique_ptr<MPIOperator>(new MergedMPISend(dst, tag, signals_only));
+            auto merged_send = unique_ptr<MPIOperator>(
+                new MergedMPISend(dst, tag, signals_only));
 
-            auto it = send_indices.at(dst);
-            it++;
-            operator_list.insert(it, (Operator*) merged_send.get());
+            operator_list.push_back((Operator*) merged_send.get());
             mpi_sends.push_back(move(merged_send));
         }
 
@@ -290,13 +283,10 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
             int tag = recv_tags[src];
 
             // Create the merged op, put it in the op list
-            auto merged_recv = unique_ptr<MPIOperator>(new MergedMPIRecv(src, tag, signals_only));
+            auto merged_recv = unique_ptr<MPIOperator>(
+                new MergedMPIRecv(src, tag, signals_only));
 
-            auto it = recv_indices.at(src);
-            if(it != operator_list.begin()){
-                it++;
-            }
-            operator_list.insert(it, (Operator*) merged_recv.get());
+            operator_list.push_back((Operator*) merged_recv.get());
             mpi_recvs.push_back(move(merged_recv));
         }
     }
@@ -308,6 +298,8 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
     for(auto& recv: mpi_recvs){
         recv->set_communicator(comm);
     }
+
+    operator_list.sort(compare_op_ptr);
 }
 
 void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
@@ -453,12 +445,6 @@ SignalView MpiSimulatorChunk::get_signal_view(key_type key){
         ublas::slice(0, 1, base_signal->size2()));
 }
 
-void MpiSimulatorChunk::add_pyfunc(int order, unique_ptr<Operator> pyfunc){
-    // TODO: make this do what it is supposed to
-    operator_list.push_back(pyfunc.get());
-    operator_store.push_back(move(pyfunc));
-}
-
 void MpiSimulatorChunk::add_op(unique_ptr<Operator> op){
     operator_list.push_back(op.get());
     operator_store.push_back(move(op));
@@ -467,6 +453,7 @@ void MpiSimulatorChunk::add_op(unique_ptr<Operator> op){
 void MpiSimulatorChunk::add_op(OpSpec op_spec){
     string type_string = op_spec.type_string;
     vector<string>& args = op_spec.arguments;
+    float index = op_spec.index;
 
     try{
         if(type_string.compare("Reset") == 0){
@@ -639,7 +626,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
                     key_type signal_key = boost::lexical_cast<key_type>(args[2]);
                     SignalView content = get_signal_view(signal_key);
 
-                    add_mpi_send(dst, tag, content);
+                    add_mpi_send(index, dst, tag, content);
                 }
             }
 
@@ -654,7 +641,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
                     key_type signal_key = boost::lexical_cast<key_type>(args[2]);
                     SignalView content = get_signal_view(signal_key);
 
-                    add_mpi_recv(src, tag, content);
+                    add_mpi_recv(index, src, tag, content);
                 }
             }
 
@@ -684,6 +671,9 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             msg << "Received an operator type that nengo_mpi can't handle: " << type_string;
             throw runtime_error(msg.str());
         }
+
+        operator_list.back()->set_index(index);
+
     }catch(const boost::bad_lexical_cast& e){
         stringstream msg;
         msg << "Caught bad lexical cast while extracting operator from OpSpec "
@@ -700,19 +690,14 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
     }
 }
 
-void MpiSimulatorChunk::add_mpi_send(int dst, int tag, SignalView content){
+void MpiSimulatorChunk::add_mpi_send(float index, int dst, int tag, SignalView content){
 
     if(mpi_merged){
-        if(operator_list.empty()){
-            send_indices[dst] = operator_list.begin();
-        }else{
-            send_indices[dst] = operator_list.end();
-            send_indices[dst]--;
-        }
-
         if(merged_sends.find(dst) == merged_sends.end()){
+            send_indices[dst] = index;
             send_tags[dst] = tag;
         }else{
+            send_indices[dst] = max(send_indices[dst], index);
             send_tags[dst] = min(send_tags[dst], tag);
         }
 
@@ -725,19 +710,14 @@ void MpiSimulatorChunk::add_mpi_send(int dst, int tag, SignalView content){
     }
 }
 
-void MpiSimulatorChunk::add_mpi_recv(int src, int tag, SignalView content){
+void MpiSimulatorChunk::add_mpi_recv(float index, int src, int tag, SignalView content){
 
     if(mpi_merged){
         if(merged_recvs.find(src) == merged_recvs.end()){
-            if(operator_list.empty()){
-                recv_indices[src] = operator_list.begin();
-            }else{
-                recv_indices[src] = operator_list.end();
-                recv_indices[src]--;
-            }
-
+            recv_indices[src] = index;
             recv_tags[src] = tag;
         }else{
+            recv_indices[src] = min(recv_indices[src], index);
             recv_tags[src] = min(recv_tags[src], tag);
         }
 

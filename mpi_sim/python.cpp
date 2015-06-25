@@ -66,9 +66,13 @@ PythonMpiSimulator::PythonMpiSimulator(bpy::object num_components, bpy::object d
     }
 }
 
-void PythonMpiSimulator::finalize_build(bpy::object filename){
+void PythonMpiSimulator::load_network(bpy::object filename){
     string c_filename = bpy::extract<string>(filename);
     sim->from_file(c_filename);
+}
+
+void PythonMpiSimulator::finalize_build(){
+    sim->finalize_build();
 }
 
 void PythonMpiSimulator::run_n_steps(
@@ -125,19 +129,22 @@ void PythonMpiSimulator::reset(){
 }
 
 void PythonMpiSimulator::create_PyFunc(
-        bpy::object py_fn, bpy::object t_in, bpy::object order){
+        bpy::object py_fn, bpy::object t_in, bpy::object index){
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
-    int c_order = bpy::extract<int>(order);
 
     auto pyfunc = unique_ptr<Operator>(new PyFunc(py_fn, time_pointer));
-    sim->add_pyfunc(c_order, move(pyfunc));
+
+    float c_index = bpy::extract<float>(index);
+    pyfunc->set_index(c_index);
+
+    sim->add_pyfunc(move(pyfunc));
 }
 
 void PythonMpiSimulator::create_PyFuncI(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input, bpy::object order){
+        bpyn::array py_input, bpy::object index){
 
     string input_signal = bpy::extract<string>(input);
 
@@ -146,17 +153,19 @@ void PythonMpiSimulator::create_PyFuncI(
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
-    int c_order = bpy::extract<int>(order);
 
     auto pyfunc = unique_ptr<Operator>(
         new PyFunc(py_fn, time_pointer, input_mat, py_input));
 
-    sim->add_pyfunc(c_order, move(pyfunc));
+    float c_index = bpy::extract<float>(index);
+    pyfunc->set_index(c_index);
+
+    sim->add_pyfunc(move(pyfunc));
 }
 
 void PythonMpiSimulator::create_PyFuncO(
         bpy::object py_fn, bpy::object t_in,
-        bpy::object output, bpy::object order){
+        bpy::object output, bpy::object index){
 
     string output_signal = bpy::extract<string>(output);
 
@@ -165,16 +174,19 @@ void PythonMpiSimulator::create_PyFuncO(
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
-    int c_order = bpy::extract<int>(order);
 
     auto pyfunc = unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, output_mat));
-    sim->add_pyfunc(c_order, move(pyfunc));
+
+    float c_index = bpy::extract<float>(index);
+    pyfunc->set_index(c_index);
+
+    sim->add_pyfunc(move(pyfunc));
 }
 
 
 void PythonMpiSimulator::create_PyFuncIO(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input, bpy::object output, bpy::object order){
+        bpyn::array py_input, bpy::object output, bpy::object index){
 
     build_dbg("Creating PyFuncIO.");
 
@@ -188,12 +200,14 @@ void PythonMpiSimulator::create_PyFuncIO(
 
     bool c_t_in = bpy::extract<bool>(t_in);
     dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
-    int c_order = bpy::extract<int>(order);
 
     auto pyfunc = unique_ptr<Operator>(
         new PyFunc(py_fn, time_pointer, input_mat, py_input, output_mat));
 
-    sim->add_pyfunc(c_order, move(pyfunc));
+    float c_index = bpy::extract<float>(index);
+    pyfunc->set_index(c_index);
+
+    sim->add_pyfunc(move(pyfunc));
 }
 
 string PythonMpiSimulator::to_string() const{
@@ -202,32 +216,24 @@ string PythonMpiSimulator::to_string() const{
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time)
 :py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
- get_output(false), input(null_matrix, null_slice, null_slice), py_input(0.0),
- output(null_matrix, null_slice, null_slice){
-
-}
+get_output(false), input(null_matrix, null_slice, null_slice), py_input(0.0),
+output(null_matrix, null_slice, null_slice){}
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time, SignalView output)
 :py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
- get_output(true), input(null_matrix, null_slice, null_slice),
- py_input(0.0), output(output){
-
-}
+get_output(true), input(null_matrix, null_slice, null_slice),
+py_input(0.0), output(output){}
 
 PyFunc::PyFunc(bpy::object py_fn, dtype* time, SignalView input, bpyn::array py_input)
 :py_fn(py_fn), time(time), supply_time(time!=NULL),
- supply_input(true), get_output(false), input(input),
- py_input(py_input), output(null_matrix, null_slice, null_slice){
-
-}
+supply_input(true), get_output(false), input(input),
+py_input(py_input), output(null_matrix, null_slice, null_slice){}
 
 PyFunc::PyFunc(
     bpy::object py_fn, dtype* time, SignalView input,
     bpyn::array py_input, SignalView output)
 :py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(true),
- get_output(true), input(input), py_input(py_input), output(output){
-
-}
+get_output(true), input(input), py_input(py_input), output(output){}
 
 void PyFunc::operator() (){
 
@@ -281,6 +287,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
     bpy::class_<PythonMpiSimulator, boost::noncopyable>(
             "PythonMpiSimulator", bpy::init<bpy::object, bpy::object>())
+        .def("load_network", &PythonMpiSimulator::load_network)
         .def("finalize_build", &PythonMpiSimulator::finalize_build)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
