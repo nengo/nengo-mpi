@@ -263,7 +263,7 @@ def test_stateless_neurons(Simulator, neuron_type):
 
 all_neurons = [
     LIF, LIFRate, RectifiedLinear, Sigmoid,
-    AdaptiveLIF, AdaptiveLIFRate, Izhikevich]
+    AdaptiveLIF, AdaptiveLIFRate]  # Izhikevich]
 
 
 @pytest.mark.parametrize("neuron_type", all_neurons)
@@ -300,14 +300,6 @@ def test_exact_match(neuron_type, synapse):
 
     mpi_sim = nengo_mpi.Simulator(m)
     mpi_sim.run(sim_time)
-
-    print refimpl_sim.data[A_p]
-    print mpi_sim.data[A_p]
-    print refimpl_sim.data[A_p] - mpi_sim.data[A_p]
-
-    print refimpl_sim.data[B_p]
-    print mpi_sim.data[B_p]
-    print refimpl_sim.data[B_p] - mpi_sim.data[B_p]
 
     assert np.allclose(
         refimpl_sim.data[A_p], mpi_sim.data[A_p], atol=0.00001, rtol=0.00)
