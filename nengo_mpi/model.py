@@ -1,6 +1,13 @@
 """MPIModel"""
 
-from mpi_sim import PythonMpiSimulator
+try:
+    from mpi_sim import PythonMpiSimulator
+    mpi_sim_available = True
+except ImportError:
+    print (
+        "mpi_sim.so not available. Network files may be created, "
+        "but simulations cannot be run.")
+    mpi_sim_available = False
 
 from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
@@ -378,16 +385,6 @@ def ndarray_to_mpi_string(a):
     return s
 
 
-def resize_and_flush(dataset, data):
-    """
-    dataset: a resizable h5dataset containg strings, with shape[1] == 1
-    data: a list of strings
-    """
-    idx = dataset.shape[0]
-    dataset.resize((idx + len(data), 1))
-    dataset[idx:] = np.reshape(data, (-1, 1))
-
-
 class MpiModel(builder.Model):
     """
     Output of the MpiBuilder, used by the Simulator.
@@ -407,6 +404,12 @@ class MpiModel(builder.Model):
 
         self.n_components = n_components
         self.assignments = assignments
+
+        if not save_file and not mpi_sim_available:
+            raise ValueError(
+                "mpi_sim.so is unavailable, so nengo_mpi can only save "
+                "network files (cannot run simulations). However, save_file "
+                "argument was empty.")
 
         self.mpi_sim = (
             PythonMpiSimulator(n_components, dt) if not save_file else None)
