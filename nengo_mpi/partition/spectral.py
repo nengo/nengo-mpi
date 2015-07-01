@@ -1,4 +1,16 @@
-import networkx as nx
+
+_spectral_available = True
+
+try:
+    import networkx as nx
+    if not hasattr(nx, 'spectral_ordering'):
+        raise ImportError()
+except ImportError:
+    _spectral_available = False
+
+
+def spectral_available():
+    return _spectral_available
 
 
 def spectral_partitioner(filter_graph, n_components):

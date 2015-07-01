@@ -7,8 +7,9 @@ from nengo import Direct, Node, Ensemble
 from nengo.ensemble import Neurons
 from nengo.utils.builder import find_all_io
 
-from .spectral import spectral_partitioner
+from .work_balanced import work_balanced_partitioner
 from .metis import metis_available, metis_partitioner
+from .spectral import spectral_available, spectral_partitioner
 
 import logging
 logger = logging.getLogger(__name__)
@@ -99,9 +100,12 @@ class Partitioner(object):
         if metis_available():
             print "Defaulting to metis partitioner"
             return metis_partitioner
-        else:
+        elif spectral_available():
             print "Defaulting to spectral partitioner"
             return spectral_partitioner
+        else:
+            print "Defaulting to work-balanced partitioner"
+            return work_balanced_partitioner
 
     def partition(self, network):
         """
