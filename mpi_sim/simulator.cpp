@@ -1,15 +1,13 @@
 #include "simulator.hpp"
 
-char Simulator::delim = '|';
-
 Simulator::Simulator()
 :dt(0.001){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk);
+    chunk = shared_ptr<SimulatorChunk>(new SimulatorChunk);
 }
 
 Simulator::Simulator(dtype dt)
 :dt(dt){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk);
+    chunk = shared_ptr<SimulatorChunk>(new SimulatorChunk);
 }
 
 SignalView Simulator::get_signal(string signal_string){
@@ -106,14 +104,7 @@ void Simulator::from_file(string filename){
 
     in_file.close();
 
-    // Use non-parallel property lists.
-    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
-    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
-
-    chunk->from_file(filename, file_plist, read_plist);
-
-    H5Pclose(file_plist);
-    H5Pclose(read_plist);
+    chunk->from_file(filename);
 
     clock_t end = clock();
     cout << "Loading network from file took "

@@ -68,7 +68,7 @@ void MpiSimulator::init(){
     cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
     bcast_send_int(mpi_merged ? 1 : 0, comm);
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, n_processors, mpi_merged));
+    chunk = shared_ptr<SimulatorChunk>(new MpiSimulatorChunk(0, n_processors, comm, mpi_merged));
 
     for(int i = 0; i < n_processors; i++){
         probe_counts[i] = 0;
@@ -98,21 +98,11 @@ void MpiSimulator::from_file(string filename){
         send_string(filename, i+1, setup_tag, comm);
     }
 
-    // Use parallel property lists
-    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
-    H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
-
-    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
-
-    chunk->from_file(filename, file_plist, read_plist);
+    chunk->from_file(filename);
 
     for(auto pi : chunk->probe_info){
         probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
     }
-
-    H5Pclose(file_plist);
-    H5Pclose(read_plist);
 
     // Master barrier 1
     MPI_Barrier(comm);
@@ -152,7 +142,7 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
 }
 
 void MpiSimulator::finalize_build(){
-    chunk->finalize_build(comm);
+    chunk->finalize_build();
     for(auto pi : chunk->probe_info){
         probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
     }

@@ -11,8 +11,7 @@
 
 #include "simulator.hpp"
 #include "spec.hpp"
-#include "chunk.hpp"
-#include "psim_log.hpp"
+#include "mpi_chunk.hpp"
 
 using namespace std;
 

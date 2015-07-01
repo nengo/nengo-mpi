@@ -8,7 +8,6 @@
 #include <iostream>
 
 #include "simulator.hpp"
-#include "mpi_simulator.hpp"
 #include "operator.hpp"
 #include "probe.hpp"
 #include "spec.hpp"
@@ -25,13 +24,13 @@ unique_ptr<BaseSignal> ndarray_to_matrix(bpyn::array a);
 unique_ptr<BaseSignal> list_to_matrix(bpy::list l);
 
 /*
- * PythonMpiSimulator is a python-facing shell for MpiSimulator; it stores
- * an MpiSimulator, and most of its methods just call the corresponding
- * methods on that. Lets us keep all the code that requires python in one file. */
-class PythonMpiSimulator{
+ * NativeSimulator is a python-facing shell for a Simulator; most
+ * of its methods just call the corresponding methods on the Simulator
+ * that it wraps. */
+class NativeSimulator{
 public:
-    PythonMpiSimulator();
-    PythonMpiSimulator(bpy::object num_components, bpy::object dt);
+    NativeSimulator(){};
+    NativeSimulator(bpy::object num_components, bpy::object dt);
 
     void load_network(bpy::object filename);
     void finalize_build();
@@ -58,7 +57,7 @@ public:
 
     string to_string() const;
 
-private:
+protected:
     unique_ptr<Simulator> sim;
 };
 

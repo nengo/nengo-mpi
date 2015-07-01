@@ -11,38 +11,34 @@
 #include <utility> // pair
 #include <exception>
 #include <string>
-#include <mpi.h>
 
 #include "operator.hpp"
 #include "spec.hpp"
-#include "mpi_operator.hpp"
 #include "custom_ops.hpp"
 #include "probe.hpp"
 #include "sim_log.hpp"
-#include "psim_log.hpp"
 #include "debug.hpp"
 #include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
 
 // How frequently to flush the probe buffers, in units of number of steps.
 const int FLUSH_PROBES_EVERY = 1000;
 
-/* An MpiSimulatorChunk represents the portion of a Nengo
- * network that is simulated by a single MPI process. */
-class MpiSimulatorChunk{
+/* A SimulatorChunk is the core of any serial simulation in nengo_mpi. */
+class SimulatorChunk{
 
 public:
-    MpiSimulatorChunk();
-    MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged);
-    const string classname() { return "MpiSimulatorChunk"; }
+    SimulatorChunk();
+    const string classname() { return "SimulatorChunk"; }
 
     /*
      * Add simulation objects to the chunk from an HDF5 file. */
-    void from_file(string filename, hid_t file_plist, hid_t read_plist);
+    void from_file(string filename);
+    virtual void from_file(string filename, hid_t file_plist, hid_t read_plist);
 
     /* Run an integer number of steps. Called by a
      * worker process once it gets a signal from the master
      * process telling the worker to begin a simulation. */
-    void run_n_steps(int steps, bool progress);
+    virtual void run_n_steps(int steps, bool progress);
 
     // *** Signals ***
 
@@ -95,12 +91,6 @@ public:
      * that it operates on). */
     void add_op(OpSpec os);
 
-    /* Add MPI-related operators. These have to be added separately,
-     * because we need to initialize them in a special way before the
-     * simulation begins. */
-    void add_mpi_send(float index, int dst, int tag, SignalView content);
-    void add_mpi_recv(float index, int src, int tag, SignalView content);
-
     // *** Probes ***
 
     // Add a a probe from a ProbeSpec object.
@@ -109,7 +99,6 @@ public:
     // *** Miscellaneous ***
 
     void finalize_build();
-    void finalize_build(MPI_Comm comm);
 
     void set_log_filename(string lf);
     bool is_logging();
@@ -122,9 +111,9 @@ public:
 
     int get_num_probes(){return probe_map.size();}
 
-    string to_string() const;
+    virtual string to_string() const;
 
-    friend ostream& operator << (ostream &out, const MpiSimulatorChunk &chunk){
+    friend ostream& operator << (ostream &out, const SimulatorChunk &chunk){
         out << chunk.to_string();
         return out;
     }
@@ -135,10 +124,9 @@ public:
     map<key_type, shared_ptr<Probe>> probe_map;
     vector<ProbeSpec> probe_info;
 
-private:
+protected:
     dtype time;
     int n_steps;
-    int rank;
     int n_processors;
 
     unique_ptr<SimulationLog> sim_log;
@@ -153,25 +141,6 @@ private:
 
     // operate_store contains only non-mpi operators
     list<unique_ptr<Operator>> operator_store;
-
-    list<unique_ptr<MPIOperator>> mpi_sends;
-    list<unique_ptr<MPIOperator>> mpi_recvs;
-
-    // Indices of placeholders in operator_list
-    map<key_type, int> placeholder_indices;
-
-    bool mpi_merged;
-
-    // Used at build time to construct the merged mpi operators if mpi_merged is true
-    map<int, vector<pair<int, SignalView>>> merged_sends;
-    map<int, vector<pair<int, SignalView>>> merged_recvs;
-    map<int, int> send_tags;
-    map<int, int> recv_tags;
-
-    // Iterators pointing to locations in operator_list
-    // where the merged mpi ops should be added.
-    map<int, float> send_indices;
-    map<int, float> recv_indices;
 };
 
 inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
@@ -185,24 +154,5 @@ inline bool compare_indices(const OpSpec &left, const OpSpec &right){
 inline bool compare_op_ptr(const Operator* left, const Operator* right){
     return (left->get_index() < right->get_index());
 }
-
-class Placeholder: public Operator{
-
-public:
-    Placeholder(key_type key): key(key) {}
-    virtual string classname() const { return "Placeholder"; }
-
-    void operator()(){ run_dbg(*this);}
-    virtual string to_string() const{
-        stringstream out;
-        out << Operator::to_string();
-        out << "key: " << key << endl;
-
-        return out.str();
-    }
-
-protected:
-    key_type key;
-};
 
 #endif

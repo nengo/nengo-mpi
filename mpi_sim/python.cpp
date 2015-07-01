@@ -52,30 +52,24 @@ unique_ptr<BaseSignal> list_to_matrix(bpy::list l){
     return ret;
 }
 
-PythonMpiSimulator::PythonMpiSimulator(){}
+NativeSimulator::NativeSimulator(){}
 
-PythonMpiSimulator::PythonMpiSimulator(bpy::object num_components, bpy::object dt){
+NativeSimulator::NativeSimulator(bpy::object dt){
 
-    int c_num_components = bpy::extract<int>(num_components);
     dtype c_dt = bpy::extract<dtype>(dt);
-
-    if(c_num_components == 1){
-        sim = unique_ptr<Simulator>(new Simulator(c_dt));
-    }else{
-        sim = unique_ptr<Simulator>(new MpiSimulator(c_num_components, c_dt, false));
-    }
+    sim = unique_ptr<Simulator>(new Simulator(c_dt));
 }
 
-void PythonMpiSimulator::load_network(bpy::object filename){
+void NativeSimulator::load_network(bpy::object filename){
     string c_filename = bpy::extract<string>(filename);
     sim->from_file(c_filename);
 }
 
-void PythonMpiSimulator::finalize_build(){
+void NativeSimulator::finalize_build(){
     sim->finalize_build();
 }
 
-void PythonMpiSimulator::run_n_steps(
+void NativeSimulator::run_n_steps(
         bpy::object pysteps, bpy::object progress, bpy::object log_filename){
 
     int c_steps = bpy::extract<int>(pysteps);
@@ -85,7 +79,7 @@ void PythonMpiSimulator::run_n_steps(
     sim->run_n_steps(c_steps, c_progress, c_log_filename);
 }
 
-bpy::object PythonMpiSimulator::get_probe_data(
+bpy::object NativeSimulator::get_probe_data(
         bpy::object probe_key, bpy::object make_array){
 
     key_type c_probe_key = bpy::extract<key_type>(probe_key);
@@ -124,11 +118,11 @@ bpy::object PythonMpiSimulator::get_probe_data(
     return py_list;
 }
 
-void PythonMpiSimulator::reset(){
+void NativeSimulator::reset(){
     sim->reset();
 }
 
-void PythonMpiSimulator::create_PyFunc(
+void NativeSimulator::create_PyFunc(
         bpy::object py_fn, bpy::object t_in, bpy::object index){
 
     bool c_t_in = bpy::extract<bool>(t_in);
@@ -142,7 +136,7 @@ void PythonMpiSimulator::create_PyFunc(
     sim->add_pyfunc(move(pyfunc));
 }
 
-void PythonMpiSimulator::create_PyFuncI(
+void NativeSimulator::create_PyFuncI(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
         bpyn::array py_input, bpy::object index){
 
@@ -163,7 +157,7 @@ void PythonMpiSimulator::create_PyFuncI(
     sim->add_pyfunc(move(pyfunc));
 }
 
-void PythonMpiSimulator::create_PyFuncO(
+void NativeSimulator::create_PyFuncO(
         bpy::object py_fn, bpy::object t_in,
         bpy::object output, bpy::object index){
 
@@ -184,7 +178,7 @@ void PythonMpiSimulator::create_PyFuncO(
 }
 
 
-void PythonMpiSimulator::create_PyFuncIO(
+void NativeSimulator::create_PyFuncIO(
         bpy::object py_fn, bpy::object t_in, bpy::object input,
         bpyn::array py_input, bpy::object output, bpy::object index){
 
@@ -210,7 +204,7 @@ void PythonMpiSimulator::create_PyFuncIO(
     sim->add_pyfunc(move(pyfunc));
 }
 
-string PythonMpiSimulator::to_string() const{
+string NativeSimulator::to_string() const{
     return sim->to_string();
 }
 
@@ -282,20 +276,20 @@ string PyFunc::to_string() const{
     return out.str();
 }
 
-BOOST_PYTHON_MODULE(mpi_sim)
+BOOST_PYTHON_MODULE(cpp_sim)
 {
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
-    bpy::class_<PythonMpiSimulator, boost::noncopyable>(
-            "PythonMpiSimulator", bpy::init<bpy::object, bpy::object>())
-        .def("load_network", &PythonMpiSimulator::load_network)
-        .def("finalize_build", &PythonMpiSimulator::finalize_build)
-        .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
-        .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
-        .def("reset", &PythonMpiSimulator::reset)
-        .def("create_PyFunc", &PythonMpiSimulator::create_PyFunc)
-        .def("create_PyFuncO", &PythonMpiSimulator::create_PyFuncO)
-        .def("create_PyFuncI", &PythonMpiSimulator::create_PyFuncI)
-        .def("create_PyFuncIO", &PythonMpiSimulator::create_PyFuncIO)
-        .def("to_string", &PythonMpiSimulator::to_string);
+    bpy::class_<NativeSimulator, boost::noncopyable>(
+            "NativeSimulator", bpy::init<bpy::object, bpy::object>())
+        .def("load_network", &NativeSimulator::load_network)
+        .def("finalize_build", &NativeSimulator::finalize_build)
+        .def("run_n_steps", &NativeSimulator::run_n_steps)
+        .def("get_probe_data", &NativeSimulator::get_probe_data)
+        .def("reset", &NativeSimulator::reset)
+        .def("create_PyFunc", &NativeSimulator::create_PyFunc)
+        .def("create_PyFuncO", &NativeSimulator::create_PyFuncO)
+        .def("create_PyFuncI", &NativeSimulator::create_PyFuncI)
+        .def("create_PyFuncIO", &NativeSimulator::create_PyFuncIO)
+        .def("to_string", &NativeSimulator::to_string);
 }
 

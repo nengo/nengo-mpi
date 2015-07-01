@@ -37,7 +37,7 @@ else
 endif
 
 OBJS=simulator.o operator.o spec.o custom_ops.o probe.o chunk.o sim_log.o debug.o
-MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o 
+MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o mpi_chunk.o mpi_sim_log.o 
 BIN=${HOME}/nengo_mpi/bin
 
 DEFS=-O3
@@ -57,48 +57,56 @@ mpi_dbg: dbg
 dbg: DEFS+= -DDEBUG -g
 dbg: build
 
-build: nengo_cpp nengo_mpi mpi_sim.so
+build: nengo_cpp nengo_mpi cpp_sim.so mpi_sim.so
 
 clean:
-	rm -rf ${BIN}/nengo_cpp ${BIN}/nengo_mpi ${BIN}/mpi_sim.so *.o
+	rm -rf ${BIN}/nengo_cpp ${BIN}/nengo_mpi ${BIN}/cpp_sim.so ${BIN}/mpi_sim.so *.o
 
 
 # ********* nengo_cpp *************
 
-nengo_cpp: nengo_cpp.o ${MPI_OBJS} | ${BIN}
-	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
-	#${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
+nengo_cpp: nengo_cpp.o ${OBJS} | ${BIN}
+	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
 
 nengo_cpp.o: nengo_mpi.cpp simulator.hpp operator.hpp probe.hpp debug.hpp
 
-
 # ********* nengo_mpi *************
 
-nengo_mpi: nengo_mpi.o ${OBJS} | ${BIN}
+nengo_mpi: nengo_mpi.o ${MPI_OBJS} | ${BIN}
 	${MPICXX} -o ${BIN}/nengo_mpi nengo_mpi.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
 
 nengo_mpi.o: nengo_mpi.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
-#${MPICXX} -c -o nengo_mpi.o nengo_mpi.cpp
 
+# ********* cpp_sim.so *************
+
+cpp_sim.so: ${OBJS} python.o | ${BIN}
+	${CXX} -o ${BIN}/cpp_sim.so ${OBJS} python.o -shared ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${PYTHON_LIB} -lboost_python ${HDF5_LIB} -lhdf5 -ldl ${COMPRESSION_LIBS}
+
+python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp probe.hpp debug.hpp
 
 # ********* mpi_sim.so *************
 
 mpi_sim.so: ${MPI_OBJS} python.o | ${BIN}
 	${MPICXX} -o ${BIN}/mpi_sim.so ${MPI_OBJS} python.o -shared ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${PYTHON_LIB} -lboost_python ${HDF5_LIB} -lhdf5 -ldl ${COMPRESSION_LIBS}
 
-python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
-
+mpi_python.o: mpi_python.cpp mpi_python.hpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
 
 # ********* common to all *************
+
+mpi_%.o: mpi_%.cpp mpi_%.hpp
+%.o: %.cpp %.hpp
+
 
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
 #${MPICXX} -c -o mpi_operator.o mpi_operator.cpp
 
+mpi_chunk.o: mpi_chunk.cpp mpi_chunk.hpp operator.hpp mpi_operator.hpp custom_ops.hpp probe.hpp debug.hpp sim_log.hpp
+
 mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
 #${MPICXX} -c -o mpi_simulator.o mpi_simulator.cpp
 
-psim_log.o: psim_log.cpp psim_log.hpp sim_log.hpp operator.hpp debug.hpp
-#${MPICXX} -c -o psim_log.o psim_log.cpp
+mpi_sim_log.o: mpi_sim_log.cpp mpi_sim_log.hpp sim_log.hpp operator.hpp debug.hpp
+#${MPICXX} -c -o mpi_sim_log.o mpi_sim_log.cpp
 
 probe.o: probe.cpp probe.hpp operator.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp

@@ -33,20 +33,10 @@ void start_worker(MPI_Comm comm){
     string filename = recv_string(0, setup_tag, comm);
 
     int mpi_merged = bcast_recv_int(comm);
-    MpiSimulatorChunk chunk(my_id, n_processors, bool(mpi_merged));
+    MpiSimulatorChunk chunk(my_id, n_processors, comm, bool(mpi_merged));
 
-    // Use parallel property lists
-    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
-    H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
-
-    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
-
-    chunk.from_file(filename, file_plist, read_plist);
-    chunk.finalize_build(comm);
-
-    H5Pclose(file_plist);
-    H5Pclose(read_plist);
+    chunk.from_file(filename);
+    chunk.finalize_build();
 
     // Worker barrier 1
     MPI_Barrier(comm);

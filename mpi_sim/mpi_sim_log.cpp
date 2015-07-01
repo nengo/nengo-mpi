@@ -1,11 +1,11 @@
-#include "psim_log.hpp"
+#include "mpi_sim_log.hpp"
 
-ParallelSimulationLog::ParallelSimulationLog(
-    int n_processors, int processor, vector<ProbeSpec> probe_info, dtype dt, MPI_Comm comm)
-:SimulationLog(probe_info, dt), n_processors(n_processors), processor(processor), comm(comm){}
+MpiSimulationLog::MpiSimulationLog(
+    int n_processors, int rank, vector<ProbeSpec> probe_info, dtype dt, MPI_Comm comm)
+:SimulationLog(probe_info, dt), n_processors(n_processors), rank(rank), comm(comm){}
 
 // Master version
-void ParallelSimulationLog::prep_for_simulation(string filename, int num_steps){
+void MpiSimulationLog::prep_for_simulation(string filename, int num_steps){
 
     // Send filename size
     int size = filename.size();
@@ -30,7 +30,7 @@ void ParallelSimulationLog::prep_for_simulation(string filename, int num_steps){
 }
 
 // Worker version
-void ParallelSimulationLog::prep_for_simulation(){
+void MpiSimulationLog::prep_for_simulation(){
 
     // Receive filename size
     int size;
@@ -55,7 +55,7 @@ void ParallelSimulationLog::prep_for_simulation(){
     ready_for_simulation = true;
 }
 
-void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
+void MpiSimulationLog::setup_hdf5(string filename, int num_steps){
     hid_t dset_id, dataspace_id, plist_id, att_id, att_dataspace_id;
 
     // Set up file access property list with parallel I/O access
@@ -97,7 +97,7 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
 
         HDF5Dataset d(ps.name, ps.signal_spec.shape1, dset_id, dataspace_id, plist_id);
 
-        if(ps.component % n_processors == processor){
+        if(ps.component % n_processors == rank){
             dset_map[ps.probe_key] = d;
         }
 

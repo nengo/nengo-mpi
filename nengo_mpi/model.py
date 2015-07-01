@@ -1,13 +1,27 @@
 """MPIModel"""
 
+_cpp_sim_avail = True
 try:
-    from mpi_sim import PythonMpiSimulator
-    mpi_sim_available = True
+    from cpp_sim import NativeSimulator
 except ImportError:
+    _cpp_sim_avail = False
+
+_mpi_sim_avail = True
+try:
+    from mpi_sim import NativeMpiSimulator
+except ImportError:
+    _mpi_sim_avail = False
+
+if not _cpp_sim_avail and not _mpi_sim_avail:
     print (
-        "mpi_sim.so not available. Network files may be created, "
-        "but simulations cannot be run.")
-    mpi_sim_available = False
+        "Native simulators cpp_sim.so and mpi_sim.so not available. "
+        "Network files may be created, but simulations cannot be run.")
+
+elif not _mpi_sim_avail:
+    print (
+        "MPI simulator mpi_sim.so not available. "
+        "Network files may be created and serial simulations can be "
+        "run, but parallel simulations cannot be.")
 
 from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
@@ -405,14 +419,26 @@ class MpiModel(builder.Model):
         self.n_components = n_components
         self.assignments = assignments
 
-        if not save_file and not mpi_sim_available:
-            raise ValueError(
-                "mpi_sim.so is unavailable, so nengo_mpi can only save "
-                "network files (cannot run simulations). However, save_file "
-                "argument was empty.")
-
-        self.mpi_sim = (
-            PythonMpiSimulator(n_components, dt) if not save_file else None)
+        if not save_file:
+            if n_components == 1:
+                if _cpp_sim_avail:
+                    self.native_sim = NativeSimulator(dt)
+                elif _mpi_sim_avail:
+                    self.native_sim = NativeMpiSimulator(0, dt)
+                else:
+                    raise ValueError(
+                        "mpi_sim.so and cpp_sim.so unavailable, so we can "
+                        "only save network files (cannot run simulations). "
+                        "However, save_file argument was empty.")
+            else:
+                if _mpi_sim_avail:
+                    self.native_sim = NativeMpiSimulator(n_components, dt)
+                else:
+                    raise ValueError(
+                        "Multiple components requested, and mpi_sim.so "
+                        "unavailable, so we can only save network files "
+                        "(cannot run simulations). However, save_file "
+                        "argument was empty.")
 
         self.h5_compression = 'gzip'
         self.op_strings = defaultdict(list)
@@ -460,7 +486,7 @@ class MpiModel(builder.Model):
 
     @property
     def runnable(self):
-        return self.mpi_sim is not None
+        return self.native_sim is not None
 
     def __str__(self):
         return "MpiModel: %s" % self.label
@@ -649,19 +675,19 @@ class MpiModel(builder.Model):
 
         self.save_file.close()
 
-        if self.mpi_sim is not None:
-            self.mpi_sim.load_network(self.save_file_name)
+        if self.native_sim is not None:
+            self.native_sim.load_network(self.save_file_name)
             os.remove(self.save_file_name)
 
             for args in self.pyfunc_args:
                 f = {
-                    'N': self.mpi_sim.create_PyFunc,
-                    'I': self.mpi_sim.create_PyFuncI,
-                    'O': self.mpi_sim.create_PyFuncO,
-                    'IO': self.mpi_sim.create_PyFuncIO}[args[0]]
+                    'N': self.native_sim.create_PyFunc,
+                    'I': self.native_sim.create_PyFuncI,
+                    'O': self.native_sim.create_PyFuncO,
+                    'IO': self.native_sim.create_PyFuncIO}[args[0]]
                 f(*args[1:])
 
-            self.mpi_sim.finalize_build()
+            self.native_sim.finalize_build()
 
     def add_ops_to_mpi(self, component):
         """

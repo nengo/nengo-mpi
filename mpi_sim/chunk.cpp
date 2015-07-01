@@ -1,17 +1,20 @@
 #include "chunk.hpp"
 
-MpiSimulatorChunk::MpiSimulatorChunk()
-:time(0.0), dt(0.001), n_steps(0), rank(0), n_processors(1), mpi_merged(false){
+SimulatorChunk::SimulatorChunk()
+:time(0.0), dt(0.001), n_steps(0), rank(0), n_processors(1){
 }
 
-MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged)
-:time(0.0), dt(0.001), n_steps(0), rank(rank), n_processors(n_processors), mpi_merged(mpi_merged){
-    stringstream ss;
-    ss << "Chunk " << rank;
-    label = ss.str();
+void SimulatorChunk::from_file(string filename){
+    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
+    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
+
+    from_file(filename, file_plist, read_plist);
+
+    H5Pclose(file_plist);
+    H5Pclose(read_plist);
 }
 
-void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist){
+void SimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist){
     herr_t err;
     hid_t f = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, file_plist);
 
@@ -226,83 +229,12 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
     H5Fclose(f);
 }
 
-void MpiSimulatorChunk::finalize_build(){
-    finalize_build(MPI_COMM_NULL);
-}
-
-void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
-    if(n_processors != 1){
-        sim_log = unique_ptr<SimulationLog>(
-            new ParallelSimulationLog(n_processors, rank, probe_info, dt, comm));
-    }else{
-        sim_log = unique_ptr<SimulationLog>(new SimulationLog(probe_info, dt));
-    }
-
-    if(mpi_merged){
-        for(auto& kv : merged_sends){
-
-            int dst = kv.first;
-            vector<pair<int, SignalView>> content = kv.second;
-            vector<pair<int, SignalView*>> content_prime;
-            for(auto& p : content){
-                content_prime.push_back({p.first, &(p.second)});
-            }
-
-            stable_sort(content_prime.begin(), content_prime.end(), compare_first);
-            vector<SignalView> signals_only;
-
-            for(auto& p : content_prime){
-                signals_only.push_back(*(p.second));
-            }
-
-            int tag = send_tags[dst];
-
-            // Create the merged op, put it in the op list
-            auto merged_send = unique_ptr<MPIOperator>(
-                new MergedMPISend(dst, tag, signals_only));
-
-            operator_list.push_back((Operator*) merged_send.get());
-            mpi_sends.push_back(move(merged_send));
-        }
-
-        for(auto& kv : merged_recvs){
-
-            int src = kv.first;
-            vector<pair<int, SignalView>> content = kv.second;
-            vector<pair<int, SignalView*>> content_prime;
-            for(auto& p : content){
-                content_prime.push_back({p.first, &(p.second)});
-            }
-            stable_sort(content_prime.begin(), content_prime.end(), compare_first);
-
-            vector<SignalView> signals_only;
-            for(auto& p : content_prime){
-                signals_only.push_back(*(p.second));
-            }
-
-            int tag = recv_tags[src];
-
-            // Create the merged op, put it in the op list
-            auto merged_recv = unique_ptr<MPIOperator>(
-                new MergedMPIRecv(src, tag, signals_only));
-
-            operator_list.push_back((Operator*) merged_recv.get());
-            mpi_recvs.push_back(move(merged_recv));
-        }
-    }
-
-    for(auto& send: mpi_sends){
-        send->set_communicator(comm);
-    }
-
-    for(auto& recv: mpi_recvs){
-        recv->set_communicator(comm);
-    }
-
+void SimulatorChunk::finalize_build(){
+    sim_log = unique_ptr<SimulationLog>(new SimulationLog(probe_info, dt));
     operator_list.sort(compare_op_ptr);
 }
 
-void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
+void SimulatorChunk::run_n_steps(int steps, bool progress){
 
     stringstream ss;
     ss << "chunk_" << rank << "_dbg";
@@ -366,18 +298,10 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
     flush_probes();
 
-    for(auto& send: mpi_sends){
-        send->complete();
-    }
-
-    for(auto& recv : mpi_recvs){
-        recv->complete();
-    }
-
     clsdbgfile();
 }
 
-void MpiSimulatorChunk::add_base_signal(
+void SimulatorChunk::add_base_signal(
         key_type key, string l, unique_ptr<BaseSignal> data){
 
     auto key_location = signal_map.find(key);
@@ -410,12 +334,12 @@ void MpiSimulatorChunk::add_base_signal(
     }
 }
 
-SignalView MpiSimulatorChunk::get_signal_view(
+SignalView SimulatorChunk::get_signal_view(
         key_type key, int shape1, int shape2, int stride1, int stride2, int offset){
 
     if(signal_map.find(key) == signal_map.end()){
         stringstream msg;
-        msg << "Error accessing MpiSimulatorChunk :: signal with key " << key;
+        msg << "Error accessing SimulatorChunk :: signal with key " << key;
         throw out_of_range(msg.str());
     }
 
@@ -429,28 +353,28 @@ SignalView MpiSimulatorChunk::get_signal_view(
         ublas::slice(start2, 1, shape2));
 }
 
-SignalView MpiSimulatorChunk::get_signal_view(SignalSpec ss){
+SignalView SimulatorChunk::get_signal_view(SignalSpec ss){
     return get_signal_view(
         ss.key, ss.shape1, ss.shape2, ss.stride1, ss.stride2, ss.offset);
 }
 
-SignalView MpiSimulatorChunk::get_signal_view(string ss){
+SignalView SimulatorChunk::get_signal_view(string ss){
     return get_signal_view(SignalSpec(ss));
 }
 
-SignalView MpiSimulatorChunk::get_signal_view(key_type key){
+SignalView SimulatorChunk::get_signal_view(key_type key){
     shared_ptr<BaseSignal> base_signal = signal_map.at(key);
     return SignalView(
         *base_signal, ublas::slice(0, 1, base_signal->size1()),
         ublas::slice(0, 1, base_signal->size2()));
 }
 
-void MpiSimulatorChunk::add_op(unique_ptr<Operator> op){
+void SimulatorChunk::add_op(unique_ptr<Operator> op){
     operator_list.push_back(op.get());
     operator_store.push_back(move(op));
 }
 
-void MpiSimulatorChunk::add_op(OpSpec op_spec){
+void SimulatorChunk::add_op(OpSpec op_spec){
     string type_string = op_spec.type_string;
     vector<string>& args = op_spec.arguments;
     float index = op_spec.index;
@@ -615,36 +539,6 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
             add_op(unique_ptr<Operator>(new Synapse(input, output, *numerator, *denominator)));
 
-        }else if(type_string.compare("MpiSend") == 0){
-
-            if(n_processors > 1){
-                int dst = boost::lexical_cast<int>(args[0]);
-                dst = dst % n_processors;
-                if(dst != rank){
-
-                    int tag = boost::lexical_cast<int>(args[1]);
-                    key_type signal_key = boost::lexical_cast<key_type>(args[2]);
-                    SignalView content = get_signal_view(signal_key);
-
-                    add_mpi_send(index, dst, tag, content);
-                }
-            }
-
-        }else if(type_string.compare("MpiRecv") == 0){
-
-            if(n_processors > 1){
-                int src = boost::lexical_cast<int>(args[0]);
-                src = src % n_processors;
-
-                if(src != rank){
-                    int tag = boost::lexical_cast<int>(args[1]);
-                    key_type signal_key = boost::lexical_cast<key_type>(args[2]);
-                    SignalView content = get_signal_view(signal_key);
-
-                    add_mpi_recv(index, src, tag, content);
-                }
-            }
-
         }else if(type_string.compare("SpaunStimulus") == 0){
             SignalView output = get_signal_view(args[0]);
 
@@ -668,7 +562,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
         }else{
             stringstream msg;
-            msg << "Received an operator type that nengo_mpi can't handle: " << type_string;
+            msg << "Received an operator type that nengo_cpp can't handle: " << type_string;
             throw runtime_error(msg.str());
         }
 
@@ -686,60 +580,20 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             i++;
         }
 
-        throw runtime_error(msg.str());
+        throw boost::bad_lexical_cast(msg.str());
     }
 }
 
-void MpiSimulatorChunk::add_mpi_send(float index, int dst, int tag, SignalView content){
-
-    if(mpi_merged){
-        if(merged_sends.find(dst) == merged_sends.end()){
-            send_indices[dst] = index;
-            send_tags[dst] = tag;
-        }else{
-            send_indices[dst] = max(send_indices[dst], index);
-            send_tags[dst] = min(send_tags[dst], tag);
-        }
-
-        merged_sends[dst].push_back({tag, content});
-
-    }else{
-        auto mpi_send = unique_ptr<MPIOperator>(new MPISend(dst, tag, content));
-        operator_list.push_back((Operator *) mpi_send.get());
-        mpi_sends.push_back(move(mpi_send));
-    }
-}
-
-void MpiSimulatorChunk::add_mpi_recv(float index, int src, int tag, SignalView content){
-
-    if(mpi_merged){
-        if(merged_recvs.find(src) == merged_recvs.end()){
-            recv_indices[src] = index;
-            recv_tags[src] = tag;
-        }else{
-            recv_indices[src] = min(recv_indices[src], index);
-            recv_tags[src] = min(recv_tags[src], tag);
-        }
-
-        merged_recvs[src].push_back({tag, content});
-
-    }else{
-        auto mpi_recv = unique_ptr<MPIOperator>(new MPIRecv(src, tag, content));
-        operator_list.push_back((Operator *) mpi_recv.get());
-        mpi_recvs.push_back(move(mpi_recv));
-    }
-}
-
-void MpiSimulatorChunk::add_probe(ProbeSpec ps){
+void SimulatorChunk::add_probe(ProbeSpec ps){
     SignalView signal = get_signal_view(ps.signal_spec);
     probe_map[ps.probe_key] = shared_ptr<Probe>(new Probe(signal, ps.period));
 }
 
-void MpiSimulatorChunk::set_log_filename(string lf){
+void SimulatorChunk::set_log_filename(string lf){
     log_filename = lf;
 }
 
-bool MpiSimulatorChunk::is_logging(){
+bool SimulatorChunk::is_logging(){
     if(sim_log){
         return sim_log->is_ready();
     }else{
@@ -748,11 +602,11 @@ bool MpiSimulatorChunk::is_logging(){
     }
 }
 
-void MpiSimulatorChunk::close_simulation_log(){
+void SimulatorChunk::close_simulation_log(){
     sim_log->close();
 }
 
-void MpiSimulatorChunk::flush_probes(){
+void SimulatorChunk::flush_probes(){
     if(sim_log->is_ready()){
         for(auto& kv : probe_map){
             int n_rows;
@@ -762,18 +616,18 @@ void MpiSimulatorChunk::flush_probes(){
                 sim_log->write(kv.first, buffer, n_rows);
             }catch(out_of_range& e){
                 stringstream msg;
-                msg << "Trying to write to simulation log on rank " << rank << " using "
-                       "invalid probe key: " << kv.first << "." << endl;
+                msg << "Trying to write to simulation log on rank " << rank
+                    << " using invalid probe key: " << kv.first << "." << endl;
                 throw out_of_range(msg.str());
             }
         }
     }
 }
 
-string MpiSimulatorChunk::to_string() const{
+string SimulatorChunk::to_string() const{
     stringstream out;
 
-    out << "<MpiSimulatorChunk" << endl;
+    out << "<SimulatorChunk" << endl;
     out << "    Label: " << label << endl;
 
     out << "** Signals: **" << endl;
@@ -796,16 +650,6 @@ string MpiSimulatorChunk::to_string() const{
         out << *op << endl;
     }
     out << endl;
-
-    out << "** MPISends: **" << endl;
-    for(auto const& send : mpi_sends){
-        out << "Value: " << *send << endl;
-    }
-
-    out << "** MPIRecvs: **" << endl;
-    for(auto const& recv : mpi_recvs){
-        out << "Value: " << *recv << endl;
-    }
 
     return out.str();
 }

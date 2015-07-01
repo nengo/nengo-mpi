@@ -102,26 +102,26 @@ class Simulator(object):
         print "MPI model ready."
 
     @property
-    def mpi_sim(self):
+    def native_sim(self):
         if not self.model.runnable:
             raise Exception(
                 "Cannot access C++ simulator of MpiModel, MpiModel is "
                 "not in a runnable state. Likely in write-file mode.")
 
-        return self.model.mpi_sim
+        return self.model.native_sim
 
     def __str__(self):
-        return self.mpi_sim.to_string()
+        return self.native_sim.to_string()
 
     def run_steps(self, steps, progress_bar, log_filename):
         """Simulate for the given number of `dt` steps."""
 
         print "Simulating MPI model for %d steps..." % steps
-        self.mpi_sim.run_n_steps(steps, progress_bar, log_filename)
+        self.native_sim.run_n_steps(steps, progress_bar, log_filename)
 
         if not log_filename:
             for probe, probe_key in self.model.probe_keys.items():
-                data = self.mpi_sim.get_probe_data(probe_key, np.empty)
+                data = self.native_sim.get_probe_data(probe_key, np.empty)
 
                 if probe not in self._probe_outputs:
                     self._probe_outputs[probe] = data
@@ -149,4 +149,4 @@ class Simulator(object):
 
     def reset(self):
         self.n_steps = 0
-        self.mpi_sim.reset()
+        self.native_sim.reset()

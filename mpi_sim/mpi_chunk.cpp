@@ -1,16 +1,27 @@
-#ifndef NENGO_MPI_SIMULATION_LOG_HPP
-#define NENGO_MPI_SIMULATION_LOG_HPP
-
 #include "mpi_chunk.hpp"
 
-MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged)
-:time(0.0), dt(0.001), n_steps(0), rank(rank), n_processors(n_processors), mpi_merged(mpi_merged){
+MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, MPI_Comm comm, bool mpi_merged)
+:time(0.0), dt(0.001), n_steps(0), rank(rank), n_processors(n_processors), comm(comm), mpi_merged(mpi_merged){
     stringstream ss;
     ss << "Chunk " << rank;
     label = ss.str();
 }
 
-void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
+void MpiSimulatorChunk::from_file(string filename){
+    // Use parallel property lists
+    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
+    H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
+
+    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
+    H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
+
+    from_file(filename, file_plist, read_plist);
+
+    H5Pclose(file_plist);
+    H5Pclose(read_plist);
+}
+
+void MpiSimulatorChunk::finalize_build(){
     sim_log = unique_ptr<SimulationLog>(
         new MpiSimulationLog(n_processors, rank, probe_info, dt, comm));
 
@@ -296,97 +307,3 @@ string MpiSimulatorChunk::to_string() const{
 
     return out.str();
 }
-#include <map>
-#include <vector>
-#include <string>
-#include <memory>
-#include <exception>
-
-#include <hdf5.h>
-
-#include "operator.hpp"
-#include "spec.hpp"
-#include "debug.hpp"
-
-using namespace std;
-
-// Stores metadata about an HDF5 dataset
-struct HDF5Dataset{
-    HDF5Dataset(){};
-
-    HDF5Dataset(string n, int n_cols, hid_t d, hid_t dspace)
-        :parallel(false), name(n), n_cols(n_cols), dset_id(d),
-         dataspace_id(dspace), plist_id(H5P_DEFAULT), row_offset(0){};
-
-    HDF5Dataset(string n, int n_cols, hid_t d, hid_t dspace, hid_t p)
-        :parallel(true), name(n), n_cols(n_cols), dset_id(d),
-         dataspace_id(dspace), plist_id(p), row_offset(0){};
-
-    void close(){
-        H5Dclose(dset_id);
-        H5Sclose(dataspace_id);
-
-        if(parallel){
-            H5Pclose(plist_id);
-        }
-    }
-
-    bool parallel;
-
-    string name;
-
-    int n_cols;
-
-    hid_t dset_id;
-    hid_t dataspace_id;
-    hid_t plist_id;
-
-    int row_offset;
-};
-
-const int MAX_PROBE_NAME_LENGTH = 512;
-
-// Represents an HDF5 file to which we write data collected throughout the simulation.
-// If filename given to prep_for_simulation is empty string, no logging is done.
-class SimulationLog{
-public:
-    SimulationLog(){};
-
-    SimulationLog(vector<ProbeSpec> probe_info, dtype dt);
-    SimulationLog(dtype dt);
-
-    virtual void prep_for_simulation(string filename, int num_steps);
-    virtual void prep_for_simulation();
-
-    bool is_ready(){return ready_for_simulation;};
-
-    // Use the `probe_info` (which is read from the HDF5 file that specifies the
-    // network), to construct an HDF5 which simulation results are written to.
-    // Called at the beginning of a simulation.
-    virtual void setup_hdf5(string filename, int num_steps);
-
-    // Write some data recorded by a probe in the simulator to the dataset in the
-    // HDF5 that was reserved for that probe at the beginning of the simulation
-    // (by calling the method `setup_hdf5`).
-    void write(key_type probe_key, shared_ptr<dtype> buffer, int n_rows);
-
-    // Close the HDF5 file.
-    void close();
-
-    bool is_closed(){return closed;};
-
-protected:
-    bool ready_for_simulation;
-
-    dtype dt;
-
-    hid_t file_id;
-
-    vector<ProbeSpec> probe_info;
-
-    map<key_type, HDF5Dataset> dset_map;
-    vector<HDF5Dataset> datasets;
-    bool closed;
-};
-
-#endif

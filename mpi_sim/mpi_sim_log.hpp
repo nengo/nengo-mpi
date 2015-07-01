@@ -1,28 +1,19 @@
 #ifndef NENGO_MPI_PARALLEL_SIMULATION_LOG_HPP
 #define NENGO_MPI_PARALLEL_SIMULATION_LOG_HPP
 
-#include <map>
-#include <vector>
-#include <string>
-#include <memory>
-#include <exception>
-
-#include <hdf5.h>
 #include <mpi.h>
 
 #include "sim_log.hpp"
-#include "spec.hpp"
-#include "debug.hpp"
 
 // A parallel version of SimulationLog. Represents an HDF5 file to which we
 // write data collected throughout the simulation. All processors have access
 // to the same file, and all processors can write to it independently.
-class ParallelSimulationLog: public SimulationLog{
+class MpiSimulationLog: public SimulationLog{
 public:
-    ParallelSimulationLog(){};
+    MpiSimulationLog(){};
 
-    ParallelSimulationLog(
-        int n_processors, int processor, vector<ProbeSpec> probe_info,
+    MpiSimulationLog(
+        int n_processors, int rank, vector<ProbeSpec> probe_info,
         dtype dt, MPI_Comm comm);
 
     // Called by master
@@ -38,7 +29,7 @@ public:
 
 protected:
     int n_processors;
-    int processor;
+    int rank;
     MPI_Comm comm;
 
     int mpi_rank;
