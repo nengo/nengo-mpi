@@ -1,3 +1,0 @@
-#mpirun -np 1 python ~/.local/bin/py.test -k 'test_synapses'
-mpirun -np 1 python ~/.local/bin/py.test -k 'not test_operators and not test_learning_rules and not noise and not reset'
-# --collect-only -s -x --capture=no --maxfail=1
