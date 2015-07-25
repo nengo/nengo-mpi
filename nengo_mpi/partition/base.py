@@ -4,6 +4,7 @@ import warnings
 import networkx as nx
 import numpy as np
 from nengo import Direct, Node, Ensemble
+from nengo.base import ObjView
 from nengo.ensemble import Neurons
 from nengo.utils.builder import find_all_io
 
@@ -504,7 +505,11 @@ def propogate_assignments(network, assignments):
         # TODO: properly handle probes that target connections
         # connections will not be in ``assignments'' at this point.
         for probe in network.probes:
-            assignments[probe] = assignments[probe.target]
+            target = (
+                probe.target.obj
+                if isinstance(probe.target, ObjView) else probe.target)
+
+            assignments[probe] = assignments[target]
 
         for n in network.networks:
             probe_helper(n, assignments)
