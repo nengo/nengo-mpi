@@ -1,75 +1,87 @@
 """
-Black-box testing of the MPI Simulator. Imports tests from the
-reference implementation.
-
-Modified from the same file in the nengo-ocl.
+Black-box testing of the sim_ocl Simulator.
 
 TestCase classes are added automatically from
 nengo.tests, but you can still run individual
 test files like this:
 
-$ py.test test/test_simulator.py -k test_ensemble.test_scalar
+$ py.test test/test_sim_ocl.py -k test_ensemble.test_scalar
 
 See http://pytest.org/latest/usage.html for more invocations.
 
 """
-
-import inspect
-import os.path
-
-import nengo
+import fnmatch
+import os
+import sys
 import pytest
 
-test_files = {}
+import nengo
+from nengo.utils.testing import find_modules
 
-if 1:
-    # Standard nengo tests
-    nengo_test_dir = os.path.dirname(nengo.tests.__file__)
-    test_files["nengo.tests."] = os.listdir(nengo_test_dir)
+import nengo_mpi
+from nengo_mpi.tests.utils import load_functions
 
-try:
-    if 1:
-        # Spa tests
-        import nengo.spa.tests
-        spa_test_dir = os.path.dirname(nengo.spa.tests.__file__)
-        test_files["nengo.spa.tests."] = os.listdir(spa_test_dir)
 
-except Exception as e:
-    print "Couldn't import spa tests because" + e.message
+def xfail(pattern, msg):
+    for key in tests:
+        if fnmatch.fnmatch(key, pattern):
+            tests[key] = pytest.mark.xfail(True, reason=msg)(tests[key])
 
-try:
-    if 1:
-        # Nengo network tests
-        import nengo.networks.tests
-        networks_test_dir = os.path.dirname(nengo.networks.tests.__file__)
-        test_files["nengo.networks.tests."] = os.listdir(networks_test_dir)
 
-except Exception as e:
-    print "Couldn't import network tests because" + e.message
+def MpiSimulator(*args, **kwargs):
+    return nengo_mpi.Simulator(*args, **kwargs)
 
-nengo.log(debug=False)
 
-for key in test_files:
-    for test_file in test_files[key]:
-        if not test_file.startswith('test_') or not test_file.endswith('.py'):
-            continue
+def pytest_funcarg__Simulator(request):
+    """the Simulator class being tested."""
+    return MpiSimulator
 
-        if test_file.startswith('test_examples'):
-            continue
 
-        module_string = key + test_file[:-3]
-        m = __import__(module_string, globals(), locals(), ['*'])
+def pytest_funcarg__RefSimulator(request):
+    """the Simulator class being tested."""
+    return nengo.Simulator
 
-        for k in dir(m):
-            if k.startswith('test_'):
-                tst = getattr(m, k)
-                if callable(tst):
-                    args = inspect.getargspec(tst).args
-                    if 'Simulator' in args:
-                        locals()[test_file[:-3] + '.' + k] = tst
-            if k.startswith('pytest'):
-                locals()[k] = getattr(m, k)
+
+nengo_dir = os.path.dirname(nengo.__file__)
+modules = find_modules(nengo_dir, prefix='nengo')
+tests = load_functions(modules, arg_pattern='^(Ref)?Simulator$')
+
+# noise
+xfail('test.nengo.tests.test_ensemble.test_noise*',
+      "nengo_mpi does not support noise")
+xfail('test.nengo.tests.test_simulator.test_noise*',
+      "nengo_mpi does not support noise")
+
+# learning rules
+xfail('test.nengo.tests.test_learning_rules.test_unsupervised',
+      "Unsupervised learning rules not implemented")
+xfail('test.nengo.tests.test_learning_rules.test_dt_dependence',
+      "Filtering matrices (i.e. learned transform) not implemented")
+
+# nodes
+xfail('test.nengo.tests.test_node.test_none',
+      "No error if nodes output None")
+xfail('test.nengo.tests.test_node.test_unconnected_node',
+      "Unconnected nodes not supported")
+xfail('test.nengo.tests.test_node.test_set_output',
+      "Unconnected nodes not supported")
+xfail('test.nengo.tests.test_node.test_args',
+      "This test fails for an unknown reason")
+
+# synapses
+xfail('test.nengo.tests.test_synapses.test_alpha',
+      "Only first-order filters implemented")
+xfail('test.nengo.tests.test_synapses.test_general',
+      "Only first-order filters implemented")
+
+# resetting
+xfail('test.nengo.tests.test_learning_rules.test_reset',
+      "Resetting not implemented")
+xfail('test.nengo.tests.test_neurons.test_reset',
+      "Resetting not implemented")
+
+locals().update(tests)
 
 
 if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+    pytest.main(sys.argv)

@@ -128,7 +128,6 @@ with warnings.catch_warnings():
                         synapse=conn.synapse,
                         transform=transform, solver=conn.solver,
                         learning_rule_type=conn.learning_rule_type,
-                        modulatory=conn.modulatory,
                         eval_points=conn.eval_points,
                         scale_eval_points=conn.scale_eval_points,
                         seed=conn.seed)
@@ -498,12 +497,6 @@ class MpiModel(builder.Model):
                 self.add_ops(pre_component, self.object_ops[conn])
 
             else:
-                # conn crosses component boundaries
-                if conn.modulatory:
-                    raise Exception(
-                        "Connections crossing component boundaries "
-                        "must not be modulatory.")
-
                 if conn.learning_rule_type:
                     raise Exception(
                         "Connections crossing component boundaries "

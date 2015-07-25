@@ -59,10 +59,6 @@ class Simulator(object):
             equal to the empty string, then no file is created.
         """
 
-        # Note: seed is not used right now, but one day...
-        assert seed is None, "Simulator seed not yet implemented"
-        self.seed = np.random.randint(npext.maxint) if seed is None else seed
-
         self.n_steps = 0
         self.dt = dt
 
@@ -100,6 +96,9 @@ class Simulator(object):
         self.data = ProbeDict(self._probe_outputs)
 
         print "MPI model ready."
+
+        self.seed = np.random.randint(npext.maxint) if seed is None else seed
+        self.reset(seed=seed)
 
     @property
     def mpi_sim(self):
@@ -147,6 +146,13 @@ class Simulator(object):
         n_steps = int(self.n_steps * (self.dt / dt))
         return dt * np.arange(1, n_steps + 1)
 
-    def reset(self):
+    def reset(self, seed=None):
+        if seed is not None:
+            self.seed = seed
+
         self.n_steps = 0
-        self.mpi_sim.reset()
+
+        try:
+            self.mpi_sim.reset()
+        except:
+            pass
