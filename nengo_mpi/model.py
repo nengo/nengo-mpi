@@ -9,6 +9,15 @@ except ImportError:
         "but simulations cannot be run.")
     mpi_sim_available = False
 
+try:
+    import h5py as h5
+    h5py_available = True
+except ImportError:
+    print (
+        "h5py not available. nengo_mpi cannot be used.")
+    h5py_available = False
+
+
 from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
@@ -33,7 +42,6 @@ from collections import defaultdict
 import warnings
 from itertools import chain
 import re
-import h5py as h5
 import os
 import tempfile
 
@@ -400,6 +408,9 @@ class MpiModel(builder.Model):
     def __init__(
             self, n_components, assignments, dt=0.001, label=None,
             decoder_cache=NoDecoderCache(), save_file="", free_memory=True):
+
+        if not h5py_available:
+            raise Exception("h5py not available.")
 
         self.n_components = n_components
         self.assignments = assignments
