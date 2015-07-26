@@ -17,6 +17,14 @@ except ImportError:
         "h5py not available. nengo_mpi cannot be used.")
     h5py_available = False
 
+import psutil
+
+
+def memory_usage_psutil():
+    # return the memory usage in MB
+    process = psutil.Process(os.getpid())
+    mem = process.get_memory_info()[0] / float(2 ** 20)
+    return mem
 
 from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
@@ -44,6 +52,7 @@ from itertools import chain
 import re
 import os
 import tempfile
+import gc
 
 import logging
 logger = logging.getLogger(__name__)
@@ -51,6 +60,8 @@ logger = logging.getLogger(__name__)
 OP_DELIM = ";"
 SIGNAL_DELIM = ":"
 PROBE_DELIM = "|"
+
+FLUSH_FREQUENCY = 1000
 
 
 def make_builder(base):
@@ -407,7 +418,7 @@ class MpiModel(builder.Model):
 
     def __init__(
             self, n_components, assignments, dt=0.001, label=None,
-            decoder_cache=NoDecoderCache(), save_file="", free_memory=True):
+            decoder_cache=NoDecoderCache(), save_file="", free_memory=False):
 
         if not h5py_available:
             raise Exception("h5py not available.")
@@ -423,6 +434,9 @@ class MpiModel(builder.Model):
 
         self.mpi_sim = (
             PythonMpiSimulator(n_components, dt) if not save_file else None)
+
+        self.signal_counter = 0
+        self.flush = False
 
         self.h5_compression = 'gzip'
         self.op_strings = defaultdict(list)
@@ -575,7 +589,21 @@ class MpiModel(builder.Model):
                 # which has no contents but has the same shape, size, etc
                 # as the original. This should allow the memory to be
                 # reclaimed.
-                signal.base._value = DummyNdarray(signal.base._value)
+                new_val = DummyNdarray(signal.base._value)
+                del signal.base._value
+                signal.base._value = new_val
+
+        self.signal_counter += 1
+        if self.signal_counter % FLUSH_FREQUENCY == 0:
+            print "*" * 20
+            print "Mem usage: %d mb" % memory_usage_psutil()
+            print "Are we flushing? %r" % self.flush
+            print "Flush freq: %r" % FLUSH_FREQUENCY
+            print "Sig counter: %r" % self.signal_counter
+
+            if self.flush:
+                self.save_file.flush()
+            gc.collect()
 
     def add_op(self, op):
         """
