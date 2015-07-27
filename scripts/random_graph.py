@@ -1,12 +1,13 @@
 import logging
+import argparse
+
+import numpy as np
 
 import nengo
-import numpy as np
 import nengo_mpi
 from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
 from nengo_mpi.partition import spectral_partitioner, random_partitioner
-
-import argparse
+from nengo_mpi.partition import EnsembleArraySplitter
 
 logger = logging.getLogger(__name__)
 nengo.log(debug=False)
@@ -72,6 +73,17 @@ parser.add_argument(
     help="Supply a filename to write the results of the simulation "
          "to, if an MPI simulation is performed.")
 
+parser.add_argument(
+    '--ea', action='store_true',
+    help="Supply to use ensemble arrays instead of ensembles. Each "
+         "ensemble within each ensemble array will have dimension 1, "
+         "and npd neurons.")
+
+parser.add_argument(
+    '--split-ea', type=int, default=1,
+    help="Number of parts to split each ensemble array up into. "
+         "Obviously, only has an effect if --ea is also supplied.")
+
 args = parser.parse_args()
 print "Parameters are: ", args
 
@@ -85,6 +97,8 @@ pct_connections = args.q
 n_processors = args.p
 pct_probed = args.probes
 pct_self_loops = args.self
+use_ea = args.ea
+split_ea = args.split_ea
 
 use_mpi = args.mpi
 
@@ -95,7 +109,6 @@ if save_file == 'random_graph':
             args.p, n_nodes, pct_connections))
     save_file = save_file.replace('.', '_')
     save_file += '.net'
-
 
 mpi_log = args.mpi_log
 if mpi_log == 'random_graph':
@@ -134,29 +147,54 @@ with m:
     probes = []
 
     for i in range(n_nodes):
-        ensemble = nengo.Ensemble(
-            N * D, dimensions=D, label="ensemble %d" % i)
+        if use_ea:
+            ensemble = nengo.networks.EnsembleArray(
+                N, D, label="ensemble array %d" % i)
+            inp = ensemble.input
+            outp = ensemble.output
+            ensembles.append(ensemble)
+
+        else:
+            ensemble = nengo.Ensemble(
+                N * D, dimensions=D, label="ensemble %d" % i)
+            inp = ensemble
+            output = ensemble
+
+            ensembles.append(ensemble)
 
         if rng.rand() < pct_self_loops:
-            nengo.Connection(ensemble, ensemble)
+            nengo.Connection(outp, inp)
 
         if rng.rand() < pct_probed:
-            probe = nengo.Probe(ensemble)
+            probe = nengo.Probe(outp)
             probes.append(probe)
-
-        ensembles.append(ensemble)
 
         for j in range(i):
             if rng.rand() < pct_connections:
-                nengo.Connection(ensemble, ensembles[j])
+                if use_ea:
+                    nengo.Connection(ensemble.output, ensembles[j].input)
+                else:
+                    nengo.Connection(ensemble, ensembles[j])
                 n_directed_connections += 1
 
             if rng.rand() < pct_connections:
-                nengo.Connection(ensembles[j], ensemble)
+                if use_ea:
+                    nengo.Connection(ensembles[j].output, ensemble.input)
+                else:
+                    nengo.Connection(ensembles[j], ensemble)
                 n_directed_connections += 1
 
-    nengo.Connection(input_node, ensembles[0])
+    if use_ea:
+        nengo.Connection(input_node, ensembles[0].input)
+    else:
+        nengo.Connection(input_node, ensembles[0])
+
     n_directed_connections += 1
+
+if use_ea and split_ea > 1:
+    splitter = EnsembleArraySplitter()
+    max_neurons = np.ceil(float(D) / split_ea) * N
+    splitter.split(m, max_neurons)
 
 if use_mpi:
     fmap = {

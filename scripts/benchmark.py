@@ -1,12 +1,13 @@
 import logging
+import argparse
+
+import numpy as np
 
 import nengo
-import numpy as np
 import nengo_mpi
 from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
 from nengo_mpi.partition import spectral_partitioner, random_partitioner
-
-import argparse
+from nengo_mpi.partition import EnsembleArraySplitter
 
 logger = logging.getLogger(__name__)
 nengo.log(debug=False)
@@ -63,6 +64,18 @@ parser.add_argument(
     help="Supply a filename to write the results of the simulation "
          "to, if an MPI simulation is performed.")
 
+parser.add_argument(
+    '--ea', action='store_true',
+    help="Supply to use ensemble arrays instead of ensembles. Each "
+         "ensemble within each ensemble array will have dimension 1, "
+         "and npd neurons.")
+
+parser.add_argument(
+    '--split-ea', type=int, default=1,
+    help="Number of parts to split each ensemble array up into. "
+         "Obviously, only has an effect if --ea is also supplied.")
+
+
 args = parser.parse_args()
 print "Parameters are: ", args
 
@@ -75,6 +88,8 @@ n_streams = args.ns
 stream_length = args.sl
 
 n_processors = args.p
+use_ea = args.ea
+split_ea = args.split_ea
 
 use_mpi = args.mpi
 
@@ -131,25 +146,44 @@ with m:
         ensembles.append([])
 
         for j in range(stream_length):
-            ensemble = nengo.Ensemble(
-                N * D, dimensions=D, label="stream %d, index %d" % (i, j))
-
-            if j > 0:
-                nengo.Connection(ensembles[-1][-1], ensemble)
+            if use_ea:
+                ensemble = nengo.networks.EnsembleArray(
+                    N, D, label="stream %d, index %d" % (i, j))
+                if j > 0:
+                    nengo.Connection(ensembles[-1][-1].output, ensemble.input)
+                else:
+                    nengo.Connection(input_node, ensemble.input)
             else:
-                nengo.Connection(input_node, ensemble)
+                ensemble = nengo.Ensemble(
+                    N * D, dimensions=D, label="stream %d, index %d" % (i, j))
+                if j > 0:
+                    nengo.Connection(ensembles[-1][-1], ensemble)
+                else:
+                    nengo.Connection(input_node, ensemble)
 
             if n_processors > 1 and partitioner is None:
                 assignments[ensemble] = j / denom
 
             ensembles[-1].append(ensemble)
 
-        nengo.Connection(
-            ensembles[-1][-1], ensembles[-1][0],
-            function=lambda x: np.zeros(D))
+        if use_ea:
+            ensembles[-1][-1].add_output(
+                'zero', function=lambda x: 0)
+            nengo.Connection(
+                ensembles[-1][-1].zero, ensembles[-1][0].input)
+            probes.append(
+                nengo.Probe(ensemble.output, synapse=0.01))
+        else:
+            nengo.Connection(
+                ensembles[-1][-1], ensembles[-1][0],
+                function=lambda x: np.zeros(D))
+            probes.append(
+                nengo.Probe(ensemble, synapse=0.01))
 
-        probes.append(
-            nengo.Probe(ensemble, 'decoded_output', synapse=0.01))
+if use_ea and split_ea > 1:
+    splitter = EnsembleArraySplitter()
+    max_neurons = np.ceil(float(D) / split_ea) * N
+    splitter.split(m, max_neurons)
 
 if use_mpi:
     if partitioner is not None:
