@@ -40,9 +40,9 @@ OBJS=simulator.o operator.o spec.o custom_ops.o probe.o chunk.o sim_log.o debug.
 MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o 
 BIN=${HOME}/nengo_mpi/bin
 
-DEFS=-O3
+DEFS=
 
-all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG
+all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG -O3
 all: build
 
 run_dbg: DEFS+= -DRUN_DEBUG
