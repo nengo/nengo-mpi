@@ -190,11 +190,11 @@ if __name__ == "__main__":
     if platform == 'gpc':
         write_gpc_jobfile(
             submit_script_path, n_processors, network_file, network_name,
-            working_dir, wall_time, exe_loc, t, log, ranks_per_node)
+            working_dir, wall_time, exe_loc, t, log, merged, ranks_per_node)
     else:
         write_bgq_jobfile(
             submit_script_path, n_processors, network_file, network_name,
-            working_dir, wall_time, exe_loc, t, log, ranks_per_node)
+            working_dir, wall_time, exe_loc, t, log, merged, ranks_per_node)
 
     # Create convenience `latest` symlink
     make_sym_link(working_dir, path.join(experiments_dir, 'latest'))
