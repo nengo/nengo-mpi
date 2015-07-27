@@ -30,9 +30,13 @@ void start_worker(MPI_Comm comm){
 
     MPI_Status status;
 
+    dbg("Reading merged...");
+    int mpi_merged = bcast_recv_int(comm);
+
+    dbg("Reading filename...");
     string filename = recv_string(0, setup_tag, comm);
 
-    int mpi_merged = bcast_recv_int(comm);
+    dbg("Creating chunk...");
     MpiSimulatorChunk chunk(my_id, n_processors, bool(mpi_merged));
 
     // Use parallel property lists
@@ -42,6 +46,7 @@ void start_worker(MPI_Comm comm){
     hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
 
+    dbg("Loading from file...");
     chunk.from_file(filename, file_plist, read_plist);
     chunk.finalize_build(comm);
 
