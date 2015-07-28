@@ -11,6 +11,8 @@
 #include <utility> // pair
 #include <exception>
 #include <string>
+#include <assert.h>
+
 #include <mpi.h>
 
 #include "operator.hpp"

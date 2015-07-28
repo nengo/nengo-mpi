@@ -51,80 +51,89 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         // Open the group assigned to my component
         hid_t component_group = H5Gopen(f, ss.str().c_str(), H5P_DEFAULT);
 
-        // Open the signals subgroup
-        hid_t signal_group = H5Gopen(component_group, "signals", H5P_DEFAULT);
+        // signal keys
+        hid_t signal_keys = H5Dopen(component_group, "signal_keys", H5P_DEFAULT);
 
-        hsize_t n_signals;
-        err = H5Gget_num_objs(signal_group, &n_signals);
+        hid_t dspace = H5Dget_space(signal_keys);
+        hsize_t keys_shape[2], keys_max_shape[2];
+        int ndim = H5Sget_simple_extent_dims(dspace, keys_shape, keys_max_shape);
+        H5Sclose(dspace);
+
+        assert(ndim == 1);
+
+        hsize_t n_signals = keys_shape[0];
+
+        auto c_signal_keys = unique_ptr<key_type[]>(new key_type[n_signals]);
+        err = H5Dread(
+            signal_keys, H5T_NATIVE_LLONG, H5S_ALL, H5S_ALL,
+            read_plist, c_signal_keys.get());
+
+        H5Dclose(signal_keys);
+
+        // signal shapes
+        hid_t signal_shapes = H5Dopen(component_group, "signal_shapes", H5P_DEFAULT);
+
+        dspace = H5Dget_space(signal_shapes);
+        hsize_t shapes_shape[2], shapes_max_shape[2];
+        ndim = H5Sget_simple_extent_dims(dspace, shapes_shape, shapes_max_shape);
+        H5Sclose(dspace);
+
+        assert(ndim == 2);
+        assert(shapes_shape[1] == 2);
+        assert(shapes_shape[0] == n_signals);
+
+        auto c_signal_shapes = unique_ptr<short[]>(new short [2 * n_signals]);
+        err = H5Dread(
+            signal_shapes, H5T_NATIVE_SHORT, H5S_ALL, H5S_ALL,
+            read_plist, c_signal_shapes.get());
+
+        H5Dclose(signal_shapes);
+
+        // signals
+        hid_t signals = H5Dopen(component_group, "signals", H5P_DEFAULT);
+
+        dspace = H5Dget_space(signals);
+        hsize_t signals_shape[2], signals_max_shape[2];
+        ndim = H5Sget_simple_extent_dims(dspace, signals_shape, signals_max_shape);
+        H5Sclose(dspace);
+
+        assert(ndim == 1);
+
+        auto signal_buffer = unique_ptr<dtype[]>(new dtype[signals_shape[0]]);
+
+        err = H5Dread(
+            signals, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
+            read_plist, signal_buffer.get());
+
+        H5Dclose(signals);
+
+        long long signal_offset = 0;
+
+        hsize_t shape[2], max_shape[2];
 
         // Read signals for component one at a time
         // Name of the dataset containing a signal is equal to the signal key
         for(int i = 0; i < n_signals; i++){
-
-            // Get the signal key/dataset name
-            length = H5Gget_objname_by_idx(
-                signal_group, (hsize_t) i, c_signal_key, (size_t) MAX_LENGTH);
-            key_type signal_key = boost::lexical_cast<key_type>(c_signal_key);
-
-            // Open the dataset containing the signal
-            hid_t signal = H5Dopen(signal_group, c_signal_key, H5P_DEFAULT);
-
-            // Get array shape
-            hid_t dspace = H5Dget_space(signal);
-            hsize_t shape[2], max_shape[2];
-            int ndim = H5Sget_simple_extent_dims(dspace, shape, max_shape);
-            H5Sclose(dspace);
-
-            if(ndim == 1){
-                shape[1] = 1;
-                max_shape[1] = 1;
-            }
-
-            if(ndim != 1 && ndim != 2){
-                throw runtime_error(
-                    "Got improper value of ndim while reading signal.");
-            }
-
-            // Get the signal label
-            attr = H5Aopen(signal, "label", H5P_DEFAULT);
-            hid_t atype = H5Aget_type(attr);
-            H5T_class_t type_class = H5Tget_class(atype);
-            if (type_class == H5T_STRING) {
-                 hid_t atype_mem = H5Tget_native_type(atype, H5T_DIR_ASCEND);
-                 H5Aread(attr, atype_mem, c_label);
-                 H5Tclose(atype_mem);
-            }else{
-                throw runtime_error("Label has incorrect data type.");
-            }
-
-            string signal_label = c_label;
-
-            H5Aclose(attr);
-            H5Tclose(atype);
+            shape[0] = c_signal_shapes[2*i];
+            shape[1] = c_signal_shapes[2*i + 1];
 
             // Get the signal data
             auto data = unique_ptr<BaseSignal>(new BaseSignal(shape[0], shape[1]));
-            auto buffer = unique_ptr<dtype>(new dtype[shape[0] * shape[1]]);
 
-            err = H5Dread(signal, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, read_plist, buffer.get());
-
-            int idx = 0;
             for(int i = 0; i < shape[0]; i++){
                 for(int j = 0; j < shape[1]; j++){
-                    (*data)(i, j) = buffer.get()[idx];
-                    idx++;
+                    (*data)(i, j) = signal_buffer[signal_offset + i * shape[1] + j];
                 }
             }
 
-            H5Dclose(signal);
+            signal_offset += shape[0] * shape[1];
 
             // Add the signal to the chunk
-            add_base_signal(signal_key, signal_label, move(data));
+            //add_base_signal(signal_key, signal_label, move(data));
+            //TODO: get labels
+
+            add_base_signal(c_signal_keys[i], "", move(data));
         }
-
-        H5Gclose(signal_group);
-
-        hsize_t shape[2], max_shape[2];
 
         // Read operators for component
         //
@@ -132,8 +141,8 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         hid_t operators = H5Dopen(component_group, "operators", H5P_DEFAULT);
 
         // Get its dimensions
-        hid_t dspace = H5Dget_space(operators);
-        int ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        dspace = H5Dget_space(operators);
+        ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
         H5Sclose(dspace);
 
         // Get the length of the strings (the width variable). The length

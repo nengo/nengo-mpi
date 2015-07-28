@@ -433,22 +433,17 @@ class MpiModel(builder.Model):
             save_file = tempfile.mktemp()
 
         self.save_file_name = save_file
-        self.save_file = h5.File(save_file, 'w')
-        self.save_file.attrs['dt'] = dt
-        self.save_file.attrs['n_components'] = n_components
-
-        for i in range(n_components):
-            component_group = self.save_file.create_group(str(i))
-            component_group.create_group('signals')
 
         # for each component, stores the keys of the signals that have
         # to be sent and received, respectively
         self.send_signals = defaultdict(list)
         self.recv_signals = defaultdict(list)
 
-        # for each component, stores the keys of the signals that have
+        # for each component, stores the signals that have
         # already been added to that component.
-        self.added_signals = defaultdict(list)
+        self.signals = defaultdict(list)
+        self.signal_key_set = defaultdict(set)
+        self.total_signal_size = defaultdict(int)
 
         # operators for each component
         self.component_ops = defaultdict(list)
@@ -532,9 +527,9 @@ class MpiModel(builder.Model):
 
                 # Have to add the signal to both components, so can't delete it
                 # the first time.
-                self.add_signal(pre_component, signal, delete=False)
+                self.add_signal(pre_component, signal, free_memory=False)
                 self.add_signal(
-                    post_component, signal, delete=self.free_memory)
+                    post_component, signal, free_memory=self.free_memory)
 
                 self.add_ops(pre_component, pre_ops)
                 self.add_ops(post_component, post_ops)
@@ -542,40 +537,30 @@ class MpiModel(builder.Model):
     def add_ops(self, component, ops):
         for op in ops:
             for signal in op.all_signals:
-                self.add_signal(component, signal, delete=self.free_memory)
+                self.add_signal(
+                    component, signal, free_memory=self.free_memory)
 
         self.component_ops[component].extend(ops)
 
-    def add_signal(self, component, signal, delete=True):
+    def add_signal(self, component, signal, free_memory=True):
         key = make_key(signal)
 
-        if key not in self.added_signals[component]:
+        if key not in self.signal_key_set[component]:
             logger.debug(
                 "Component %d: Adding signal %s with key: %s",
                 component, signal, make_key(signal))
 
-            self.added_signals[component].append(key)
+            self.signal_key_set[component].add(key)
+            self.signals[component].append((key, signal))
+            self.total_signal_size[component] += signal.size
 
-            label = str(signal)
-
-            A = signal.base._value
-
-            if A.ndim == 0:
-                A = np.reshape(A, (1, 1))
-
-            if A.dtype != np.float64:
-                A = A.astype(np.float64)
-
-            signals = self.save_file[str(component)]['signals']
-            signals.create_dataset(str(key), data=A, compression='gzip')
-            signals[str(key)].attrs['label'] = np.string_(label)
-
-            if delete:
-                # Replace the data stored in the signal by a dummy array,
-                # which has no contents but has the same shape, size, etc
-                # as the original. This should allow the memory to be
-                # reclaimed.
-                signal.base._value = DummyNdarray(signal.base._value)
+            # freeing memory doesn't make sense anymore.
+            # if free_memory:
+            #     # Replace the data stored in the signal by a dummy array,
+            #     # which has no contents but has the same shape, size, etc
+            #     # as the original. This should allow the memory to be
+            #     # reclaimed.
+            #     signal.base._value = DummyNdarray(signal.base._value)
 
     def add_op(self, op):
         """
@@ -609,49 +594,101 @@ class MpiModel(builder.Model):
                 probe, self.sig[probe]['in'],
                 sample_every=probe.sample_every)
 
-        for component in range(self.n_components):
-            component_group = self.save_file[str(component)]
+        with h5.File(self.save_file_name, 'w') as save_file:
+            save_file.attrs['dt'] = self.dt
+            save_file.attrs['n_components'] = self.n_components
 
-            op_strings = self.op_strings[component]
+            for component in range(self.n_components):
+                component_group = save_file.create_group(str(component))
+
+                # signals
+                signals = self.signals[component]
+                signal_dset = component_group.create_dataset(
+                    'signals', (self.total_signal_size[component],),
+                    dtype='float64', compression=self.h5_compression)
+
+                offset = 0
+                for key, sig in signals:
+                    A = sig.base._value
+
+                    if A.ndim == 0:
+                        A = np.reshape(A, (1, 1))
+
+                    if A.dtype != np.float64:
+                        A = A.astype(np.float64)
+
+                    signal_dset[offset:offset+A.size] = A.flatten()
+                    offset += A.size
+
+                # signal keys
+                component_group.create_dataset(
+                    'signal_keys', data=[long(key) for key, sig in signals],
+                    dtype='int64', compression=self.h5_compression)
+
+                # signal shapes
+                def pad(x):
+                    return (
+                        (1, 1) if len(x) == 0 else (
+                            (x[0], 1) if len(x) == 1 else x))
+
+                component_group.create_dataset(
+                    'signal_shapes',
+                    data=np.array([pad(sig.shape) for key, sig in signals]),
+                    dtype='u2', compression=self.h5_compression)
+
+                # signal_labels
+                signal_labels = [str(p[1]) for p in signals]
+                max_string_length = (
+                    max(len(s) for s in signal_labels)
+                    if signal_labels
+                    else 0)
+                component_group.create_dataset(
+                    'signal_labels', (len(signal_labels), 1),
+                    dtype='S%d' % (max_string_length + 1),
+                    compression=self.h5_compression)
+
+                component_group['signal_labels'][:, 0] = np.array(signal_labels)
+
+                # operators
+                op_strings = self.op_strings[component]
+                max_string_length = (
+                    max(len(s) for s in op_strings)
+                    if op_strings
+                    else 0)
+
+                # + 1 is for null character
+                component_group.create_dataset(
+                    'operators', (len(op_strings), 1),
+                    dtype='S%d' % (max_string_length + 1),
+                    compression=self.h5_compression)
+
+                component_group['operators'][:, 0] = np.array(op_strings)
+
+                # probes
+                probe_strings = self.probe_strings[component]
+                max_string_length = (
+                    max(len(s) for s in probe_strings)
+                    if probe_strings
+                    else 0)
+
+                component_group.create_dataset(
+                    'probes', (len(probe_strings), 1),
+                    dtype='S%d' % (max_string_length + 1),
+                    compression=self.h5_compression)
+
+                component_group['probes'][:, 0] = np.array(probe_strings)
+
             max_string_length = (
-                max(len(s) for s in op_strings)
-                if op_strings
+                max(len(s) for s in self.all_probe_strings)
+                if self.all_probe_strings
                 else 0)
 
-            # + 1 is for null character
-            component_group.create_dataset(
-                'operators', (len(op_strings), 1),
+            save_file.create_dataset(
+                'all_probes', (len(self.all_probe_strings), 1),
                 dtype='S%d' % (max_string_length + 1),
                 compression=self.h5_compression)
 
-            component_group['operators'][:, 0] = np.array(op_strings)
-
-            probe_strings = self.probe_strings[component]
-            max_string_length = (
-                max(len(s) for s in probe_strings)
-                if probe_strings
-                else 0)
-
-            component_group.create_dataset(
-                'probes', (len(probe_strings), 1),
-                dtype='S%d' % (max_string_length + 1),
-                compression=self.h5_compression)
-
-            component_group['probes'][:, 0] = np.array(probe_strings)
-
-        max_string_length = (
-            max(len(s) for s in self.all_probe_strings)
-            if self.all_probe_strings
-            else 0)
-
-        self.save_file.create_dataset(
-            'all_probes', (len(self.all_probe_strings), 1),
-            dtype='S%d' % (max_string_length + 1),
-            compression=self.h5_compression)
-
-        self.save_file['all_probes'][:, 0] = np.array(self.all_probe_strings)
-
-        self.save_file.close()
+            save_file['all_probes'][:, 0] = np.array(self.all_probe_strings)
 
         if self.mpi_sim is not None:
             self.mpi_sim.load_network(self.save_file_name)

@@ -6,7 +6,7 @@ import numpy as np
 
 def test_against_refimpl():
     """
-    Test againt the reference implementation in a simple case.
+    Test against the reference implementation in a simple case.
     Require that they be very close to one another.
     """
     seed = 1
