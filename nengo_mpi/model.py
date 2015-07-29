@@ -392,6 +392,25 @@ def ndarray_to_mpi_string(a):
     return s
 
 
+def store_string_list(
+        h5_file, dset_name, strings, final_null=True, compression='gzip'):
+    """
+    Store a list of strings in a dataset in an hdf5 file or group. Strings
+    are separated by null characters, with an additional null
+    character optionally tacked on at the end.
+    """
+    big_string = '\0'.join(strings)
+
+    if final_null:
+        big_string += '\0'
+
+    data = np.array(list(big_string))
+    dset = h5_file.create_dataset(
+        dset_name, data=data, dtype='S1', compression=compression)
+
+    dset.attrs['n_strings'] = len(strings)
+
+
 class MpiModel(builder.Model):
     """
     Output of the MpiBuilder, used by the Simulator.
@@ -638,57 +657,26 @@ class MpiModel(builder.Model):
 
                 # signal_labels
                 signal_labels = [str(p[1]) for p in signals]
-                max_string_length = (
-                    max(len(s) for s in signal_labels)
-                    if signal_labels
-                    else 0)
-                component_group.create_dataset(
-                    'signal_labels', (len(signal_labels), 1),
-                    dtype='S%d' % (max_string_length + 1),
+                store_string_list(
+                    component_group, 'signal_labels', signal_labels,
                     compression=self.h5_compression)
-
-                component_group['signal_labels'][:, 0] = np.array(signal_labels)
 
                 # operators
                 op_strings = self.op_strings[component]
-                max_string_length = (
-                    max(len(s) for s in op_strings)
-                    if op_strings
-                    else 0)
-
-                # + 1 is for null character
-                component_group.create_dataset(
-                    'operators', (len(op_strings), 1),
-                    dtype='S%d' % (max_string_length + 1),
+                store_string_list(
+                    component_group, 'operators', op_strings,
                     compression=self.h5_compression)
-
-                component_group['operators'][:, 0] = np.array(op_strings)
 
                 # probes
                 probe_strings = self.probe_strings[component]
-                max_string_length = (
-                    max(len(s) for s in probe_strings)
-                    if probe_strings
-                    else 0)
-
-                component_group.create_dataset(
-                    'probes', (len(probe_strings), 1),
-                    dtype='S%d' % (max_string_length + 1),
+                store_string_list(
+                    component_group, 'probes', probe_strings,
                     compression=self.h5_compression)
 
-                component_group['probes'][:, 0] = np.array(probe_strings)
-
-            max_string_length = (
-                max(len(s) for s in self.all_probe_strings)
-                if self.all_probe_strings
-                else 0)
-
-            save_file.create_dataset(
-                'all_probes', (len(self.all_probe_strings), 1),
-                dtype='S%d' % (max_string_length + 1),
+            probe_strings = self.probe_strings[component]
+            store_string_list(
+                save_file, 'probe_info', self.all_probe_strings,
                 compression=self.h5_compression)
-
-            save_file['all_probes'][:, 0] = np.array(self.all_probe_strings)
 
         if self.mpi_sim is not None:
             self.mpi_sim.load_network(self.save_file_name)
