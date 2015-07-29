@@ -6,13 +6,14 @@ ifneq (, $(findstring bgq,$(HOST)))
 	CXX=${MPICXX}
 	BOOST_INC=-I${SCINET_BOOST_INC}
 	BOOST_LIB=-L${SCINET_BOOST_LIB}
-	PYTHON_INC=-I${SCINET_PYTHON_INC}/python2.7
-	PYTHON_LIB=-L${SCINET_PYTHON_LIB}
+	PYTHON_INC=
+	PYTHON_LIB=
 	HDF5_INC=-I${SCINET_HDF5_INC}
 	HDF5_LIB=-L${SCINET_HDF5_LIB}
 	COMPRESSION_LIBS= -L${SCINET_ZLIB_LIB} -L${SCINET_SZIP_LIB} -lsz -lz
-	STD=c++0x # Redhat 4.4.7, which we have access to on bgq, calls it c++0x
-	CXXFLAGS= ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
+	STD=c++0x # Redhat 4.4.7, which we use on bgq, uses the name c++0x for c++11
+	CXXFLAGS= ${BOOST_INC} ${HDF5_INC} ${DEFS} -std=${STD}
+	DO_PYTHON=FALSE
 else ifneq (, $(findstring gpc,$(HOST)))
 	#on gpc
 	MPICXX=mpicxx
@@ -26,6 +27,7 @@ else ifneq (, $(findstring gpc,$(HOST)))
 	COMPRESSION_LIBS=
 	STD=c++11
 	CXXFLAGS= ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
+	DO_PYTHON=TRUE
 else
 	#on other machine
 	MPICXX=mpicxx
@@ -34,16 +36,20 @@ else
 	HDF5_LIB=-L/usr/lib/x86_64-linux-gnu
 	STD=c++11
 	CXXFLAGS= ${PYTHON_INC} ${DEFS} -fPIC -std=${STD}
+	DO_PYTHON=TRUE
 endif
 
 OBJS=simulator.o operator.o spec.o custom_ops.o probe.o chunk.o sim_log.o debug.o
-MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o 
+MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o
 BIN=${HOME}/nengo_mpi/bin
 
 DEFS=
 
-all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG -O3
+all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG
 all: build
+
+opt: DEGS += -DBOOST_UBLAS_NDEBUG -DNDEBUG -O3
+opt: build
 
 run_dbg: DEFS+= -DRUN_DEBUG
 run_dbg: mpi_dbg
@@ -57,7 +63,13 @@ mpi_dbg: dbg
 dbg: DEFS+= -DDEBUG -g
 dbg: build
 
-build: nengo_cpp nengo_mpi mpi_sim.so
+ifeq ($(DO_PYTHON), TRUE)
+	MPI_SIM_SO=mpi_sim.so
+else
+	MPI_SIM_SO=
+endif
+
+build: nengo_cpp nengo_mpi ${MPI_SIM_SO}
 
 clean:
 	rm -rf ${BIN}/nengo_cpp ${BIN}/nengo_mpi ${BIN}/mpi_sim.so *.o
@@ -92,14 +104,10 @@ python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operato
 # ********* common to all *************
 
 mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
-#${MPICXX} -c -o mpi_operator.o mpi_operator.cpp
 
 mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
-#${MPICXX} -c -o mpi_simulator.o mpi_simulator.cpp
 
 psim_log.o: psim_log.cpp psim_log.hpp sim_log.hpp operator.hpp debug.hpp
-#${MPICXX} -c -o psim_log.o psim_log.cpp
-
 probe.o: probe.cpp probe.hpp operator.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
 chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp custom_ops.hpp probe.hpp debug.hpp sim_log.hpp

@@ -10,13 +10,16 @@ import string
 import subprocess
 import argparse
 import datetime
-import numpy as np
+import math
 
 
 def write_bgq_jobfile(
         filename, n_processors, network_file, network_name,
         working_dir, wall_time, exe_loc, t, log, merged,
         ranks_per_node=16):
+
+    n_nodes = math.ceil(float(n_processors) / ranks_per_node)
+    n_nodes = max(64, n_nodes)
 
     network_file = path.split(network_file)[-1]
     with open(filename, 'w') as outf:
@@ -26,7 +29,7 @@ def write_bgq_jobfile(
         outf.write('# @ comment            = "nengo_mpi BGQ Job"\n')
         outf.write('# @ error              = %s.err\n' % network_name)
         outf.write('# @ output             = %s.out\n' % network_name)
-        outf.write('# @ bg_size            = 64\n')
+        outf.write('# @ bg_size            = %s\n' % n_nodes)
         outf.write('# @ wall_clock_limit   = %s\n' % wall_time)
         outf.write('# @ bg_connectivity    = Torus\n')
         outf.write('# @ queue \n')
@@ -50,7 +53,7 @@ def write_gpc_jobfile(
         outf.write("# MOAB/Torque submission script for SciNet GPC\n")
         outf.write("#\n")
 
-        n_nodes = np.ceil(float(n_processors) / ranks_per_node)
+        n_nodes = math.ceil(float(n_processors) / ranks_per_node)
 
         line = (
             "#PBS -l nodes=%d:ppn=%d,walltime=%s"
