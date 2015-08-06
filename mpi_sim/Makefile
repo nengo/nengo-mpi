@@ -43,6 +43,12 @@ OBJS=simulator.o operator.o spec.o custom_ops.o probe.o chunk.o sim_log.o debug.
 MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o
 BIN=${HOME}/nengo_mpi/bin
 
+ifeq (${DO_PYTHON}, TRUE)
+	MPI_SIM_SO=mpi_sim.so
+else
+	MPI_SIM_SO=
+endif
+
 DEFS=
 
 all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG
@@ -63,12 +69,6 @@ mpi_dbg: dbg
 dbg: DEFS+= -DDEBUG -g
 dbg: build
 
-ifeq ($(DO_PYTHON), TRUE)
-	MPI_SIM_SO=mpi_sim.so
-else
-	MPI_SIM_SO=
-endif
-
 build: nengo_cpp nengo_mpi ${MPI_SIM_SO}
 
 clean:
@@ -79,18 +79,16 @@ clean:
 
 nengo_cpp: nengo_cpp.o ${MPI_OBJS} | ${BIN}
 	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
-	#${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
 
 nengo_cpp.o: nengo_mpi.cpp simulator.hpp operator.hpp probe.hpp debug.hpp
 
 
 # ********* nengo_mpi *************
 
-nengo_mpi: nengo_mpi.o ${OBJS} | ${BIN}
+nengo_mpi: nengo_mpi.o ${MPI_OBJS} | ${BIN}
 	${MPICXX} -o ${BIN}/nengo_mpi nengo_mpi.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
 
 nengo_mpi.o: nengo_mpi.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
-#${MPICXX} -c -o nengo_mpi.o nengo_mpi.cpp
 
 
 # ********* mpi_sim.so *************
