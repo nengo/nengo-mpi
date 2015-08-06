@@ -1,5 +1,6 @@
 import nengo_mpi
 from nengo_mpi.model import MpiModel
+from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 
 import nengo
 from nengo.builder.signal import Signal
@@ -9,7 +10,7 @@ from nengo.builder.neurons import SimNeurons
 from nengo.builder.synapses import SimSynapse
 
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
-from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
+from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate  # , Izhikevich
 
 from nengo.synapses import Lowpass  # , LinearFilter, Alpha
 
@@ -411,6 +412,66 @@ def ewi_helper(Simulator, A, X, Y, reference):
     sim.run(0.2)
     assert np.allclose(reference, sim.data[probes[0]][-1])
 
+
+def test_spaun_stimulus(Simulator):
+    spaun_vision = pytest.importorskip("_spaun.vision.lif_vision")
+    spaun_config = pytest.importorskip("_spaun.config")
+    spaun_stimulus = pytest.importorskip("_spaun.modules.stimulus")
+    cfg = spaun_config.cfg
+
+    cfg.raw_seq_str = 'A0[#1]?X'
+    spaun_stimulus.parse_raw_seq()
+
+    dimension = spaun_vision.images_data_dimensions
+    output = Signal(np.zeros(dimension), name="spaun stimulus output")
+
+    spaun_stim = SpaunStimulusOperator(
+        output, cfg.raw_seq, cfg.present_interval, cfg.present_blanks)
+
+    probes = [SignalProbe(output)]
+    operators = [spaun_stim]
+
+    sim = Simulator(operators, probes)
+    run_time = spaun_stimulus.get_est_runtime()
+
+    sim.run(run_time)
+
+    def image_string(image):
+        s = int(np.sqrt(len(image)))
+        string = ""
+        for i in range(s):
+            for j in range(s):
+                string += str(1 if image[i * s + j] > 0 else 0)
+            string += '\n'
+        return string
+
+    p = probes[0]
+
+    model = nengo.Network()
+    with model:
+        output = nengo.Node(
+            output=spaun_stimulus.stim_func_vis, label='Stim Module Out')
+        ref_p = nengo.Probe(output)
+
+    ref_sim = nengo.Simulator(model)
+    ref_sim.run(spaun_stimulus.get_est_runtime())
+
+    interval = int(1000 * cfg.present_interval)
+
+    assert ref_sim.data[ref_p].shape[0] == sim.data[p].shape[0]
+
+    compare_indices = range(0, 2) + range(interval-2, interval)
+    compare_indices += range(2*interval-2, 2*interval)
+    compare_indices += range(3*interval-2, 3*interval-2)
+    compare_indices += range(4*interval-1, 4*interval)
+    compare_indices += range(5*interval-2, 5*interval)
+
+    for i in compare_indices:
+        if not all(ref_sim.data[ref_p][i] == sim.data[p][i]):
+            print "Mismatch between stimulus at index: ", i
+            print image_string(ref_sim.data[ref_p][i])
+            print image_string(sim.data[p][i])
+            raise Exception()
 
 if __name__ == "__main__":
     nengo.log(debug=True)

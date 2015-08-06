@@ -16,10 +16,10 @@ class SpaunStimulusOperator(Operator):
 
         self.output = output
         self.stimulus_sequence = stimulus_sequence
-        self.present_interval = present_interval
-        self.present_blanks = present_blanks
+        self.present_interval = float(present_interval)
+        self.present_blanks = float(present_blanks)
 
-        self.sets = []
+        self.sets = [output]
         self.incs = []
         self.reads = []
         self.updates = []

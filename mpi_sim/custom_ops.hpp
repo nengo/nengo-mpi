@@ -19,7 +19,7 @@ class SpaunStimulus: public Operator{
 public:
     SpaunStimulus(
         SignalView output, dtype* time_pointer, vector<string> stim_sequence,
-        float present_interval, float present_blanks);
+        dtype present_interval, dtype present_blanks);
 
     string classname() const {return "SpaunStimulus"; }
 
@@ -32,8 +32,8 @@ protected:
 
     int num_stimuli;
     vector<string> stim_sequence;
-    float present_interval;
-    float present_blanks;
+    dtype present_interval;
+    dtype present_blanks;
 
     int image_size;
     vector<unique_ptr<BaseSignal>> images;
@@ -42,16 +42,31 @@ protected:
     int previous_index;
 };
 
+class ImageStore{
+public:
+    ImageStore(string dir_name, int desired_img_size);
+
+    void load_image_counts(string filename);
+
+    // Get a random image with the given label
+    unique_ptr<BaseSignal> get_image_with_label(string label);
+
+protected:
+    string dir_name;
+    map<string, int> image_counts;
+
+    int desired_img_size;
+
+    // -1 initially; set properly when we load the first image
+    int loaded_img_size;
+};
+
 /*
  * Down-sample the given image, returning an image whose size is new_size.
  * new_size should be < the size of the given image. Currently downsamples
  * by randomly choosing indices without replacement and then sorting. */
 unique_ptr<BaseSignal> do_down_sample(unique_ptr<BaseSignal> image, int new_size);
 
-/*
- * Load the image data from a file. Returned map associates a label (e.g. "0", "2", "W")
- * with a vector of images corresponding to that label. Each image is stored as a BaseMatrix
- * with dimensions (image_size, 1). */
-map<string, vector<unique_ptr<BaseSignal>>> load_image_data(string filename);
+void print_image(BaseSignal* image);
 
 #endif
