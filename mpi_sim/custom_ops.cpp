@@ -14,12 +14,18 @@ present_blanks(present_blanks){
         throw runtime_error("Cannot create SpaunStimulus with empty stimulus sequence.");
     }
 
-    num_stimuli = stim_sequence.size();
+    n_stimuli = stim_sequence.size();
+
+    char* home = getenv("HOME");
+    if(!home){
+        throw runtime_error(
+            "Error in creating SpaunStimulus. HOME environment variable not set.");
+    }
+
+    string vision_data_dir(home);
+    vision_data_dir += "/spaun2.0/_spaun/vision/spaun_vision_data";
 
     image_size = output.size1();
-
-    string vision_data_dir = getenv("HOME");
-    vision_data_dir += "/spaun2.0/_spaun/vision/spaun_vision_data";
 
     ImageStore image_store = ImageStore(vision_data_dir, image_size);
 
@@ -43,15 +49,18 @@ present_blanks(present_blanks){
 void SpaunStimulus::operator() (){
 
     dtype index_f = (*time_pointer) / present_interval / pow(2, present_blanks);
+
+    // Need to do this because if index_f is nearly an
+    // int, doesn't get converted to an int properly.
     index_f += 0.000001;
     int index = int(index_f);
 
-    if ((present_blanks && index != int(round(index_f))) || index >= num_stimuli){
-        index = num_stimuli;
+    if ((present_blanks && index != int(round(index_f))) || index >= n_stimuli){
+        index = n_stimuli;
     }
 
     if(index != previous_index){
-        if(index >= num_stimuli){
+        if(index >= n_stimuli){
             output = ScalarSignal(image_size, 1, 0.0);
         }else{
             output = SignalView(
@@ -67,7 +76,7 @@ string SpaunStimulus::to_string() const{
     stringstream out;
 
     out << "SpaunStimulus:" << endl;
-    out << "Num stimuli:" << num_stimuli << endl;
+    out << "Num stimuli:" << n_stimuli << endl;
     out << "Present interval:" << present_interval << endl;
     out << "Present blanks:" << present_blanks << endl;
     out << "Image size:" << image_size << endl;

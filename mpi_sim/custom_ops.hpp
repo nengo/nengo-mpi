@@ -30,7 +30,7 @@ public:
 protected:
     dtype* time_pointer;
 
-    int num_stimuli;
+    int n_stimuli;
     vector<string> stim_sequence;
     dtype present_interval;
     dtype present_blanks;
