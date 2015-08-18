@@ -34,7 +34,7 @@ present_blanks(present_blanks){
         cout << "Loading image for stimulus " << stim_count << " with label " << label << endl;
 
         unique_ptr<BaseSignal> image;
-        if(label == "None"){
+        if(label == "None" || label == "NULL"){
             image = unique_ptr<BaseSignal>(new BaseSignal(ScalarSignal(image_size, 1, 0.0)));
         }else{
             image = image_store.get_image_with_label(label);
