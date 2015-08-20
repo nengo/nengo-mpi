@@ -298,13 +298,26 @@ void Izhikevich::operator() (){
     run_dbg(*this);
 }
 
+string signal_to_string(const SignalView signal) {
+
+    stringstream ss;
+
+    if(true){
+        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
+    }else{
+        ss << signal;
+    }
+
+    return ss.str();
+}
+
 //to_string
 string Reset::to_string() const {
 
     stringstream out;
     out << Operator::to_string();
     out << "dst:" << endl;
-    out << dst << endl;
+    out << signal_to_string(dst) << endl;
 
     return out.str();
 }
@@ -314,9 +327,9 @@ string Copy::to_string() const  {
     stringstream out;
     out << Operator::to_string();
     out << "dst:" << endl;
-    out << dst << endl;
+    out << signal_to_string(dst) << endl;
     out << "src:" << endl;
-    out << src << endl;
+    out << signal_to_string(src) << endl;
 
     return out.str();
 }
@@ -326,11 +339,11 @@ string DotInc::to_string() const{
     stringstream out;
     out << Operator::to_string();
     out << "A:" << endl;
-    out << A << endl;
+    out << signal_to_string(A) << endl;
     out << "X:" << endl;
-    out << X << endl;
+    out << signal_to_string(X) << endl;
     out << "Y:" << endl;
-    out << Y << endl;
+    out << signal_to_string(Y) << endl;
 
     return out.str();
 }
@@ -340,11 +353,11 @@ string ElementwiseInc::to_string() const{
     stringstream out;
     out << Operator::to_string();
     out << "A:" << endl;
-    out << A << endl;
+    out << signal_to_string(A) << endl;
     out << "X:" << endl;
-    out << X << endl;
+    out << signal_to_string(X) << endl;
     out << "Y:" << endl;
-    out << Y << endl;
+    out << signal_to_string(Y) << endl;
 
     out << "Broadcast: " << broadcast << endl;
     out << "A_row_stride: " << A_row_stride << endl;
@@ -361,9 +374,9 @@ string NoDenSynapse::to_string() const{
     stringstream out;
     out << Operator::to_string();
     out << "input:" << endl;
-    out << input << endl;
+    out << signal_to_string(input) << endl;
     out << "output:" << endl;
-    out << output << endl;
+    out << signal_to_string(output) << endl;
     out << "b: " << b << endl;
 
     return out.str();
@@ -375,9 +388,9 @@ string SimpleSynapse::to_string() const{
     stringstream out;
     out << Operator::to_string();
     out << "input:" << endl;
-    out << input << endl;
+    out << signal_to_string(input) << endl;
     out << "output:" << endl;
-    out << output << endl;
+    out << signal_to_string(output) << endl;
     out << "a: " << a << endl;
     out << "b: " << b << endl;
 
@@ -389,9 +402,9 @@ string Synapse::to_string() const{
     stringstream out;
     out << Operator::to_string();
     out << "input:" << endl;
-    out << input << endl;
+    out << signal_to_string(input) << endl;
     out << "output:" << endl;
-    out << output << endl;
+    out << signal_to_string(output) << endl;
     out << "numer:" << endl;
     out << numer << endl;
     out << "denom:" << endl;
@@ -425,13 +438,13 @@ string LIF::to_string() const{
 
     out << Operator::to_string();
     out << "J:" << endl;
-    out << J << endl;
+    out << signal_to_string(J) << endl;
     out << "output:" << endl;
-    out << output << endl;
+    out << signal_to_string(output) << endl;
     out << "voltage:" << endl;
-    out << voltage << endl;
+    out << signal_to_string(voltage) << endl;
     out << "refractory_time:" << endl;
-    out << ref_time << endl;
+    out << signal_to_string(ref_time) << endl;
     out << "n_neurons: " << n_neurons << endl;;
     out << "tau_rc: " << tau_rc << endl;
     out << "tau_ref: " << tau_ref << endl;
@@ -445,9 +458,9 @@ string LIFRate::to_string() const{
     stringstream out;
     out << Operator::to_string();
     out << "J:" << endl;
-    out << J << endl;
+    out << signal_to_string(J) << endl;
     out << "output:" << endl;
-    out << output << endl;
+    out << signal_to_string(output) << endl;
     out << "n_neurons: " << n_neurons << endl;
     out << "tau_rc: " << tau_rc << endl;
     out << "tau_ref: " << tau_ref << endl;
@@ -461,7 +474,8 @@ string AdaptiveLIF::to_string() const{
     out << LIF::to_string();
     out << "tau_n: " << tau_n << endl;
     out << "inc_n: " << inc_n << endl;
-    out << "adaptation: " << adaptation << endl;
+    out << "adaptation: " << endl;
+    out << signal_to_string(adaptation) << endl;
 
     return out.str();
 }
@@ -473,7 +487,8 @@ string AdaptiveLIFRate::to_string() const{
     out << "tau_n: " << tau_n << endl;
     out << "inc_n: " << inc_n << endl;
     out << "dt: " << dt << endl;
-    out << "adaptation: " << adaptation << endl;
+    out << "adaptation: " << endl;
+    out << signal_to_string(adaptation) << endl;
 
     return out.str();
 }
@@ -484,9 +499,9 @@ string RectifiedLinear::to_string() const{
     out << Operator::to_string();
     out << "n_neurons: " << n_neurons << endl;
     out << "J:" << endl;
-    out << J << endl;
+    out << signal_to_string(J) << endl;
     out << "output:" << endl;
-    out << output << endl;
+    out << signal_to_string(output) << endl;
 
     return out.str();
 }
@@ -498,9 +513,9 @@ string Sigmoid::to_string() const{
     out << "n_neurons: " << n_neurons << endl;
     out << "tau_ref: " << tau_ref << endl;
     out << "J:" << endl;
-    out << J << endl;
+    out << signal_to_string(J) << endl;
     out << "output:" << endl;
-    out << output << endl;
+    out << signal_to_string(output) << endl;
 
     return out.str();
 }
@@ -517,13 +532,13 @@ string Izhikevich::to_string() const{
     out << "dt: " << dt << endl;
 
     out << "J:" << endl;
-    out << J << endl;
+    out << signal_to_string(J) << endl;
     out << "output:" << endl;
-    out << output << endl;
+    out << signal_to_string(output) << endl;
     out << "voltage:" << endl;
-    out << voltage << endl;
+    out << signal_to_string(voltage) << endl;
     out << "recovery:" << endl;
-    out << recovery << endl;
+    out << signal_to_string(recovery) << endl;
 
     return out.str();
 }

@@ -21,10 +21,10 @@ const int probe_tag = 2;
 
 class MpiSimulator: public Simulator{
 public:
-    MpiSimulator(bool mpi_merged);
+    MpiSimulator(bool mpi_merged, bool collect_timings);
 
     // Used when we need to spaun extra process (e.g. when run through python)
-    MpiSimulator(int n_processors, dtype dt, bool mpi_merged);
+    MpiSimulator(int n_processors, dtype dt, bool mpi_merged, bool collect_timings);
 
     ~MpiSimulator();
 

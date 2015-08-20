@@ -6,7 +6,8 @@ SimulationLog::SimulationLog(vector<ProbeSpec> probe_info, dtype dt)
 }
 
 SimulationLog::SimulationLog(dtype dt)
-:dt(dt), ready_for_simulation(false), closed(true){}
+:dt(dt), ready_for_simulation(false), closed(true){
+}
 
 void SimulationLog::prep_for_simulation(string filename, int num_steps){
     if(filename.size() == 0){

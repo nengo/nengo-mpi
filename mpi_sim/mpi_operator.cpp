@@ -54,13 +54,14 @@ string MPISend::to_string() const{
     out << "dst: " << dst << endl;
     out << "size: " << size << endl;
     out << "content:" << endl;
-    out << content << endl;
+    out << signal_to_string(content) << endl;
 
+    /*
     out << "buffer:" << endl;
-
     for(int i = 0; i < size; i++){
         out << buffer.get()[i] << ", " << endl;
     }
+    */
 
     return out.str();
 }
@@ -73,13 +74,14 @@ string MPIRecv::to_string() const{
     out << "src: " << src << endl;
     out << "size: " << size << endl;
     out << "content:" << endl;
-    out << content << endl;
+    out << signal_to_string(content) << endl;
 
+    /*
     out << "buffer:" << endl;
-
     for(int i = 0; i < size; i++){
         out << buffer.get()[i] << ", " << endl;
     }
+    */
 
     return out.str();
 }
@@ -183,9 +185,10 @@ string MergedMPISend::to_string() const{
     out << "dst: " << dst << endl;
     out << "size: " << size << endl;
 
+    /*
     out << "content:" << endl;
     for(const auto& c : content){
-        out << c << endl;
+        out << signal_to_string(c) << endl;
     }
 
     dtype* buffer_offset = buffer.get();
@@ -199,6 +202,7 @@ string MergedMPISend::to_string() const{
 
         out << endl;
     }
+    */
 
     return out.str();
 }
@@ -211,9 +215,10 @@ string MergedMPIRecv::to_string() const{
     out << "src: " << src << endl;
     out << "size: " << size << endl;
 
+    /*
     out << "content:" << endl;
     for(const auto& c : content){
-        out << c << endl;
+        out << signal_to_string(c) << endl;
     }
 
     dtype* buffer_offset = buffer.get();
@@ -227,6 +232,7 @@ string MergedMPIRecv::to_string() const{
 
         out << endl;
     }
+    */
 
     return out.str();
 }

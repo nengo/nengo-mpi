@@ -1,14 +1,13 @@
 #include "mpi_simulator.hpp"
 
 // This constructor assumes that MPI_Initialize has already been called.
-MpiSimulator::MpiSimulator(bool mpi_merged)
-:n_processors(0), comm(MPI_COMM_NULL), mpi_merged(mpi_merged){
+MpiSimulator::MpiSimulator(bool mpi_merged, bool collect_timings)
+:Simulator(collect_timings), n_processors(0), comm(MPI_COMM_NULL), mpi_merged(mpi_merged){
     init();
 }
 
-MpiSimulator::MpiSimulator(int n_processors, dtype dt, bool mpi_merged)
-:n_processors(n_processors), mpi_merged(mpi_merged){
-    this->dt = dt;
+MpiSimulator::MpiSimulator(int n_processors, dtype dt, bool mpi_merged, bool collect_timings)
+:Simulator(dt, collect_timings), n_processors(n_processors), mpi_merged(mpi_merged){
 
     spawn_processors();
 
@@ -68,7 +67,10 @@ void MpiSimulator::init(){
     cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
     bcast_send_int(mpi_merged ? 1 : 0, comm);
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(0, n_processors, mpi_merged));
+    bcast_send_int(collect_timings ? 1 : 0, comm);
+
+    chunk = shared_ptr<MpiSimulatorChunk>(
+        new MpiSimulatorChunk(0, n_processors, mpi_merged, collect_timings));
 
     for(int i = 0; i < n_processors; i++){
         probe_counts[i] = 0;

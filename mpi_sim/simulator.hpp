@@ -22,8 +22,8 @@ class Simulator{
 public:
     static char delim;
 
-    Simulator();
-    Simulator(dtype dt);
+    Simulator(bool collect_timings);
+    Simulator(dtype dt, bool collect_timings);
 
     virtual ~Simulator(){};
 
@@ -57,6 +57,7 @@ public:
 
 protected:
     shared_ptr<MpiSimulatorChunk> chunk;
+    bool collect_timings;
 
     // Place to store probe data retrieved from worker
     // processes after simulation has finished.

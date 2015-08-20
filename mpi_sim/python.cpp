@@ -60,9 +60,9 @@ PythonMpiSimulator::PythonMpiSimulator(bpy::object num_components, bpy::object d
     dtype c_dt = bpy::extract<dtype>(dt);
 
     if(c_num_components == 1){
-        sim = unique_ptr<Simulator>(new Simulator(c_dt));
+        sim = unique_ptr<Simulator>(new Simulator(c_dt, false));
     }else{
-        sim = unique_ptr<Simulator>(new MpiSimulator(c_num_components, c_dt, false));
+        sim = unique_ptr<Simulator>(new MpiSimulator(c_num_components, c_dt, false, false));
     }
 }
 

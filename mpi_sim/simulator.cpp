@@ -2,14 +2,14 @@
 
 char Simulator::delim = '|';
 
-Simulator::Simulator()
-:dt(0.001){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk);
+Simulator::Simulator(bool collect_timings)
+:dt(0.001), collect_timings(collect_timings){
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(collect_timings));
 }
 
-Simulator::Simulator(dtype dt)
-:dt(dt){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk);
+Simulator::Simulator(dtype dt, bool collect_timings)
+:dt(dt), collect_timings(collect_timings){
+    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(collect_timings));
 }
 
 SignalView Simulator::get_signal(string signal_string){

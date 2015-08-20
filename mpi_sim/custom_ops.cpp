@@ -96,7 +96,6 @@ string SpaunStimulus::to_string() const{
     out << endl;
 
     return out.str();
-
 }
 
 ImageStore::ImageStore(string dir_name, int desired_img_size)

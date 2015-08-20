@@ -55,7 +55,7 @@ public:
     }
 
     friend ostream& operator << (ostream &out, const Operator &op){
-        out << op.to_string();
+        out << "<" << op.to_string() << ">" << endl;
         return out;
     }
 
@@ -343,5 +343,7 @@ protected:
 /* Helper function to extract a BaseSignal from a string. Assumes
  * the data for the BaseSignal is encoded in the string as a python list. */
 unique_ptr<BaseSignal> extract_float_list(string s);
+
+string signal_to_string(const SignalView signal);
 
 #endif

@@ -37,7 +37,7 @@ struct Arg: public option::Arg
  };
 
 
-enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, LOG};
+enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, TIMING, LOG};
 
 const option::Descriptor serial_usage[] =
 {
@@ -49,6 +49,7 @@ const option::Descriptor serial_usage[] =
                                                    "Options:" },
  {HELP,     0, "" , "help",     option::Arg::None, "  --help  \tPrint usage and exit." },
  {NO_PROG,  0, "",  "noprog",   option::Arg::None, "  --noprog  \tSupply to omit the progress bar." },
+ {TIMING,   0, "",  "timing",   option::Arg::None, "  --timing  \tSupply to collect timing info." },
  {LOG,      0, "",  "log",      Arg::NonEmpty,     "  --log  \tName of file to log results to using HDF5. "
                                                                "If not specified, the log filename is the same as the "
                                                                "name of the network file, but with the .h5 extension."},
@@ -101,6 +102,10 @@ int main(int argc, char **argv){
     cout << "Will run simulation for " << sim_length << " second(s)." << endl;
 
     bool show_progress = !bool(options[NO_PROG]);
+    cout << "Show progress bar: " << show_progress << endl;
+
+    bool collect_timings = bool(options[TIMING]);
+    cout << "Collect timing info: " << collect_timings << endl;
 
     string log_filename;
     if(options[LOG]){
@@ -111,7 +116,7 @@ int main(int argc, char **argv){
     cout << "Will write simulation results to " << log_filename << endl;
 
     cout << "Building network..." << endl;
-    auto sim = unique_ptr<Simulator>(new Simulator);
+    auto sim = unique_ptr<Simulator>(new Simulator(collect_timings));
     sim->from_file(net_filename);
     sim->finalize_build();
 

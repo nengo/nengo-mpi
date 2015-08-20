@@ -1,11 +1,13 @@
 #include "chunk.hpp"
 
-MpiSimulatorChunk::MpiSimulatorChunk()
-:time(0.0), dt(0.001), n_steps(0), rank(0), n_processors(1), mpi_merged(false){
+MpiSimulatorChunk::MpiSimulatorChunk(bool collect_timings)
+:time(0.0), dt(0.001), n_steps(0), rank(0), n_processors(1),
+mpi_merged(false), collect_timings(collect_timings){
 }
 
-MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged)
-:time(0.0), dt(0.001), n_steps(0), rank(rank), n_processors(n_processors), mpi_merged(mpi_merged){
+MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged, bool collect_timings)
+:time(0.0), dt(0.001), n_steps(0), rank(rank), n_processors(n_processors),
+mpi_merged(mpi_merged), collect_timings(collect_timings){
     stringstream ss;
     ss << "Chunk " << rank;
     label = ss.str();
@@ -369,8 +371,15 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         eta.start();
     }
 
+    map<string, double> per_class_average_timings;
+    double per_op_timings[operator_list.size()];
+    fill_n(per_op_timings, operator_list.size(), 0.0);
+
+    vector<double> step_times;
 
     for(unsigned step = 0; step < steps; ++step){
+        clock_t begin = clock();
+
         if(step % FLUSH_PROBES_EVERY == 0 && step != 0){
             dbg("Rank " << rank << " beginning step: " << step << ", flushing probes." << endl);
             flush_probes();
@@ -388,9 +397,28 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         n_steps++;
         time = n_steps * dt;
 
-        for(auto& op: operator_list){
-            //Call the operator
-            (*op)();
+        if(collect_timings){
+            int op_index = 0;
+            for(auto& op: operator_list){
+                clock_t op_begin = clock();
+
+                //Call the operator
+                (*op)();
+
+                clock_t op_end = clock();
+
+                if(collect_timings){
+                    per_op_timings[op_index] += double(op_end - op_begin) / CLOCKS_PER_SEC;
+                }
+
+                op_index++;
+            }
+        }else{
+            for(auto& op: operator_list){
+                //Call the operator
+                (*op)();
+            }
+
         }
 
         for(auto& kv: probe_map){
@@ -400,6 +428,9 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         if(progress){
             ++eta;
         }
+
+        clock_t end = clock();
+        step_times.push_back(double(end - begin) / CLOCKS_PER_SEC);
     }
 
     flush_probes();
@@ -413,6 +444,69 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
     }
 
     clsdbgfile();
+
+    if(collect_timings){
+        // Handle timing data
+        double sum = std::accumulate(step_times.begin(), step_times.end(), 0.0);
+        double mean = sum / step_times.size();
+
+        vector<double> diff(step_times.size());
+        transform(step_times.begin(), step_times.end(), diff.begin(),
+                       bind2nd(minus<double>(), mean));
+        double sq_sum = inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+        double stdev = sqrt(sq_sum / step_times.size());
+
+        cout << "Step time stats for process " << rank << ". Mean: " << mean << ", stdev: " << stdev << endl;
+
+        map<string, double> class_average;
+        map<string, double> class_count;
+        map<string, double> class_slowest;
+        map<string, Operator*> class_slowest_op;
+        map<string, double> class_cumulative;
+
+        int op_index = 0;
+        for(auto& op: operator_list){
+            string class_name = op->classname();
+
+            class_count[class_name] += 1;
+
+            if(class_slowest[class_name] < per_op_timings[op_index]){
+                class_slowest[class_name] = per_op_timings[op_index];
+                class_slowest_op[class_name] = op;
+            }
+
+            class_cumulative[class_name] += per_op_timings[op_index];
+
+            op_index++;
+        }
+
+        stringstream fn;
+        fn << "runtimes_rank_" << rank;
+
+        ofstream out;
+        out.open(fn.str());
+
+        out << "Class average time-per-step:" << endl;
+        for(auto& p : class_cumulative){
+            out << p.first << ": " << p.second / class_count[p.first] / double(n_steps) << "s" << endl;
+        }
+        out << endl;
+
+        out << "Class cumulative time-per-step:" << endl;
+        for(auto& p : class_cumulative){
+            out << p.first << ": " << p.second / double(n_steps) << "s" << endl;
+        }
+        out << endl;
+
+        out << "Class slowest operator:" << endl;
+        for(auto& p : class_slowest){
+            out << "Class: " << p.first << endl;
+            out << "Time-per-step: " << p.second / double(n_steps) << "s" << endl;
+            out << *class_slowest_op[p.first] << endl;
+        }
+
+        out.close();
+    }
 }
 
 void MpiSimulatorChunk::add_base_signal(

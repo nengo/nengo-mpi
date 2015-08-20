@@ -33,8 +33,8 @@ const int FLUSH_PROBES_EVERY = 1000;
 class MpiSimulatorChunk{
 
 public:
-    MpiSimulatorChunk();
-    MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged);
+    MpiSimulatorChunk(bool collect_timings);
+    MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged, bool collect_timings);
     const string classname() { return "MpiSimulatorChunk"; }
 
     /*
@@ -163,6 +163,7 @@ private:
     map<key_type, int> placeholder_indices;
 
     bool mpi_merged;
+    bool collect_timings;
 
     // Used at build time to construct the merged mpi operators if mpi_merged is true
     map<int, vector<pair<int, SignalView>>> merged_sends;

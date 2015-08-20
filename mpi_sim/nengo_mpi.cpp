@@ -33,11 +33,15 @@ void start_worker(MPI_Comm comm){
     dbg("Reading merged...");
     int mpi_merged = bcast_recv_int(comm);
 
+    dbg("Reading collect_timings...");
+    int collect_timings = bcast_recv_int(comm);
+    cout << "Do timing: " << collect_timings << endl;
+
     dbg("Reading filename...");
     string filename = recv_string(0, setup_tag, comm);
 
     dbg("Creating chunk...");
-    MpiSimulatorChunk chunk(my_id, n_processors, bool(mpi_merged));
+    MpiSimulatorChunk chunk(my_id, n_processors, bool(mpi_merged), bool(collect_timings));
 
     // Use parallel property lists
     hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
@@ -124,7 +128,7 @@ struct Arg: public option::Arg
      }
  };
 
-enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, LOG, MERGED};
+enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, TIMING, LOG, MERGED};
 
 const option::Descriptor serial_usage[] =
 {
@@ -136,6 +140,7 @@ const option::Descriptor serial_usage[] =
                                                    "Options:" },
  {HELP,     0, "" , "help",     option::Arg::None, "  --help  \tPrint usage and exit." },
  {NO_PROG,  0, "",  "noprog",   option::Arg::None, "  --noprog  \tSupply to omit the progress bar." },
+ {TIMING,   0, "",  "timing",   option::Arg::None, "  --timing  \tSupply to collect timing info." },
  {LOG,      0, "",  "log",      Arg::NonEmpty,     "  --log  \tName of file to log results to using HDF5. "
                                                                "If not specified, the log filename is the same as the "
                                                                "name of the network file, but with the .h5 extension."},
@@ -191,6 +196,9 @@ int start_master(int argc, char **argv){
     bool show_progress = !bool(options[NO_PROG]);
     cout << "Show progress bar: " << show_progress << endl;
 
+    bool collect_timings = bool(options[TIMING]);
+    cout << "Collect timing info: " << collect_timings << endl;
+
     bool mpi_merged = bool(options[MERGED]);
     cout << "Merged communication mode: " << mpi_merged << endl;
 
@@ -203,7 +211,7 @@ int start_master(int argc, char **argv){
     cout << "Will write simulation results to " << log_filename << endl;
 
     cout << "Building network..." << endl;
-    auto sim = unique_ptr<MpiSimulator>(new MpiSimulator(mpi_merged));
+    auto sim = unique_ptr<MpiSimulator>(new MpiSimulator(mpi_merged, collect_timings));
     sim->from_file(net_filename);
     sim->finalize_build();
 
