@@ -15,7 +15,7 @@ import math
 
 def write_bgq_jobfile(
         filename, n_processors, network_file, network_name,
-        working_dir, wall_time, exe_loc, t, log, merged,
+        working_dir, wall_time, exe_loc, t, log, merged, timing,
         ranks_per_node=16):
 
     n_nodes = math.ceil(float(n_processors) / ranks_per_node)
@@ -37,14 +37,16 @@ def write_bgq_jobfile(
         outf.write(
             'runjob --np {p} --ranks-per-node={ranks_per_node} '
             '--envs OMP_NUM_THREADS=1 HOME=$HOME --cwd={wd} : '
-            '{exe_loc} --noprog {log} {merged} {network_file} {t}'.format(
+            '{exe_loc} --noprog {log} {merged} {timing} {network_file} {t}'.format(
                 p=n_processors, ranks_per_node=ranks_per_node, exe_loc=exe_loc,
-                log=log, merged=merged, network_file=network_file, t=t, wd=working_dir))
+                log=log, merged=merged, timing=timing, network_file=network_file,
+                t=t, wd=working_dir))
 
 
 def write_gpc_jobfile(
         filename, n_processors, network_file, network_name,
-        working_dir, wall_time, exe_loc, t, log, merged, ranks_per_node=8):
+        working_dir, wall_time, exe_loc, t, log, merged, timing,
+        ranks_per_node=8):
 
     network_file = path.split(network_file)[-1]
 
@@ -81,10 +83,10 @@ def write_gpc_jobfile(
 
         outf.write("# EXECUTION COMMAND;\n")
         outf.write(
-            "mpirun -np {p} --mca pml ob1 {exe_loc} --noprog {log} {merged} {network_file} {t}"
-            "\n".format(
+            "mpirun -np {p} --mca pml ob1 {exe_loc} --noprog {log} {merged} "
+            "{timing} {network_file} {t}\n".format(
                 p=n_processors, ranks_per_node=ranks_per_node, exe_loc=exe_loc,
-                log=log, merged=merged, network_file=network_file, t=t))
+                log=log, merged=merged, timing=timing, network_file=network_file, t=t))
 
 
 def make_directory_name(experiments_dir, network_name):
@@ -129,6 +131,10 @@ if __name__ == "__main__":
         help="Supply to run using merged mpi communication.")
 
     parser.add_argument(
+        '--timing', action="store_true",
+        help="Supply to collect timing information.")
+
+    parser.add_argument(
         '-t', default=1.0, type=float,
         help="The simulation time.")
 
@@ -167,6 +173,7 @@ if __name__ == "__main__":
         log = " --log " + log
 
     merged = "--merged" if args.merged else ""
+    timing = "--timing" if args.timing else ""
 
     if not args.w:
         wall_time = {'gpc': '0:15:00', 'bgq': '0:30:00'}[platform]
@@ -193,11 +200,11 @@ if __name__ == "__main__":
     if platform == 'gpc':
         write_gpc_jobfile(
             submit_script_path, n_processors, network_file, network_name,
-            working_dir, wall_time, exe_loc, t, log, merged, ranks_per_node)
+            working_dir, wall_time, exe_loc, t, log, merged, timing, ranks_per_node)
     else:
         write_bgq_jobfile(
             submit_script_path, n_processors, network_file, network_name,
-            working_dir, wall_time, exe_loc, t, log, merged, ranks_per_node)
+            working_dir, wall_time, exe_loc, t, log, merged, timing, ranks_per_node)
 
     # Create convenience `latest` symlink
     make_sym_link(working_dir, path.join(experiments_dir, 'latest'))
