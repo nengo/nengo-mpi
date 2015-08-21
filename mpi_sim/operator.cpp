@@ -417,13 +417,13 @@ string Synapse::to_string() const{
 
         out << "x.size " << x[i].size() << endl;
         for(int j = 0; j < x[i].size(); j++){
-            cout << "x[ "<< j << "] = "<< x[i][j] << ", ";
+            out << "x[ "<< j << "] = "<< x[i][j] << ", ";
         }
         out << endl;
 
         out << "y.size " << y[i].size() << endl;
         for(int j = 0; j < y[i].size(); j++){
-            cout << "y[ "<< j << "] = "<< y[i][j] << ", ";
+            out << "y[ "<< j << "] = "<< y[i][j] << ", ";
         }
         out << endl;
     }

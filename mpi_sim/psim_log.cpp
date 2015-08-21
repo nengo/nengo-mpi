@@ -5,7 +5,8 @@ ParallelSimulationLog::ParallelSimulationLog(
 :SimulationLog(probe_info, dt), n_processors(n_processors), processor(processor), comm(comm){}
 
 // Master version
-void ParallelSimulationLog::prep_for_simulation(string filename, int num_steps){
+void ParallelSimulationLog::prep_for_simulation(string fn, int n_steps){
+    filename = fn;
 
     // Send filename size
     int size = filename.size();
@@ -22,9 +23,9 @@ void ParallelSimulationLog::prep_for_simulation(string filename, int num_steps){
     MPI_Bcast(buffer.get(), size+1, MPI_CHAR, 0, comm);
 
     // Send number of steps in simulation
-    MPI_Bcast(&num_steps, 1, MPI_INT, 0, comm);
+    MPI_Bcast(&n_steps, 1, MPI_INT, 0, comm);
 
-    setup_hdf5(filename, num_steps);
+    setup_hdf5(n_steps);
 
     ready_for_simulation = true;
 }
@@ -44,18 +45,18 @@ void ParallelSimulationLog::prep_for_simulation(){
     // Receive filename
     unique_ptr<char[]> buffer(new char[size+1]);
     MPI_Bcast(buffer.get(), size+1, MPI_CHAR, 0, comm);
-    string filename(buffer.get());
+    filename = string(buffer.get());
 
     // Receive number of steps in simulation
-    int num_steps;
-    MPI_Bcast(&num_steps, 1, MPI_INT, 0, comm);
+    int n_steps;
+    MPI_Bcast(&n_steps, 1, MPI_INT, 0, comm);
 
-    setup_hdf5(filename, num_steps);
+    setup_hdf5(n_steps);
 
     ready_for_simulation = true;
 }
 
-void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
+void ParallelSimulationLog::setup_hdf5(int n_steps){
     hid_t dset_id, dataspace_id, plist_id, att_id, att_dataspace_id;
 
     // Set up file access property list with parallel I/O access
@@ -71,7 +72,7 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
     H5Tset_strpad(str_type, H5T_STR_NULLTERM);
 
     for(ProbeSpec ps : probe_info){
-        hsize_t dset_dims[] = {num_steps, ps.signal_spec.shape1};
+        hsize_t dset_dims[] = {n_steps, ps.signal_spec.shape1};
 
         // Create the dataspace for the dataset.
         dataspace_id = H5Screate_simple(2, dset_dims, NULL);
@@ -105,4 +106,34 @@ void ParallelSimulationLog::setup_hdf5(string filename, int num_steps){
     }
 
     closed = false;
+}
+
+void ParallelSimulationLog::write_file(
+        string filename_suffix, int rank, int max_buffer_size, string data){
+
+    string fn = filename.substr(0, filename.find_last_of('.')) + filename_suffix;
+
+    if(data.length() < max_buffer_size){
+        data += string(max_buffer_size - data.length(), ' ');
+    }
+
+    if(data.length() > max_buffer_size){
+        data = data.substr(0, max_buffer_size);
+    }
+
+    MPI_File fh;
+
+    char c_filename[fn.length() + 1];
+    strcpy(c_filename, fn.c_str());
+
+    MPI_File_open(comm, c_filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
+
+    MPI_Offset offset = max_buffer_size * rank * sizeof(char);
+    MPI_File_set_view(fh, offset, MPI_CHAR, MPI_CHAR, "native", MPI_INFO_NULL);
+
+    char c_data[data.length() + 1];
+    strcpy(c_data, data.c_str());
+
+    MPI_File_write(fh, c_data, max_buffer_size, MPI_CHAR, MPI_STATUS_IGNORE);
+    MPI_File_close(&fh);
 }

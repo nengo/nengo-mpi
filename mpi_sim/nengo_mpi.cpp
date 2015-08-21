@@ -35,7 +35,6 @@ void start_worker(MPI_Comm comm){
 
     dbg("Reading collect_timings...");
     int collect_timings = bcast_recv_int(comm);
-    cout << "Do timing: " << collect_timings << endl;
 
     dbg("Reading filename...");
     string filename = recv_string(0, setup_tag, comm);

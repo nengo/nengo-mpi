@@ -26,7 +26,7 @@ public:
         dtype dt, MPI_Comm comm);
 
     // Called by master
-    void prep_for_simulation(string filename, int num_steps);
+    void prep_for_simulation(string fn, int n_steps);
 
     // Called by workers
     void prep_for_simulation();
@@ -34,7 +34,9 @@ public:
     // Use the `probe_info` (which is read from the HDF5 file that specifies the
     // network), to collectively construct a shared parallel HDF5 which all
     // processors can write simulation results to.
-    void setup_hdf5(string filename, int num_steps);
+    void setup_hdf5(int n_steps);
+
+    virtual void write_file(string filename_suffix, int rank, int max_buffer_size, string data);
 
 protected:
     int n_processors;

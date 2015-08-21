@@ -9,13 +9,15 @@ SimulationLog::SimulationLog(dtype dt)
 :dt(dt), ready_for_simulation(false), closed(true){
 }
 
-void SimulationLog::prep_for_simulation(string filename, int num_steps){
+void SimulationLog::prep_for_simulation(string fn, int n_steps){
+    filename = fn;
+
     if(filename.size() == 0){
         ready_for_simulation = false;
         return;
     }
 
-    setup_hdf5(filename, num_steps);
+    setup_hdf5(n_steps);
 
     ready_for_simulation = true;
 }
@@ -25,7 +27,7 @@ void SimulationLog::prep_for_simulation(){
         "Calling prep_for_simulation with no arguments on non-parallel simulation log.");
 }
 
-void SimulationLog::setup_hdf5(string filename, int num_steps){
+void SimulationLog::setup_hdf5(int n_steps){
     hid_t dset_id, dataspace_id, plist_id, att_id, att_dataspace_id;
 
     // Create a new file collectively and release property list identifier.
@@ -36,7 +38,7 @@ void SimulationLog::setup_hdf5(string filename, int num_steps){
     H5Tset_strpad(str_type, H5T_STR_NULLTERM);
 
     for(ProbeSpec ps : probe_info){
-        hsize_t dset_dims[] = {num_steps, ps.signal_spec.shape1};
+        hsize_t dset_dims[] = {n_steps, ps.signal_spec.shape1};
 
         // Create the dataspace for the dataset.
         dataspace_id = H5Screate_simple(2, dset_dims, NULL);
@@ -89,6 +91,15 @@ void SimulationLog::write(key_type probe_key, shared_ptr<dtype> buffer, int n_ro
     H5Sclose(memspace_id);
 
     d.row_offset += n_rows;
+}
+
+void SimulationLog::write_file(string filename_suffix, int rank, int max_buffer_size, string data){
+    string fn = filename.substr(0, filename.find_last_of('.')) + filename_suffix;
+
+    ofstream output;
+    output.open(fn);
+    output << data;
+    output.close();
 }
 
 void SimulationLog::close(){

@@ -20,12 +20,12 @@ struct HDF5Dataset{
     HDF5Dataset(){};
 
     HDF5Dataset(string n, int n_cols, hid_t d, hid_t dspace)
-        :parallel(false), name(n), n_cols(n_cols), dset_id(d),
-         dataspace_id(dspace), plist_id(H5P_DEFAULT), row_offset(0){};
+    :parallel(false), name(n), n_cols(n_cols), dset_id(d),
+    dataspace_id(dspace), plist_id(H5P_DEFAULT), row_offset(0){};
 
     HDF5Dataset(string n, int n_cols, hid_t d, hid_t dspace, hid_t p)
-        :parallel(true), name(n), n_cols(n_cols), dset_id(d),
-         dataspace_id(dspace), plist_id(p), row_offset(0){};
+    :parallel(true), name(n), n_cols(n_cols), dset_id(d),
+    dataspace_id(dspace), plist_id(p), row_offset(0){};
 
     void close(){
         H5Dclose(dset_id);
@@ -60,7 +60,7 @@ public:
     SimulationLog(vector<ProbeSpec> probe_info, dtype dt);
     SimulationLog(dtype dt);
 
-    virtual void prep_for_simulation(string filename, int num_steps);
+    virtual void prep_for_simulation(string fn, int n_steps);
     virtual void prep_for_simulation();
 
     bool is_ready(){return ready_for_simulation;};
@@ -68,12 +68,14 @@ public:
     // Use the `probe_info` (which is read from the HDF5 file that specifies the
     // network), to construct an HDF5 which simulation results are written to.
     // Called at the beginning of a simulation.
-    virtual void setup_hdf5(string filename, int num_steps);
+    virtual void setup_hdf5(int n_steps);
 
     // Write some data recorded by a probe in the simulator to the dataset in the
     // HDF5 that was reserved for that probe at the beginning of the simulation
     // (by calling the method `setup_hdf5`).
     void write(key_type probe_key, shared_ptr<dtype> buffer, int n_rows);
+
+    virtual void write_file(string filename_suffix, int rank, int max_buffer_size, string data);
 
     // Close the HDF5 file.
     void close();
@@ -86,6 +88,7 @@ protected:
     dtype dt;
 
     hid_t file_id;
+    string filename;
 
     vector<ProbeSpec> probe_info;
 

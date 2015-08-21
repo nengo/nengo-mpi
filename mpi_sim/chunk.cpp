@@ -1,5 +1,8 @@
 #include "chunk.hpp"
 
+// in bytes, for each process.
+#define MAX_RUNTIME_OUTPUT_SIZE 5000
+
 MpiSimulatorChunk::MpiSimulatorChunk(bool collect_timings)
 :time(0.0), dt(0.001), n_steps(0), rank(0), n_processors(1),
 mpi_merged(false), collect_timings(collect_timings){
@@ -287,7 +290,8 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
                 content_prime.push_back({p.first, &(p.second)});
             }
 
-            stable_sort(content_prime.begin(), content_prime.end(), compare_first);
+            stable_sort(
+                content_prime.begin(), content_prime.end(), compare_first_lt<int, SignalView*>);
             vector<SignalView> signals_only;
 
             for(auto& p : content_prime){
@@ -312,7 +316,8 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
             for(auto& p : content){
                 content_prime.push_back({p.first, &(p.second)});
             }
-            stable_sort(content_prime.begin(), content_prime.end(), compare_first);
+            stable_sort(
+                content_prime.begin(), content_prime.end(), compare_first_lt<int, SignalView*>);
 
             vector<SignalView> signals_only;
             for(auto& p : content_prime){
@@ -456,8 +461,6 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         double sq_sum = inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
         double stdev = sqrt(sq_sum / step_times.size());
 
-        cout << "Step time stats for process " << rank << ". Mean: " << mean << ", stdev: " << stdev << endl;
-
         map<string, double> class_average;
         map<string, double> class_count;
         map<string, double> class_slowest;
@@ -480,32 +483,46 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
             op_index++;
         }
 
-        stringstream fn;
-        fn << "runtimes_rank_" << rank;
+        stringstream runtimes_ss;
+        string delim = ",";
 
-        ofstream out;
-        out.open(fn.str());
+        runtimes_ss << endl << "Rank " << rank << " runtimes." << endl;
+        runtimes_ss << "Mean seconds-per-step: " << mean << ", stdev: " << stdev << endl;
 
-        out << "Class average time-per-step:" << endl;
         for(auto& p : class_cumulative){
-            out << p.first << ": " << p.second / class_count[p.first] / double(n_steps) << "s" << endl;
-        }
-        out << endl;
+            string class_name = p.first;
+            double value = p.second / class_count[class_name] / double(n_steps);
+            runtimes_ss << class_name << "_average" << delim << value << endl;
 
-        out << "Class cumulative time-per-step:" << endl;
-        for(auto& p : class_cumulative){
-            out << p.first << ": " << p.second / double(n_steps) << "s" << endl;
-        }
-        out << endl;
+            value = p.second / double(n_steps);
+            runtimes_ss << class_name << "_cumulative" << delim << value << endl;
 
-        out << "Class slowest operator:" << endl;
-        for(auto& p : class_slowest){
-            out << "Class: " << p.first << endl;
-            out << "Time-per-step: " << p.second / double(n_steps) << "s" << endl;
-            out << *class_slowest_op[p.first] << endl;
+            value = class_slowest[class_name] / double(n_steps);
+            runtimes_ss << class_name << "_slowest" << delim << value << endl;
+            runtimes_ss << class_name << "_slowest_op" << delim << endl << *class_slowest_op[class_name] << endl;
         }
 
-        out.close();
+        vector<pair<double, Operator*>> op_runtimes;
+
+        op_index = 0;
+        for(auto op: operator_list){
+            op_runtimes.push_back({per_op_timings[op_index], op});
+            op_index++;
+        }
+
+        int n_show = 10;
+        partial_sort(
+            op_runtimes.begin(), op_runtimes.begin()+n_show,
+            op_runtimes.end(), compare_first_gt<double, Operator*>);
+
+        runtimes_ss << n_show << " slowest operators: " << endl;
+        for(int i = 0; i < n_show; i++){
+            runtimes_ss << "OPERATOR " << i << endl;
+            runtimes_ss << "Seconds per step: " << op_runtimes[i].first / double(n_steps) << endl;
+            runtimes_ss << *(op_runtimes[i].second) << endl;
+        }
+
+        sim_log->write_file("_runtimes", rank, MAX_RUNTIME_OUTPUT_SIZE, runtimes_ss.str());
     }
 }
 

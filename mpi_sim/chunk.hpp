@@ -177,8 +177,12 @@ private:
     map<int, float> recv_indices;
 };
 
-inline bool compare_first(const pair<int, SignalView*> &left, const pair<int, SignalView*> &right){
+template <class A, class B> inline bool compare_first_lt(const pair<A, B> &left, const pair<A, B> &right){
     return (left.first < right.first);
+}
+
+template <class A, class B> inline bool compare_first_gt(const pair<A, B> &left, const pair<A, B> &right){
+    return (left.first > right.first);
 }
 
 inline bool compare_indices(const OpSpec &left, const OpSpec &right){
