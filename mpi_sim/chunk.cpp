@@ -78,9 +78,9 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
         H5Sclose(dspace);
 
-        assert(ndim == 2);
-        assert(shape[1] == 2);
         assert(shape[0] == n_signals);
+        assert(n_signals == 0 || shape[1] == 2);
+        assert(n_signals == 0 || ndim == 2);
 
         auto signal_shapes_buffer = unique_ptr<short[]>(new short [2 * n_signals]);
         err = H5Dread(
@@ -95,6 +95,8 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         dspace = H5Dget_space(labels);
         ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
         H5Sclose(dspace);
+
+        assert(ndim == 1);
 
         auto label_buffer = unique_ptr<char>(new char[shape[0]]);
         err = H5Dread(labels, str_type, H5S_ALL, H5S_ALL, read_plist, label_buffer.get());
@@ -129,9 +131,9 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
             // Get the signal data
             auto data = unique_ptr<BaseSignal>(new BaseSignal(shape[0], shape[1]));
 
-            for(int i = 0; i < shape[0]; i++){
-                for(int j = 0; j < shape[1]; j++){
-                    (*data)(i, j) = signal_buffer[signal_offset + i * shape[1] + j];
+            for(int j = 0; j < shape[0]; j++){
+                for(int k = 0; k < shape[1]; k++){
+                    (*data)(j, k) = signal_buffer[signal_offset + j * shape[1] + k];
                 }
             }
 
