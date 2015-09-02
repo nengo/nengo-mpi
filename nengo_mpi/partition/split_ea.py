@@ -13,7 +13,7 @@ import numpy as np
 import logging
 
 import nengo
-from nengo.utils.builder import full_transform, remove_passthrough_nodes
+from nengo.utils.builder import full_transform
 
 
 def find_all_io(connections):
@@ -46,7 +46,7 @@ def remove_from_network(network, obj):
 
 
 def remove_all_connections(network, ea=False):
-    """Remove all connections from a network. 
+    """Remove all connections from a network.
 
     ``ea'' controls whether to remove from EnsembleArrays"""
 
@@ -195,7 +195,8 @@ class EnsembleArraySplitter(object):
 
         self.inputs, self.outputs = find_all_io(network.all_connections)
 
-        self.logger.info("\n" + "*" * 20 + "Beginning split process" + "*" * 20)
+        self.logger.info(
+            "\n" + "*" * 20 + "Beginning split process" + "*" * 20)
         self.split_helper(network)
 
         self.probe_map = collections.defaultdict(list)
@@ -304,8 +305,9 @@ class EnsembleArraySplitter(object):
         # assert len(filter(lambda x: x.label == 'output', output_nodes)) > 0
 
         for output_node in output_nodes:
-            if len(inputs[output_node]) != n_ensembles or (
-                    set(c.pre for c in inputs[output_node]) != ea_ensemble_set):
+            extra_connections = (
+                set(c.pre for c in inputs[output_node]) != ea_ensemble_set)
+            if extra_connections:
                 raise ValueError("Extra connections to array output")
 
         # equally distribute ensembles between partitions
@@ -357,17 +359,12 @@ class EnsembleArraySplitter(object):
                 sub_transform = transform[i0*D:i1*D, :]
 
                 if self.preserve_zero_conns or np.any(sub_transform):
-                    containing_network =  find_object_location(
-                        self.top_level_network, c_in)
+                    containing_network = find_object_location(
+                        self.top_level_network, c_in)[-1]
+                    assert containing_network, (
+                        "Connection %s is not in network." % c_in)
 
-                    if not containing_network:
-                        print "c_in: " , c_in
-                        print "all_connection:"
-                        for c in self.top_level_network.all_connections:
-                            print c
-
-
-                    with containing_network[-1]:
+                    with containing_network:
                         new_conn = nengo.Connection(
                             c_in.pre, inp,
                             synapse=c_in.synapse,
@@ -457,9 +454,12 @@ class EnsembleArraySplitter(object):
                     sub_transform = transform[:, i0:i1]
 
                     if self.preserve_zero_conns or np.any(sub_transform):
-                        with find_object_location(
-                                self.top_level_network, c_out)[-1]:
+                        containing_network = find_object_location(
+                            self.top_level_network, c_out)[-1]
+                        assert containing_network, (
+                            "Connection %s is not in network." % c_out)
 
+                        with containing_network:
                             new_conn = nengo.Connection(
                                 out, c_out.post,
                                 synapse=c_out.synapse,
@@ -505,3 +505,131 @@ class EnsembleArraySplitter(object):
             new_data[p_id] = simulator.data[p_id]
 
         return new_data
+
+
+def _create_replacement_connection(c_in, c_out):
+    """Generate a new Connection to replace two through a passthrough Node"""
+    assert c_in.post_obj is c_out.pre_obj
+    assert c_in.post_obj.output is None
+
+    # determine the filter for the new Connection
+    if c_in.synapse is None:
+        synapse = c_out.synapse
+    elif c_out.synapse is None:
+        synapse = c_in.synapse
+    else:
+        raise NotImplementedError('Cannot merge two filters')
+        # Note: the algorithm below is in the right ballpark,
+        #  but isn't exactly the same as two low-pass filters
+        # filter = c_out.filter + c_in.filter
+
+    function = c_in.function
+    if c_out.function is not None:
+        raise Exception('Cannot remove a Node with a '
+                        'function being computed on it')
+
+    # compute the combined transform
+    transform = np.dot(full_transform(c_out), full_transform(c_in))
+
+    # check if the transform is 0 (this happens a lot
+    #  with things like identity transforms)
+    if np.all(transform == 0):
+        return None
+
+    c = nengo.Connection(c_in.pre_obj, c_out.post_obj,
+                         synapse=synapse,
+                         transform=transform,
+                         function=function,
+                         add_to_container=False)
+    return c
+
+
+def remove_passthrough_nodes(
+        objs, connections,
+        create_connection_fn=_create_replacement_connection):
+    """
+    NOTE: this was ripped and slightly modified from the main nengo repo.
+
+    Returns a version of the model without passthrough Nodes
+
+    For some backends (such as SpiNNaker), it is useful to remove Nodes that
+    have 'None' as their output.  These nodes simply sum their inputs and
+    use that as their output. These nodes are defined purely for organizational
+    purposes and should not affect the behaviour of the model.  For example,
+    the 'input' and 'output' Nodes in an EnsembleArray, which are just meant to
+    aggregate data.
+
+    Note that removing passthrough nodes can simplify a model and may be useful
+    for other backends as well.  For example, an EnsembleArray connected to
+    another EnsembleArray with an identity matrix as the transform
+    should collapse down to D Connections between the corresponding Ensembles
+    inside the EnsembleArrays.
+
+    Parameters
+    ----------
+    objs : list of Nodes and Ensembles
+        All the objects in the model
+    connections : list of Connections
+        All the Connections in the model
+
+    Returns the objs and connections of the resulting model.  The passthrough
+    Nodes will be removed, and the Connections that interact with those Nodes
+    will be replaced with equivalent Connections that don't interact with those
+    Nodes.
+    """
+
+    inputs, outputs = find_all_io(connections)
+    result_conn = list(connections)
+    result_objs = list(objs)
+    removed_objs = []
+
+    # look for passthrough Nodes to remove
+    for obj in objs:
+        if isinstance(obj, nengo.Node) and obj.output is None:
+            input_filtered = [
+                i for i in inputs[obj] if i.synapse is not None]
+            output_filtered = [
+                o for o in outputs[obj] if o.synapse is not None]
+
+            if input_filtered and output_filtered:
+                logging.info(
+                    "Cannot merge two filtered connections. "
+                    "Keeping node %s." % obj)
+                logging.info("Filtered input connections:")
+                for i in input_filtered:
+                    logging.info("%s" % i)
+                logging.info("Filtered output connections:")
+                for o in output_filtered:
+                    logging.info("%s" % o)
+
+                continue
+
+            if any(c_in.pre_obj is obj for c_in in inputs[obj]):
+                logging.info(
+                    "Cannot remove node with feedback. Keeping node %s." % obj)
+                continue
+
+            result_objs.remove(obj)
+            removed_objs.append(obj)
+
+            # get rid of the connections to and from this Node
+            for c in inputs[obj]:
+                result_conn.remove(c)
+                outputs[c.pre_obj].remove(c)
+            for c in outputs[obj]:
+                result_conn.remove(c)
+                inputs[c.post_obj].remove(c)
+
+            # replace those connections with equivalent ones
+            for c_in in inputs[obj]:
+
+                for c_out in outputs[obj]:
+                    c = create_connection_fn(c_in, c_out)
+                    if c is not None:
+                        result_conn.append(c)
+                        # put this in the list, since it might be used
+                        # another time through the loop
+                        outputs[c.pre_obj].append(c)
+                        inputs[c.post_obj].append(c)
+
+    return result_objs, result_conn, removed_objs

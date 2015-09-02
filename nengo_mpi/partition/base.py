@@ -67,9 +67,10 @@ class Partitioner(object):
         the same weight.
 
     straddle_conn_max_size: int/float
-        Connections of this size or greater are not permitted to straddle component
-        boundaries. Two nengo objects that are connected by a Connection that
-        is bigger than this size are forced to be in the same component.
+        Connections of this size or greater are not permitted to straddle
+        component boundaries. Two nengo objects that are connected by a
+        Connection that is bigger than this size are forced to be in the
+        same component.
 
     args: Extra positional args passed to func
 
@@ -78,7 +79,7 @@ class Partitioner(object):
 
     def __init__(
             self, n_components=None, func=None,
-            use_weights=True, straddle_conn_max_size=np.inf, 
+            use_weights=True, straddle_conn_max_size=np.inf,
             *args, **kwargs):
 
         if n_components is None:
@@ -185,7 +186,8 @@ class Partitioner(object):
 
 
 def network_to_filter_graph(
-        network, straddle_conn_max_size, use_weights=True, merge_nengo_nodes=True):
+        network, straddle_conn_max_size=np.inf,
+        use_weights=True, merge_nengo_nodes=True):
 
     """
     Creates a graph from a nengo network, where the nodes are collections
@@ -203,9 +205,10 @@ def network_to_filter_graph(
         The network whose filter graph we want to find.
 
     straddle_conn_max_size: int/float
-        Connections of this size or greater are not permitted to straddle component
-        boundaries. Two nengo objects that are connected by a Connection that
-        is bigger than this size are forced to be in the same component.
+        Connections of this size or greater are not permitted to straddle
+        component boundaries. Two nengo objects that are connected by a
+        Connection that is bigger than this size are forced to be in the same
+        component.
 
     use_weights: boolean
         Whether edges in the filter graph should be weighted by the size_mid
