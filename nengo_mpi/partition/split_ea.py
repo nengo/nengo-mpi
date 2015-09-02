@@ -1,7 +1,7 @@
 """
 Contains EnsembleArraySplitter, a class that can be used to split nengo
-ensemble arrays up into smaller a larger number of smaller ensemble arrays
-with the same functionality. This can create a larger number of
+ensemble arrays up into a larger number of smaller ensemble arrays
+that are functionally equivalent. This can create a larger number of
 independently-simulatable components for nengo_mpi, allowing a larger
 number of processors to be used.
 """
@@ -13,66 +13,12 @@ import numpy as np
 import logging
 
 import nengo
-
-def full_transform(conn, slice_pre=True, slice_post=True, allow_scalars=True):
-    """Compute the full transform for a connection.
-
-    Parameters
-    ----------
-    conn : Connection
-        The connection for which to compute the full transform.
-    slice_pre : boolean, optional (True)
-        Whether to compute the pre slice as part of the transform.
-    slice_post : boolean, optional (True)
-        Whether to compute the post slice as part of the transform.
-    allow_scalars : boolean, optional (True)
-        If true (default), will not make scalars into full transforms when
-        not using slicing, since these work fine in the reference builder.
-        If false, these scalars will be turned into scaled identity matrices.
-    """
-    transform = conn.transform
-    pre_slice = conn.pre_slice if slice_pre else slice(None)
-    post_slice = conn.post_slice if slice_post else slice(None)
-
-    if pre_slice == slice(None) and post_slice == slice(None):
-        if transform.ndim == 2:
-            # transform is already full, so return a copy
-            return np.array(transform)
-        elif transform.size == 1 and allow_scalars:
-            return np.array(transform)
-
-    # Create the new transform matching the pre/post dimensions
-    func_size = conn.function_info.size
-    size_in = (conn.pre_obj.size_out if func_size is None
-               else func_size) if slice_pre else conn.size_mid
-    size_out = conn.post_obj.size_in if slice_post else conn.size_out
-    new_transform = np.zeros((size_out, size_in))
-
-    if transform.ndim < 2:
-        new_transform[np.arange(size_out)[post_slice],
-                      np.arange(size_in)[pre_slice]] = transform
-        return new_transform
-    elif transform.ndim == 2:
-        repeated_inds = lambda x: (
-            not isinstance(x, slice) and np.unique(x).size != len(x))
-        if repeated_inds(pre_slice):
-            raise ValueError("Input object selection has repeated indices")
-        if repeated_inds(post_slice):
-            raise ValueError("Output object selection has repeated indices")
-
-        rows_transform = np.array(new_transform[post_slice])
-        rows_transform[:, pre_slice] = transform
-        new_transform[post_slice] = rows_transform
-        # Note: the above is a little obscure, but we do it so that lists of
-        #  indices can specify selections of rows and columns, rather than
-        #  just individual items
-        return new_transform
-    else:
-        raise ValueError("Transforms with > 2 dims not supported")
+from nengo.utils.builder import full_transform, remove_passthrough_nodes
 
 
 def find_all_io(connections):
     """Build up a list of all inputs and outputs for each object"""
+
     inputs = collections.defaultdict(list)
     outputs = collections.defaultdict(list)
     for c in connections:
@@ -82,7 +28,9 @@ def find_all_io(connections):
 
 
 def remove_from_network(network, obj):
-    """Returns whether removal was successful"""
+    """Remove ``obj'' from network.
+
+    Returns True if ``obj'' was successfully found and removed."""
 
     if obj in network.objects[type(obj)]:
         network.objects[type(obj)].remove(obj)
@@ -97,20 +45,58 @@ def remove_from_network(network, obj):
     return False
 
 
-def find_probes(network, target):
-    probes = []
+def remove_all_connections(network, ea=False):
+    """Remove all connections from a network. 
 
-    for probe in network.probes:
-        if probe.target is target:
-            probes.append(probe)
+    ``ea'' controls whether to remove from EnsembleArrays"""
 
-    for subnet in network.networks:
-        probes.extend(find_probes(subnet, target))
+    if isinstance(network, nengo.networks.EnsembleArray) and not ea:
+        return
 
-    return probes
+    l = []
+    network.objects[nengo.Connection] = l
+    network.connections = l
+
+    for n in network.networks:
+        remove_all_connections(n, ea)
+
+
+def objs_connections_ensemble_arrays(network):
+    """Given a Network, returns (objs, conns, eas).
+
+    Where ``objs '' is a list of (almost) all ensembles and nodes in the
+    network, ``conns'' is a list of all (almost) all connections in the
+    network, and eas is a list of all ensemble arrays in the network. Note
+    that objs and conns do not contain objects that are contained within
+    ensemble arrays.
+    """
+
+    objs = list(network.ensembles + network.nodes)
+    connections = list(network.connections)
+    e_arrays = []
+
+    for subnetwork in network.networks:
+        if isinstance(subnetwork, nengo.networks.EnsembleArray):
+            e_arrays.append(subnetwork)
+        else:
+            sub_objs, sub_conns, sub_e_arrays = (
+                objs_connections_ensemble_arrays(subnetwork))
+
+            objs.extend(sub_objs)
+            connections.extend(sub_conns)
+            e_arrays.extend(sub_e_arrays)
+
+    return objs, connections, e_arrays
 
 
 def find_object_location(network, obj):
+    """
+    Returns a list of the the parent networks of ``obj'' in ``network'',
+    sorted in order of increasing specificity.
+
+    Returns an empty list if ``obj'' not found in ``network'' at any level.
+    """
+
     cls = filter(
         lambda cls: cls in network.objects, obj.__class__.__mro__)
 
@@ -126,48 +112,104 @@ def find_object_location(network, obj):
     return []
 
 
+def label_or(o, f):
+    return o.label if o.label else str(f(o))
+
+
+def hierarchical_labelling(network, prefix="", delim="."):
+    """ Prepend the label of every object in the network with a string giving
+    all the objects parent networks. Intended for debugging purposes."""
+
+    class_name = network.__class__.__name__
+    prefix += "<%s: %s>%s" % (class_name, label_or(network, id), delim)
+
+    for e in network.ensembles:
+        e.label = prefix + label_or(e, id)
+
+    for n in network.nodes:
+        n.label = prefix + label_or(n, id)
+
+    for p in network.probes:
+        p.label = prefix + label_or(p, id)
+
+    for n in network.networks:
+        hierarchical_labelling(n, prefix, delim)
+        n.label = prefix + label_or(n, id)
+
+
 class EnsembleArraySplitter(object):
     """
-    After calling EnsembleArraySplitter(m, max_neurons), the nengo network 'm'
-    will be modified so that none of its ensemble arrays contain more than
-    'max_neurons' neurons.
+    After calling EnsembleArraySplitter.split(m, max_neurons), the nengo
+    network ``m'' will be modified so that none of its ensemble arrays contain
+    more than ``max_neurons' neurons.
     """
 
     def __init__(self):
         pass
 
-    def split(self, network, max_neurons, preserve_zeros=False):
-        self.inputs, self.outputs = find_all_io(network.all_connections)
+    def split(self, network, max_neurons, preserve_zero_conns=False):
         self.top_level_network = network
 
-        self.logger = logging.getLogger('EnsembleArraySplitter')
+        self.log_file_name = 'ensemble_array_splitter.log'
+        self.logger = logging.getLogger("split_ea")
         self.logger.setLevel(logging.INFO)
-
-        fh = logging.FileHandler('ensemble_array_splitter.log', mode='w')
-        fh.setLevel(logging.INFO)
-
-        self.logger.addHandler(fh)
+        self.logger.addHandler(logging.FileHandler(
+            filename=self.log_file_name, mode='w'))
 
         self.max_neurons = max_neurons
-        self.preserve_zeros = preserve_zeros
+        self.preserve_zero_conns = preserve_zero_conns
 
-        self.fix_special_networks(self.top_level_network)
-        self.fix_labels(self.top_level_network)
+        self.node_map = collections.defaultdict(list)
 
-        self.node_map = {}
-        self.split_helper(self.top_level_network)
+        self.logger.info("\nRelabelling network hierarchically.")
+        hierarchical_labelling(network)
+
+        self.logger.info("\nRemoving passthrough nodes.")
+        objs, conns, e_arrays = objs_connections_ensemble_arrays(network)
+        objs, conns, removed_objs = remove_passthrough_nodes(objs, conns)
+
+        self.logger.info("\nRemoving nodes:")
+        for obj in removed_objs:
+            assert remove_from_network(network, obj)
+            self.logger.info(obj)
+
+        removed_objs = set(removed_objs)
+
+        self.logger.info(
+            "\nRemoving probes because their targets have been removed: %s")
+        for p in network.all_probes:
+            if p.target in removed_objs:
+                remove_from_network(network, p)
+                self.logger.info(p)
+
+        self.logger.info(
+            "\nReplacing connections. "
+            "All connections after removing connections:")
+        remove_all_connections(network, ea=False)
+        for conn in network.all_connections:
+            self.logger.info(conn)
+
+        self.logger.info("\nAdding altered connections.")
+
+        network.connections.extend(conns)
+
+        self.inputs, self.outputs = find_all_io(network.all_connections)
+
+        self.logger.info("\n" + "*" * 20 + "Beginning split process" + "*" * 20)
+        self.split_helper(network)
 
         self.probe_map = collections.defaultdict(list)
+
         for node in self.node_map:
             probes_targeting_node = filter(
-                lambda p: p.target is node, self.top_level_network.all_probes)
+                lambda p: p.target is node, network.all_probes)
 
             for probe in probes_targeting_node:
-                assert remove_from_network(self.top_level_network, probe)
+                assert remove_from_network(network, probe)
 
                 # Add new probes for that node
-                for i, n in enumerate(self.node_map[node]):
-                    with self.top_level_network:
+                for i, n in enumerate(self.traverse_node_map(node)):
+                    with network:
                         p = nengo.Probe(
                             n, label="%s_%d" % (probe.label, i),
                             synapse=probe.synapse,
@@ -176,7 +218,20 @@ class EnsembleArraySplitter(object):
 
                         self.probe_map[probe].append(p)
 
-        fh.close()
+        self.logger.handlers[0].close()
+        self.logger.removeHandler(self.logger.handlers[0])
+
+    def traverse_node_map(self, node):
+        mapped_nodes = []
+
+        if node in self.node_map:
+            for n in self.node_map[node]:
+                if n in self.node_map:
+                    mapped_nodes += self.traverse_node_map(n)
+                else:
+                    mapped_nodes.append(n)
+
+        return mapped_nodes
 
     def split_helper(self, network):
         self.logger.info("In split_helper with %s", network)
@@ -189,15 +244,6 @@ class EnsembleArraySplitter(object):
                 self.split_ensemble_array(net, network, n_parts)
             else:
                 self.split_helper(net)
-
-    def fix_labels(self, network):
-        for net in network.networks:
-            if isinstance(net, nengo.networks.EnsembleArray):
-                for obj in net.nodes:
-                    if net.label:
-                        obj.label = "%s_%s" % (net.label, obj.label)
-            else:
-                self.fix_labels(net)
 
     def split_ensemble_array(self, array, parent, n_parts):
         """
@@ -217,13 +263,13 @@ class EnsembleArraySplitter(object):
         """
 
         if hasattr(array, 'neuron_input') or hasattr(array, 'neuron_output'):
-            print (
+            self.logger.info(
                 "Not splitting ensemble array " + array.label +
                 " because it has neuron nodes.")
             return
 
         if n_parts < 2:
-            print (
+            self.logger.info(
                 "Not splitting ensemble array because the "
                 "desired number of parts is < 2.")
             return
@@ -244,18 +290,22 @@ class EnsembleArraySplitter(object):
         n_ensembles = array.n_ensembles
         D = array.dimensions_per_ensemble
 
-        # assert no extra connections
         if array.n_ensembles != len(array.ea_ensembles):
             raise ValueError("Number of ensembles does not match")
 
+        # assert no extra connections
         ea_ensemble_set = set(array.ea_ensembles)
         if len(outputs[array.input]) != n_ensembles or (
                 set(c.post for c in outputs[array.input]) != ea_ensemble_set):
             raise ValueError("Extra connections from array input")
 
-        for output in (getattr(array, name) for name in array.output_sizes):
-            if len(inputs[output]) != n_ensembles or (
-                    set(c.pre for c in inputs[output]) != ea_ensemble_set):
+        output_nodes = [n for n in array.nodes if n.label[-5:] != 'input']
+        assert len(output_nodes) > 0
+        # assert len(filter(lambda x: x.label == 'output', output_nodes)) > 0
+
+        for output_node in output_nodes:
+            if len(inputs[output_node]) != n_ensembles or (
+                    set(c.pre for c in inputs[output_node]) != ea_ensemble_set):
                 raise ValueError("Extra connections to array output")
 
         # equally distribute ensembles between partitions
@@ -306,9 +356,18 @@ class EnsembleArraySplitter(object):
                 i0, i1 = indices[i], indices[i+1]
                 sub_transform = transform[i0*D:i1*D, :]
 
-                if self.preserve_zeros or np.any(sub_transform):
-                    with find_object_location(
-                            self.top_level_network, c_in)[-1]:
+                if self.preserve_zero_conns or np.any(sub_transform):
+                    containing_network =  find_object_location(
+                        self.top_level_network, c_in)
+
+                    if not containing_network:
+                        print "c_in: " , c_in
+                        print "all_connection:"
+                        for c in self.top_level_network.all_connections:
+                            print c
+
+
+                    with containing_network[-1]:
                         new_conn = nengo.Connection(
                             c_in.pre, inp,
                             synapse=c_in.synapse,
@@ -330,9 +389,14 @@ class EnsembleArraySplitter(object):
         self.logger.info("*" * 10 + "Fixing output connections")
 
         # loop over outputs
-        for output_name in array.output_sizes:
-            old_output = getattr(array, output_name)
-            output_sizes = array.output_sizes[output_name]
+        for old_output in output_nodes:
+
+            output_sizes = []
+            for ensemble in array.ensembles:
+                conn = filter(
+                    lambda c: old_output.label in str(c.post),
+                    outputs[ensemble])[0]
+                output_sizes.append(conn.size_out)
 
             # make new output nodes
             new_outputs = []
@@ -392,7 +456,7 @@ class EnsembleArraySplitter(object):
                     i0, i1 = output_inds[i], output_inds[i+1]
                     sub_transform = transform[:, i0:i1]
 
-                    if self.preserve_zeros or np.any(sub_transform):
+                    if self.preserve_zero_conns or np.any(sub_transform):
                         with find_object_location(
                                 self.top_level_network, c_out)[-1]:
 
@@ -403,88 +467,41 @@ class EnsembleArraySplitter(object):
 
                         self.logger.info("Added connection: %s", new_conn)
 
-                    outputs[out].append(new_conn)
-                    post_inputs.append(new_conn)
+                        outputs[out].append(new_conn)
+                        post_inputs.append(new_conn)
 
                 assert remove_from_network(self.top_level_network, c_out)
                 post_inputs.remove(c_out)
 
             # remove old output node
             array.nodes.remove(old_output)
-            setattr(array, output_name, None)
+            setattr(array, old_output.label, None)
 
-    def fix_special_networks(self, network):
-        inputs, outputs = self.inputs, self.outputs
+    def unsplit_data(self, simulator):
+        """
+        When ``split'' is called on a network, we sometimes have to split a
+        Node up into multiple Nodes. If the original Node was probed, then
+        each of the new Nodes are probed as well. This function returns an
+        object similar to ``sim.data'' (where ``sim'' is an instance of nengo
+        Simulator), but modified to contain the same keys as if ``split'' were
+        never called.
+        """
 
-        for net in network.networks[:]:
-            if net.label == "Circular Convolution":
-                print "Fixing circular convolution"
+        new_data = {}
 
-                ea = net.product.product
-                network.networks.append(ea)
-                inputs[ea.input] = []
+        handled_ids = []
 
-                for input_node in [net.A, net.B]:
+        for probe_id, p_ids in self.probe_map.iteritems():
+            new_data[probe_id] = np.concatenate(
+                [simulator.data[i] for i in p_ids], axis=1)
 
-                    cc_to_prod = outputs[input_node][0]
-                    prod_to_ea = outputs[cc_to_prod.post_obj][0]
+            handled_ids.extend(p_ids)
 
-                    cc_transform = full_transform(
-                        cc_to_prod, True, True, True)
-                    prod_transform = full_transform(
-                        prod_to_ea, True, True, True)
+        remaining_ids = set(simulator.data.keys()) - set(handled_ids)
+        remaining_ids = list(remaining_ids)
 
-                    for conn in inputs[input_node]:
-                        removed = remove_from_network(
-                            self.top_level_network, conn)
-                        assert removed
+        for p_id in remaining_ids:
+            assert p_id not in new_data
+            new_data[p_id] = simulator.data[p_id]
 
-                        outputs[conn.pre_obj].remove(conn)
-
-                        transform = np.dot(
-                            cc_transform,
-                            full_transform(conn, False, True, True))
-
-                        transform = np.dot(
-                            prod_transform, transform)
-
-                        with network:
-                            new_conn = nengo.Connection(
-                                conn.pre, ea.input,
-                                synapse=conn.synapse,
-                                function=conn.function,
-                                transform=transform)
-
-                        inputs[ea.input].append(new_conn)
-                        outputs[conn.pre_obj].append(new_conn)
-
-                cc_out_transform = full_transform(
-                    inputs[net.output][0], True, True, True)
-
-                outputs[ea.product] = []
-
-                for conn in outputs[net.output]:
-                    assert conn.function is None
-
-                    removed = remove_from_network(self.top_level_network, conn)
-                    assert removed
-
-                    inputs[conn.post_obj].remove(conn)
-
-                    transform = np.dot(
-                        full_transform(conn, True, True, True),
-                        cc_out_transform)
-
-                    with network:
-                        new_conn = nengo.Connection(
-                            ea.product, conn.post_obj,
-                            synapse=conn.synapse,
-                            transform=transform)
-
-                    outputs[ea.product].append(new_conn)
-                    inputs[conn.post_obj].append(new_conn)
-
-                removed = remove_from_network(self.top_level_network, net)
-                assert removed
-            else:
-                self.fix_special_networks(net)
+        return new_data

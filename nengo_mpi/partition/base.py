@@ -66,6 +66,11 @@ class Partitioner(object):
         edges in the graph that we partition. If False, then all edges have
         the same weight.
 
+    straddle_conn_max_size: int/float
+        Connections of this size or greater are not permitted to straddle component
+        boundaries. Two nengo objects that are connected by a Connection that
+        is bigger than this size are forced to be in the same component.
+
     args: Extra positional args passed to func
 
     kwargs: Extra keyword args passed to func
@@ -73,7 +78,8 @@ class Partitioner(object):
 
     def __init__(
             self, n_components=None, func=None,
-            use_weights=True, *args, **kwargs):
+            use_weights=True, straddle_conn_max_size=np.inf, 
+            *args, **kwargs):
 
         if n_components is None:
             self.n_components = 1
@@ -93,6 +99,7 @@ class Partitioner(object):
 
             self.func = func
 
+        self.straddle_conn_max_size = straddle_conn_max_size
         self.args = args
         self.kwargs = kwargs
 
@@ -139,7 +146,8 @@ class Partitioner(object):
 
         if self.n_components > 1:
             # component0 is also in the filter graph
-            component0, filter_graph = network_to_filter_graph(network)
+            component0, filter_graph = network_to_filter_graph(
+                network, self.straddle_conn_max_size)
 
             n_nodes = len(filter_graph)
 
@@ -176,7 +184,9 @@ class Partitioner(object):
         return self.n_components, object_assignments
 
 
-def network_to_filter_graph(network, use_weights=True, merge_nengo_nodes=True):
+def network_to_filter_graph(
+        network, straddle_conn_max_size, use_weights=True, merge_nengo_nodes=True):
+
     """
     Creates a graph from a nengo network, where the nodes are collections
     of nengo objects that are connected by non-filtered connections, and edges
@@ -191,6 +201,11 @@ def network_to_filter_graph(network, use_weights=True, merge_nengo_nodes=True):
     ----------
     network: nengo.Network
         The network whose filter graph we want to find.
+
+    straddle_conn_max_size: int/float
+        Connections of this size or greater are not permitted to straddle component
+        boundaries. Two nengo objects that are connected by a Connection that
+        is bigger than this size are forced to be in the same component.
 
     use_weights: boolean
         Whether edges in the filter graph should be weighted by the size_mid
@@ -217,12 +232,15 @@ def network_to_filter_graph(network, use_weights=True, merge_nengo_nodes=True):
         None.
     """
 
-    def merge_nodes(node_map, a, b):
+    def merge_nodes(node_map, a, b, conn=None):
         if a.merge(b):
             for obj in b.objects:
                 node_map[obj] = a
 
             del b
+
+        if conn is not None:
+            a.connections.append(conn)
 
         return a
 
@@ -231,18 +249,17 @@ def network_to_filter_graph(network, use_weights=True, merge_nengo_nodes=True):
         in network.all_nodes + network.all_ensembles}
 
     for conn in network.all_connections:
-
         pre_obj = neurons2ensemble(conn.pre_obj)
         pre_node = node_map[pre_obj]
 
         post_obj = neurons2ensemble(conn.post_obj)
         post_node = node_map[post_obj]
 
-        if is_update(conn):
+        if is_update(conn) and conn.size_mid < straddle_conn_max_size:
             pre_node.add_output(conn)
             post_node.add_input(conn)
         else:
-            merge_nodes(node_map, pre_node, post_node)
+            merge_nodes(node_map, pre_node, post_node, conn)
 
     all_nodes = list(set(node_map.values()))
 
@@ -322,6 +339,7 @@ class GraphNode(object):
         self.inputs = set()
         self.outputs = set()
         self._n_neurons = 0
+        self.connections = []
 
         self.add_object(obj)
 
@@ -387,6 +405,8 @@ class GraphNode(object):
         self.outputs = set([
             o for o in self.outputs.union(other.outputs)
             if not (o.pre_obj in self.objects and o.post_obj in self.objects)])
+
+        self.connections.extend(other.connections)
 
         return True
 
@@ -516,14 +536,22 @@ def propogate_assignments(network, assignments):
 
     assignments[network] = 0
 
-    try:
-        _, outputs = find_all_io(network.all_connections)
+    _, outputs = find_all_io(network.all_connections)
 
+    try:
         helper(network, assignments, outputs)
-        probe_helper(network, assignments)
     except KeyError as e:
         # Nengo tests require a value error to be raised in these cases.
         msg = "Invalid Partition. KeyError: %s" % e.message,
+        raise ValueError(msg)
+
+    try:
+        probe_helper(network, assignments)
+    except KeyError as e:
+        # Nengo tests require a value error to be raised in these cases.
+        msg = (
+            "Invalid Partition. Something is wrong with "
+            "the probes. KeyError: %s." % e.message)
         raise ValueError(msg)
 
     non_updates = [
@@ -587,6 +615,7 @@ def evaluate_partition(
 
     print "Mean neurons per filter graph node: ", np.mean(graph_node_n_neurons)
     print "Std of neurons per filter graph node", np.std(graph_node_n_neurons)
+
     print "Min number of neurons", np.min(graph_node_n_neurons)
     print "Max number of neurons", np.max(graph_node_n_neurons)
 
