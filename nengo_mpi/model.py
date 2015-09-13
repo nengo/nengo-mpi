@@ -53,16 +53,13 @@ SIGNAL_DELIM = ":"
 PROBE_DELIM = "|"
 
 
-def make_builder(base):
-    """
-    Create a version of an existing builder function whose only difference
-    is that it assumes the model is an instance of MpiModel, and uses that
-    model to record which ops are built as part of building which high-level
-    objects.
+def make_builder(base_function):
+    """ Return an augmented version of an existing builder function.
 
-    Parameters
-    ----------
-    base: The existing builder function that we want to augment.
+    The only difference between `base_function` and the returned function is
+    that it assumes the model is an instance of `MpiModel`, and uses that model
+    to record which ops are created as part of building which high-level
+    objects.
 
     """
 
@@ -73,13 +70,13 @@ def make_builder(base):
             raise ValueError(
                 "Must use an instance of MpiModel.")
 
-        r = base(model, obj)
+        r = base_function(model, obj)
         model.pop_object()
         return r
 
     build_object.__doc__ = (
         "Builder function augmented to make use "
-        "of MpiModels.\n\n" + str(base.__doc__))
+        "of MpiModels.\n\n" + str(base_function.__doc__))
 
     return build_object
 
@@ -110,15 +107,25 @@ with warnings.catch_warnings():
         make_builder(build_spaun_stimulus))
 
     def mpi_build_network(model, network):
-        """
+        """ Build a nengo Network for nengo_mpi.
+
+        This function replaces nengo.builder.build_network.
+
         For each connection that emenates from a Node, has a non-None
         pre-slice, AND has no function attached to it, we replace it
-        with a connection that is functionally equivalent, but has
+        with a Connection that is functionally equivalent, but has
         the slicing moved into the transform. This is done because
         in some such cases, the refimpl nengo builder will implement the
-        slicing using a pyfunc, which we want to avoid in nengo_mpi.
-        """
+        slicing using a python function, which we want to avoid in nengo_mpi.
 
+        Parameters
+        ----------
+        model: MpiModel
+            The model to which created components will be added.
+        network: nengo.Network
+            The network to be built.
+
+        """
         remove_conns = []
 
         for conn in network.connections:
@@ -154,20 +161,6 @@ with warnings.catch_warnings():
         make_builder(mpi_build_network))
 
 
-class DummyNdarray(object):
-    """
-    A dummy array intended to act as a place-holder for an
-    ndarray. Preserves the type, shape, stride and size
-    attributes of the original ndarray, but not its contents.
-    """
-
-    def __init__(self, value):
-        self.dtype = value.dtype
-        self.shape = value.shape
-        self.size = value.size
-        self.strides = value.strides
-
-
 def no_den_synapse_args(input, output, b):
     return [
         "NoDenSynapse", signal_to_string(input),
@@ -183,7 +176,7 @@ def simple_synapse_args(input, output, a, b):
 def linear_filter_synapse_args(op, dt, method='zoh'):
     """
     A copy of some of the functionality that gets applied to
-    linear filters in refimpl nengo.
+    linear filters in the reference implementation.
     """
     num, den = op.synapse.num, op.synapse.den
     num, den, _ = cont2discrete(
@@ -204,11 +197,17 @@ def linear_filter_synapse_args(op, dt, method='zoh'):
 
 
 def pyfunc_checks(val):
-    """
+    """Check a value to make sure it conforms to expectations.
+
     If the output can possibly be treated as a scalar, convert it
     to a python float. Otherwise, convert it to a numpy ndarray.
-    """
 
+    Parameters
+    ----------
+    val: any
+        Value to be checked.
+
+    """
     if isinstance(val, list):
         val = np.array(val, dtype=np.float64)
 
@@ -235,6 +234,21 @@ def pyfunc_checks(val):
 
 
 def make_checked_func(func, t_in, takes_input):
+    """Create checked version of an existing function.
+
+    Returns a version of `func' whose output is first checked to make
+    sure that it conforms to expectations.
+
+    Parameters
+    ----------
+    func: function
+        Function to create checked version of.
+    t_in: bool
+        Whether the function takes the current time step as an argument.
+    takes_input: bool
+        Whether the function takes an input other than the current time step.
+    """
+
     def f():
         return pyfunc_checks(func())
 
@@ -253,10 +267,12 @@ def make_checked_func(func, t_in, takes_input):
 
 
 class MpiSend(builder.operator.Operator):
-    """
-    MpiSend placeholder operator. Stores the signal that the operator will
-    send and the component that it will be sent to. No makestep is defined,
-    as it will never be called.
+    """ Operator that sends a Signal to a different process.
+
+    Stores the signal that the operator will send and the process
+    that it will be sent to. No `makestep` is defined, as it will
+    never be called (this operator is never used in python simulations).
+
     """
 
     def __init__(self, dst, tag, signal):
@@ -271,10 +287,12 @@ class MpiSend(builder.operator.Operator):
 
 
 class MpiRecv(builder.operator.Operator):
-    """
-    MpiRecv placeholder operator. Stores the signal that the operator will
-    receive and the component that it will be received from. No makestep is
-    defined, as it will never be called.
+    """ Operator that receives a signal from another process.
+
+    Stores the signal that the operator will receive and the process
+    that it will be received from. No `makestep` is defined, as it will
+    never be called (this operator is never used in python simulations).
+
     """
 
     def __init__(self, src, tag, signal):
@@ -289,7 +307,8 @@ class MpiRecv(builder.operator.Operator):
 
 
 def split_connection(conn_ops, signal):
-    """
+    """ Split up the operators implementing a Connection.
+
     Split the operators belonging to a connection into a
     ``pre'' group and a ``post'' group. The connection is assumed
     to contain exactly 1 operation performing an update, which
@@ -301,10 +320,11 @@ def split_connection(conn_ops, signal):
 
     Parameters
     ----------
-    conn_ops: A list containing the operators implementing a nengo connection.
-
-    signal: The signal where the connection will be split. Must be updated by
-        one of the operators in ``conn_ops''.
+    conn_ops: list
+        List of operators implementing a Connection.
+    signal: Signal
+        The signal where the connection will be split. Must be a
+        signal that is updated by one of the operators in `conn_ops`.
 
     Returns
     -------
@@ -312,7 +332,6 @@ def split_connection(conn_ops, signal):
     post_ops: A list of the ops that come after the updated signal.
 
     """
-
     pre_ops = []
 
     for op in conn_ops:
@@ -345,9 +364,11 @@ def split_connection(conn_ops, signal):
 
 
 def make_key(obj):
-    """
-    Create a key for an object. Must be unique, and reproducable (i.e. produce
-    the same key if called with the same object multiple times).
+    """ Create a unique key for an object.
+
+    Must reproducable (i.e. produce the same key if called with
+    the same object multiple times).
+
     """
     if isinstance(obj, builder.signal.SignalView):
         return id(obj.base)
@@ -356,11 +377,11 @@ def make_key(obj):
 
 
 def signal_to_string(signal, delim=SIGNAL_DELIM):
-    """
-    Takes in a signal, and encodes the relevant information in a string.
-    The format of the returned string:
+    """ Convert a signal to a string.
 
+    The format of the returned string is:
         signal_key:shape:elemstrides:offset
+
     """
     shape = signal.shape if signal.shape else 1
     strides = signal.elemstrides if signal.elemstrides else 1
@@ -376,28 +397,14 @@ def signal_to_string(signal, delim=SIGNAL_DELIM):
     return signal_string
 
 
-def ndarray_to_mpi_string(a):
-    if a.ndim == 0:
-        s = "[1,1]%f" % a
-
-    elif a.ndim == 1:
-        s = "[%d,1]" % a.size
-        s += ",".join([str(f) for f in a.flatten()])
-
-    else:
-        assert a.ndim == 2
-        s = "[%d,%d]" % a.shape
-        s += ",".join([str(f) for f in a.flatten()])
-
-    return s
-
-
 def store_string_list(
         h5_file, dset_name, strings, final_null=True, compression='gzip'):
-    """
-    Store a list of strings in a dataset in an hdf5 file or group. Strings
-    are separated by null characters, with an additional null
-    character optionally tacked on at the end.
+    """Store a list of strings in a dataset in an hdf5 file or group.
+
+    In the created dataset, the strings in `strings` are separated by null
+    characters. An additional null character can optionally being
+    added at the end.
+
     """
     big_string = '\0'.join(strings)
 
@@ -412,21 +419,37 @@ def store_string_list(
 
 
 class MpiModel(builder.Model):
-    """
-    Output of the MpiBuilder, used by the Simulator.
+    """Output of the MpiBuilder, used by nengo_mpi.Simulator.
 
-    Differs from the Model in the reference implementation in that
-    as the model is built, it keeps track of the object currently being
-    built. This permits it to track which operators are added as part
-    of which high-level objects, so that those operators can later be
-    added to the correct MPI component (required since MPI components are
-    specified in terms of the high-level nengo objects like nodes,
-    networks and ensembles).
-    """
+    MpiModel differs from the Model in the reference implementation in that
+    as the model is built, MpiModel keeps track of the high-level nengo object
+    (e.g. Ensemble) currently being built. This permits it to track which
+    operators implement which high-level objects, so that those operators can
+    later be added to the correct MPI component (required since MPI components
+    are specified in terms of the high-level objects).
 
+    Parameters
+    ----------
+    n_components: int
+        Number of components that the network will be divided into.
+    assignments:
+        A dictionary mapping from high-level objects to component
+        indices (ints).  All high-level objects in the Network must appear as
+        keys in this dictionary.
+    dt: float
+        Step length.
+    decoder_cache: DecoderCache
+        DecoderCache object to use.
+    save_file: string
+        Name of file to save the built network to. If a non-empty string is
+        provided, then instead of creating a runnable simulator, the result
+        of building the model is saved to a file which can be loaded by
+        the executables bin/nengo_mpi and bin/nengo_cpp to run simulations.
+
+    """
     def __init__(
             self, n_components, assignments, dt=0.001, label=None,
-            decoder_cache=NoDecoderCache(), save_file="", free_memory=True):
+            decoder_cache=NoDecoderCache(), save_file=""):
 
         if not h5py_available:
             raise Exception("h5py not available.")
@@ -440,6 +463,8 @@ class MpiModel(builder.Model):
                 "network files (cannot run simulations). However, save_file "
                 "argument was empty.")
 
+        # Only create a working simulator if our goal is not to simply
+        # save the network to a file
         self.mpi_sim = (
             PythonMpiSimulator(n_components, dt) if not save_file else None)
 
@@ -464,19 +489,21 @@ class MpiModel(builder.Model):
         self.signal_key_set = defaultdict(set)
         self.total_signal_size = defaultdict(int)
 
-        # operators for each component
+        # component index (int) -> list of operators
+        # stores the operators for each component
         self.component_ops = defaultdict(list)
 
-        # probe -> C++ key (int)
+        # probe -> C++ key (long int)
         # Used to query the C++ simulator for probe data
         self.probe_keys = {}
 
         self._object_context = [None]
+
+        # high-level nengo object -> list of operators
+        # stores the operators implementing each high-level object
         self.object_ops = defaultdict(list)
 
         self._mpi_tag = 0
-
-        self.free_memory = free_memory
 
         self.pyfunc_args = []
 
@@ -484,6 +511,13 @@ class MpiModel(builder.Model):
 
     @property
     def runnable(self):
+        """ Return whether this MpiModel can immediately run a simulation.
+
+        If save_file was not an empty string when __init__ was called, then
+        this should always return False. Otherwise, returns True iff
+        self.finalize_build has been called and completed successfully.
+
+        """
         return self.mpi_sim is not None
 
     def __str__(self):
@@ -494,24 +528,49 @@ class MpiModel(builder.Model):
         return s
 
     def build(self, *objs):
+        """ Overrides Model.build """
         return MpiBuilder.build(self, *objs)
 
-    def get_new_mpi_tag(self):
+    def _next_mpi_tag(self):
+        """ Return the next mpi tag.
+
+        Used to ensure that each Connection which straddles a component
+        boundary uses a unique tag.
+
+        """
         mpi_tag = self._mpi_tag
         self._mpi_tag += 1
         return mpi_tag
 
     def push_object(self, object):
+        """ Push high-level object onto context stack.
+
+        So that we can record which operators implement the object.
+
+        """
         self._object_context.append(object)
 
     def pop_object(self):
+        """ Pop high-level object off of context stack.
 
+        Once an object has been popped from the context stack, we know that
+        it has finished building, and we can add the operators that implement
+        the object to the MpiModel. We add the operators for the object to
+        the component that the object is assigned to (which is stored in the
+        self.assignments dictionary).
+
+        The only exceptions are Connections; when we pop a Connection whose
+        pre object and post object are on different components, then some of
+        operators implementing the connection go to one component, and there
+        rest go to another.
+
+        """
         obj = self._object_context.pop()
 
         if not isinstance(obj, Connection):
             component = self.assignments[obj]
 
-            self.add_ops(component, self.object_ops[obj])
+            self.assign_ops(component, self.object_ops[obj])
 
         else:
             conn = obj
@@ -519,7 +578,7 @@ class MpiModel(builder.Model):
             post_component = self.assignments[conn.post_obj]
 
             if pre_component == post_component:
-                self.add_ops(pre_component, self.object_ops[conn])
+                self.assign_ops(pre_component, self.object_ops[conn])
 
             else:
                 if conn.learning_rule_type:
@@ -534,7 +593,7 @@ class MpiModel(builder.Model):
                         "Connections crossing component boundaries "
                         "must be filtered so that there is an update.")
 
-                tag = self.get_new_mpi_tag()
+                tag = self._next_mpi_tag()
 
                 self.send_signals[pre_component].append(
                     (signal, tag, post_component))
@@ -544,58 +603,56 @@ class MpiModel(builder.Model):
                 pre_ops, post_ops = split_connection(
                     self.object_ops[conn], signal)
 
-                # Have to add the signal to both components, so can't delete it
-                # the first time.
-                self.add_signal(pre_component, signal, free_memory=False)
-                self.add_signal(
-                    post_component, signal, free_memory=self.free_memory)
+                self.assign_ops(pre_component, pre_ops)
+                self.assign_ops(post_component, post_ops)
 
-                self.add_ops(pre_component, pre_ops)
-                self.add_ops(post_component, post_ops)
+    def assign_ops(self, component, ops):
+        """ Assign a sequence of operators to a component.
 
-    def add_ops(self, component, ops):
+        Parameters
+        ----------
+        component: int
+            Component to add the operators to.
+        ops: list of nengo.builder.operator.Operator instances
+            Operators to add the model.
+
+        """
         for op in ops:
             for signal in op.all_signals:
-                self.add_signal(
-                    component, signal, free_memory=self.free_memory)
+                key = make_key(signal)
+
+                if key not in self.signal_key_set[component]:
+                    logger.debug(
+                        "Component %d: Adding signal %s with key: %s",
+                        component, signal, make_key(signal))
+
+                    self.signal_key_set[component].add(key)
+                    self.signals[component].append((key, signal))
+                    self.total_signal_size[component] += signal.size
 
         self.component_ops[component].extend(ops)
 
-    def add_signal(self, component, signal, free_memory=True):
-        key = make_key(signal)
-
-        if key not in self.signal_key_set[component]:
-            logger.debug(
-                "Component %d: Adding signal %s with key: %s",
-                component, signal, make_key(signal))
-
-            self.signal_key_set[component].add(key)
-            self.signals[component].append((key, signal))
-            self.total_signal_size[component] += signal.size
-
-            # freeing memory doesn't make sense anymore.
-            # if free_memory:
-            #     # Replace the data stored in the signal by a dummy array,
-            #     # which has no contents but has the same shape, size, etc
-            #     # as the original. This should allow the memory to be
-            #     # reclaimed.
-            #     signal.base._value = DummyNdarray(signal.base._value)
-
     def add_op(self, op):
-        """
+        """ Add operator to model. Overrides Model.add_op.
+
         Records that the operator was added as part of building
-        the object that is on the top of _object_context stack.
+        the object that is on top of the _object_context stack.
+
         """
         self.object_ops[self._object_context[-1]].append(op)
 
     def finalize_build(self):
-        """
-        Called once the MpiBuilder has finished running. Adds operators
-        and probes to the mpi simulator. The signals should already have
-        been added by this point; they are added to MPI as soon as they
-        are built and then deleted from the python level, to save memory.
-        """
+        """ Finalize the build process.
 
+        Called once the MpiBuilder has finished running. Finalizes
+        operators and probes, converting them to strings. Then writes
+        all relevant information (signals, ops and probes for each component)
+        to an HDF5 file. Then, if self.mpi_sim is not None (so we want to
+        create a runnable MPI simulator), calls self.mpi_sim.load_file, which
+        tells the C++ code to load the HDF5 file we have just written and
+        create a working simulator.
+
+        """
         all_ops = list(chain(
             *[self.component_ops[component]
               for component in range(self.n_components)]))
@@ -605,13 +662,8 @@ class MpiModel(builder.Model):
             op for op in toposort(dg) if hasattr(op, 'make_step')]
         self.global_ordering = {op: i for i, op in enumerate(global_ordering)}
 
-        for component in range(self.n_components):
-            self.add_ops_to_mpi(component)
-
-        for probe in self.probes:
-            self.add_probe(
-                probe, self.sig[probe]['in'],
-                sample_every=probe.sample_every)
+        self._finalize_ops()
+        self._finalize_probes()
 
         with h5.File(self.save_file_name, 'w') as save_file:
             save_file.attrs['dt'] = self.dt
@@ -692,107 +744,112 @@ class MpiModel(builder.Model):
 
             self.mpi_sim.finalize_build()
 
-    def add_ops_to_mpi(self, component):
+    def _finalize_ops(self):
+        """ Finalize operators.
+
+        Main jobs are to create MpiSend and MpiRecv opreators based on
+        send_signals and recv_signals, and to turn all ops belonging to
+        the `component` into strings, which are then stored in self.op_strings.
+        PyFunc ops are the only exception, as it is not generally possible to
+        encode an arbitrary python function as a string.
+
         """
-        Adds to MPI all ops that are meant for the given component. Which ops
-        are meant for which component is stored in self.component_ops.
+        for component in range(self.n_components):
+            send_signals = self.send_signals[component]
+            recv_signals = self.recv_signals[component]
+            component_ops = self.component_ops[component]
 
-        For all ops except PyFuncs, creates a string encoding all information
-        about the op, and passes it into the C++ MPI simulator. For PyFuncs,
-        we need to pass the python function to C++, so it is more involved.
-        """
+            for signal, tag, dst in send_signals:
+                mpi_send = MpiSend(dst, tag, signal)
 
-        send_signals = self.send_signals[component]
-        recv_signals = self.recv_signals[component]
-        component_ops = self.component_ops[component]
+                update_indices = filter(
+                    lambda i: signal in component_ops[i].updates,
+                    range(len(component_ops)))
 
-        for signal, tag, dst in send_signals:
-            mpi_send = MpiSend(dst, tag, signal)
+                assert len(update_indices) == 1
 
-            update_indices = filter(
-                lambda i: signal in component_ops[i].updates,
-                range(len(component_ops)))
+                self.global_ordering[mpi_send] = (
+                    self.global_ordering[component_ops[update_indices[0]]]
+                    + 0.5)
 
-            assert len(update_indices) == 1
+                # Put the send after the op that updates the signal.
+                component_ops.insert(update_indices[0]+1, mpi_send)
 
-            self.global_ordering[mpi_send] = (
-                self.global_ordering[component_ops[update_indices[0]]] + 0.5)
+            for signal, tag, src in recv_signals:
+                mpi_recv = MpiRecv(src, tag, signal)
 
-            # Put the send after the op that updates the signal.
-            component_ops.insert(update_indices[0]+1, mpi_send)
+                read_indices = filter(
+                    lambda i: signal in component_ops[i].reads,
+                    range(len(component_ops)))
 
-        for signal, tag, src in recv_signals:
-            mpi_recv = MpiRecv(src, tag, signal)
+                self.global_ordering[mpi_recv] = (
+                    self.global_ordering[component_ops[read_indices[0]]] - 0.5)
 
-            read_indices = filter(
-                lambda i: signal in component_ops[i].reads,
-                range(len(component_ops)))
+                # Put the recv in front of the first op that reads the signal.
+                component_ops.insert(read_indices[0], mpi_recv)
 
-            self.global_ordering[mpi_recv] = (
-                self.global_ordering[component_ops[read_indices[0]]] - 0.5)
+            op_order = sorted(
+                component_ops, key=self.global_ordering.__getitem__)
 
-            # Put the recv in front of the first op that reads the signal.
-            component_ops.insert(read_indices[0], mpi_recv)
+            for op in op_order:
+                op_type = type(op)
 
-        op_order = sorted(component_ops, key=self.global_ordering.__getitem__)
+                if op_type == builder.node.SimPyFunc:
+                    if not self.runnable:
+                        raise Exception(
+                            "Cannot create SimPyFunc operator "
+                            "when saving to file.")
 
-        for op in op_order:
-            op_type = type(op)
+                    t_in = op.t_in
+                    fn = op.fn
+                    x = op.x
 
-            if op_type == builder.node.SimPyFunc:
-                if not self.runnable:
-                    raise Exception(
-                        "Cannot create SimPyFunc operator "
-                        "when saving to file.")
+                    if x is None:
+                        if op.output is None:
+                            pyfunc_args = ["N", fn, t_in]
+                        else:
+                            pyfunc_args = [
+                                "O", make_checked_func(fn, t_in, False),
+                                t_in, signal_to_string(op.output)]
 
-                t_in = op.t_in
-                fn = op.fn
-                x = op.x
-
-                if x is None:
-                    if op.output is None:
-                        pyfunc_args = ["N", fn, t_in]
-                    else:
-                        pyfunc_args = [
-                            "O", make_checked_func(fn, t_in, False),
-                            t_in, signal_to_string(op.output)]
-
-                else:
-                    if isinstance(x.value, DummyNdarray):
-                        input_array = np.zeros(x.shape)
                     else:
                         input_array = x.value
 
-                    if op.output is None:
-                        pyfunc_args = [
-                            "I", fn, t_in, signal_to_string(x), input_array]
+                        if op.output is None:
+                            pyfunc_args = [
+                                "I", fn, t_in,
+                                signal_to_string(x), input_array]
 
-                    else:
-                        pyfunc_args = [
-                            "IO", make_checked_func(fn, t_in, True), t_in,
-                            signal_to_string(x), input_array,
-                            signal_to_string(op.output)]
+                        else:
+                            pyfunc_args = [
+                                "IO", make_checked_func(fn, t_in, True), t_in,
+                                signal_to_string(x), input_array,
+                                signal_to_string(op.output)]
 
-                self.pyfunc_args.append(
-                    pyfunc_args + [self.global_ordering[op]])
-            else:
-                op_string = self.op_to_string(op)
+                    self.pyfunc_args.append(
+                        pyfunc_args + [self.global_ordering[op]])
+                else:
+                    op_string = self._op_to_string(op)
 
-                if op_string:
-                    logger.debug(
-                        "Component %d: Adding operator with string: %s",
-                        component, op_string)
+                    if op_string:
+                        logger.debug(
+                            "Component %d: Adding operator with string: %s",
+                            component, op_string)
 
-                    self.op_strings[component].append(op_string)
+                        self.op_strings[component].append(op_string)
 
-    def op_to_string(self, op):
+    def _op_to_string(self, op):
+        """ Convert operator into a string.
+
+        Such strings will eventually be used to construct operators in the
+        C++ code. See the MpiSimulatorChunk::add_op for details on how these
+        strings are used by the C++ code.
+
+        We prepend the operator's index in the global ordering of
+        operators, which allows the C++ code to put the operators in
+        the appropriate order.
+
         """
-        Convert an operator into a string. The string will be passed into
-        the C++ simulator, where it will be communicated using MPI to the
-        correct MPI process. That process will then build an operator
-        using the parameters specified in the string.
-        """
-
         op_type = type(op)
 
         if op_type == builder.operator.Reset:
@@ -954,28 +1011,36 @@ class MpiModel(builder.Model):
 
         return op_string
 
-    def add_probe(self, probe, signal, sample_every=None):
-        """Add a probe to the mpi simulator."""
+    def _finalize_probes(self):
+        """ Finalize probes.
 
-        period = 1 if sample_every is None else sample_every / self.dt
+        Main job is to convert all probes in self.probes into strings,
+        which then get stored in self.probe_strings.
 
-        probe_key = make_key(probe)
-        self.probe_keys[probe] = probe_key
+        """
+        for probe in self.probes:
+            period = (
+                1 if probe.sample_every is None
+                else probe.sample_every / self.dt)
 
-        signal_string = signal_to_string(signal)
+            probe_key = make_key(probe)
+            self.probe_keys[probe] = probe_key
 
-        component = self.assignments[probe]
+            signal = self.sig[probe]['in']
+            signal_string = signal_to_string(signal)
 
-        logger.debug(
-            "Component: %d: Adding probe of signal %s.\n"
-            "probe_key: %d, signal_string: %s, period: %d",
-            component, str(signal), probe_key,
-            signal_string, period)
+            component = self.assignments[probe]
 
-        probe_string = PROBE_DELIM.join(
-            str(i)
-            for i
-            in [component, probe_key, signal_string, period, str(probe)])
+            logger.debug(
+                "Component: %d: Adding probe of signal %s.\n"
+                "probe_key: %d, signal_string: %s, period: %d",
+                component, str(signal), probe_key,
+                signal_string, period)
 
-        self.probe_strings[component].append(probe_string)
-        self.all_probe_strings.append(probe_string)
+            probe_string = PROBE_DELIM.join(
+                str(i)
+                for i
+                in [component, probe_key, signal_string, period, str(probe)])
+
+            self.probe_strings[component].append(probe_string)
+            self.all_probe_strings.append(probe_string)

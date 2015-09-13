@@ -69,10 +69,9 @@ class TestSimulator(nengo_mpi.Simulator):
         assignments = defaultdict(int)
 
         print "Building MPI model..."
-        self.model = MpiModel(
-            1, assignments, dt=dt, label="TestSimulator", free_memory=False)
+        self.model = MpiModel(1, assignments, dt=dt, label="TestSimulator")
 
-        self.model.add_ops(0, operators)
+        self.model.assign_ops(0, operators)
 
         for probe in signal_probes:
             self.model.sig[probe]['in'] = probe.signal
