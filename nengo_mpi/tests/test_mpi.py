@@ -10,8 +10,7 @@ from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
 
 import nengo_mpi
-from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
-from nengo_mpi.partition import spectral_partitioner, random_partitioner
+from nengo_mpi import partition
 
 all_neurons = [
     LIF, LIFRate, RectifiedLinear, Sigmoid,
@@ -146,12 +145,7 @@ def refimpl_results(request):
     return (m, refimpl_sim, sim_time)
 
 
-partitioners = [
-    None, metis_partitioner, spectral_partitioner,
-    random_partitioner, work_balanced_partitioner]
-
-
-@pytest.mark.parametrize("partitioner", partitioners)
+@pytest.mark.parametrize("partitioner", partition.partitioners())
 def test_random_graph(partitioner, refimpl_results):
     m, refimpl_sim, sim_time = refimpl_results
 

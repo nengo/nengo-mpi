@@ -1,4 +1,4 @@
-from .base import Partitioner, verify_assignments
+from .base import Partitioner, verify_assignments, partitioners
 
 from .work_balanced import work_balanced_partitioner
 from .spectral import spectral_partitioner

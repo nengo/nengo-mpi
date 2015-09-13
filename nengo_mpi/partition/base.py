@@ -11,9 +11,20 @@ from nengo.utils.builder import find_all_io
 from .work_balanced import work_balanced_partitioner
 from .metis import metis_available, metis_partitioner
 from .spectral import spectral_available, spectral_partitioner
+from .random import random_partitioner
 
 import logging
 logger = logging.getLogger(__name__)
+
+_partitioners = [random_partitioner, work_balanced_partitioner]
+if metis_available():
+    _partitioners.append(metis_partitioner)
+if spectral_available():
+    _partitioners.append(spectral_partitioner)
+
+
+def partitioners():
+    return _partitioners[:]
 
 
 def verify_assignments(network, assignments):
