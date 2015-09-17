@@ -33,13 +33,15 @@ else
 	MPICXX=mpicxx
 	CXX=${MPICXX}
 	PYTHON_INC=-I/usr/include/python2.7/
+	BOOST_INC=-I/usr/include/boost
 	HDF5_LIB=-L/usr/lib/x86_64-linux-gnu
+	HDF5_INC=-I/usr/include/hdf5/openmpi
 	STD=c++11
-	CXXFLAGS= ${PYTHON_INC} ${DEFS} -fPIC -std=${STD}
+	CXXFLAGS= ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
 	DO_PYTHON=TRUE
 endif
 
-OBJS=simulator.o operator.o spec.o custom_ops.o probe.o chunk.o sim_log.o debug.o
+OBJS=simulator.o operator.o spec.o spaun.o probe.o chunk.o sim_log.o debug.o
 MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o
 BIN=${HOME}/nengo_mpi/bin
 
@@ -108,10 +110,10 @@ mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
 psim_log.o: psim_log.cpp psim_log.hpp sim_log.hpp operator.hpp debug.hpp
 probe.o: probe.cpp probe.hpp operator.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
-chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp custom_ops.hpp probe.hpp debug.hpp sim_log.hpp
+chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp spaun.hpp probe.hpp debug.hpp sim_log.hpp
 simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_simulator.hpp debug.hpp
 spec.o: spec.cpp spec.hpp
-custom_ops.o: custom_ops.cpp custom_ops.hpp operator.hpp debug.hpp
+spaun.o: spaun.cpp spaun.hpp operator.hpp debug.hpp
 sim_log.o: sim_log.cpp sim_log.hpp operator.hpp debug.hpp
 debug.o: debug.cpp debug.hpp
 

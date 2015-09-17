@@ -18,7 +18,7 @@
 #include "operator.hpp"
 #include "spec.hpp"
 #include "mpi_operator.hpp"
-#include "custom_ops.hpp"
+#include "spaun.hpp"
 #include "probe.hpp"
 #include "sim_log.hpp"
 #include "psim_log.hpp"

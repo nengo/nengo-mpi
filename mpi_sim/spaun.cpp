@@ -1,7 +1,4 @@
-// Here we'll store custom operators that are only used by
-// certain networks. e.g spaun.
-
-#include "custom_ops.hpp"
+#include "spaun.hpp"
 
 SpaunStimulus::SpaunStimulus(
     SignalView output, dtype* time_pointer, vector<string> stim_sequence,
