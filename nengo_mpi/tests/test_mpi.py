@@ -7,7 +7,7 @@ import numpy as np
 
 import nengo
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
-from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
+from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate  # , Izhikevich
 
 import nengo_mpi
 from nengo_mpi import partition

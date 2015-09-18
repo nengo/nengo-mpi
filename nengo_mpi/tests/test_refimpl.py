@@ -28,13 +28,12 @@ def xfail(pattern, msg):
             tests[key] = pytest.mark.xfail(True, reason=msg)(tests[key])
 
 
-def MpiSimulator(*args, **kwargs):
-    return nengo_mpi.Simulator(*args, **kwargs)
-
-
-def pytest_funcarg__Simulator(request):
+@pytest.fixture(scope="function")
+def Simulator(request):
     """the Simulator class being tested."""
-    return MpiSimulator
+
+    request.addfinalizer(nengo_mpi.Simulator.close_simulators)
+    return nengo_mpi.Simulator
 
 
 def pytest_funcarg__RefSimulator(request):
@@ -110,6 +109,14 @@ xfail('test.nengo.tests.test_connection.test_decoder_probe',
       'Cannot probe connections in nengo_mpi')
 xfail('test.nengo.tests.test_connection.test_transform_probe',
       'Cannot probe connections in nengo_mpi')
+
+# Opens multiple simulators
+xfail('test.nengo.tests.test_probe.test_dts',
+      'This test opens multiple simulators.')
+xfail('test.nengo.tests.test_connection.test_shortfilter',
+      'This test opens multiple simulators.')
+xfail('test.nengo.tests.test_connection.test_set_function',
+      'This test opens multiple simulators.')
 
 locals().update(tests)
 

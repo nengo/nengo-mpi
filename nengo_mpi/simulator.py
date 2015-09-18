@@ -7,12 +7,16 @@ from partition import Partitioner, verify_assignments
 
 import numpy as np
 
+import atexit
 import logging
 logger = logging.getLogger(__name__)
 
 
 class Simulator(object):
     """MPI simulator for nengo 2.0."""
+
+    # Only one instance of nengo_mpi.Simulator can be unclosed at any time
+    __unclosed_simulators = []
 
     def __init__(
             self, network, dt=0.001, seed=None, model=None,
@@ -52,12 +56,20 @@ class Simulator(object):
             partitions components. ``partitioner'' and ``assignment''
             cannot both be supplied.
 
-
         save_file: string
             Name of file that will store all data added to the simulator.
             The simulator can later be reconstructed from this file. If
             equal to the empty string, then no file is created.
         """
+
+        self.runnable = not save_file
+
+        if self.runnable and self.__unclosed_simulators:
+            raise RuntimeError(
+                "Attempting to create active instance of nengo_mpi.Simulator "
+                "while another instance exists that has not been "
+                "closed. Call `close` on existing instances before "
+                "creating new ones.")
 
         self.n_steps = 0
         self.dt = dt
@@ -90,7 +102,7 @@ class Simulator(object):
         print "Finalizing MPI model..."
         self.model.finalize_build()
 
-        # probe -> python list
+        # probe -> list
         self._probe_outputs = self.model.params
 
         self.data = ProbeDict(self._probe_outputs)
@@ -100,12 +112,16 @@ class Simulator(object):
         self.seed = np.random.randint(npext.maxint) if seed is None else seed
         self.reset(seed=seed)
 
+        if self.runnable:
+            self.__unclosed_simulators.append(self)
+
     @property
     def mpi_sim(self):
         if not self.model.runnable:
             raise Exception(
                 "Cannot access C++ simulator of MpiModel, MpiModel is "
-                "not in a runnable state. Likely in write-file mode.")
+                "not in a runnable state. Either in save-file mode, "
+                "or the MpiModel instance has not been finalized.")
 
         return self.model.mpi_sim
 
@@ -156,3 +172,33 @@ class Simulator(object):
             self.mpi_sim.reset()
         except:
             pass
+
+    def close(self):
+        if self.runnable:
+            try:
+                self.__unclosed_simulators.remove(self)
+            except ValueError:
+                raise RuntimeError(
+                    "Attempting to close a runnable instance of "
+                    "nengo_mpi.Simulator that has already been closed.")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, tb):
+        self.close()
+
+    @staticmethod
+    @atexit.register
+    def close_simulators():
+        unclosed_simulators = Simulator.__unclosed_simulators
+        if len(unclosed_simulators) > 1:
+            raise RuntimeError(
+                "Multiple instances of nengo_mpi.Simulator "
+                "open simulatenously.")
+        if unclosed_simulators:
+            unclosed_simulators[0].close()
+
+    @staticmethod
+    def all_closed():
+        return Simulator.__unclosed_simulators == []

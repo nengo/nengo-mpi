@@ -4,7 +4,7 @@ import re
 
 # The version of this function in Nengo 2.0 has a bug, so an updated version
 # has been put here. This can be removed when the fix has been made in Nengo.
-# Copied this from nengo_ocl.
+# Note: Copied this from nengo_ocl.
 def load_functions(modules, pattern='^test_', arg_pattern='^Simulator$'):
     """Load matching functions from a list of modules.
 

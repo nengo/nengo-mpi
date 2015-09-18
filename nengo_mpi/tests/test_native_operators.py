@@ -10,7 +10,6 @@ from nengo.builder.neurons import SimNeurons
 from nengo.builder.synapses import SimSynapse
 
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
-from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate  # , Izhikevich
 
 from nengo.synapses import Lowpass  # , LinearFilter, Alpha
 
@@ -21,15 +20,6 @@ import numpy as np
 from collections import defaultdict
 
 import pytest
-
-
-def Mpi2Simulator(*args, **kwargs):
-    return TestSimulator(*args, **kwargs)
-
-
-def pytest_funcarg__Simulator(request):
-    """The Simulator class being tested."""
-    return Mpi2Simulator
 
 
 class SignalProbe(object):
@@ -44,14 +34,13 @@ class SignalProbe(object):
 
 class TestSimulator(nengo_mpi.Simulator):
     """
-    Simulator for testing C++ operators.
+    Simulator for testing C++ operators. Note that this Simulator
+    does not need to be closed as nengo_mpi.Simulator does.
 
     Parameters
     ----------
-
     operators: list
         List of python operators.
-
     signal_probes: list
         List of SignalProbes.
     """
@@ -113,7 +102,7 @@ class TestSimulator(nengo_mpi.Simulator):
         super(TestSimulator, self).run(time_in_seconds, False, "")
 
 
-def test_dot_inc(Simulator):
+def test_dot_inc():
     seed = 1
     np.random.seed(seed)
 
@@ -127,14 +116,14 @@ def test_dot_inc(Simulator):
 
     signal_probes = [SignalProbe(Y)]
 
-    sim = Simulator(ops, signal_probes)
+    sim = TestSimulator(ops, signal_probes)
 
     sim.run(1)
 
     assert np.allclose(A.value.dot(X.value), sim.data[signal_probes[0]])
 
 
-def test_random_dot_inc(Simulator):
+def test_random_dot_inc():
     seed = 1
     np.random.seed(seed)
 
@@ -150,14 +139,14 @@ def test_random_dot_inc(Simulator):
 
         probes = [SignalProbe(Y)]
 
-        sim = Simulator(ops, probes)
+        sim = TestSimulator(ops, probes)
 
         sim.run(1)
 
         assert np.allclose(A.value.dot(X.value), sim.data[probes[0]])
 
 
-def test_reset(Simulator):
+def test_reset():
 
     D = 40
     reset_val = 4.0
@@ -168,14 +157,14 @@ def test_reset(Simulator):
 
     ops = [Reset(Y, reset_val), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
-    sim = Simulator(ops, probes)
+    sim = TestSimulator(ops, probes)
 
     sim.run(0.05)
 
     assert np.allclose(D + reset_val, sim.data[probes[0]])
 
 
-def test_copy(Simulator):
+def test_copy():
     D = 40
     copy_val = 4.0
 
@@ -187,14 +176,14 @@ def test_copy(Simulator):
 
     ops = [Copy(Y, C), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
-    sim = Simulator(ops, probes)
+    sim = TestSimulator(ops, probes)
 
     sim.run(0.05)
 
     assert np.allclose(D + copy_val, sim.data[probes[0]])
 
 
-def test_lif(Simulator):
+def test_lif():
     """Test that the dynamic lif model approximately matches the rates."""
 
     n_neurons = 40
@@ -219,7 +208,7 @@ def test_lif(Simulator):
 
     probes = [SignalProbe(output)]
 
-    sim = Simulator([op, input_func], probes)
+    sim = TestSimulator([op, input_func], probes)
     sim.run(1.0)
 
     spikes = sim.data[probes[0]] / (1.0 / sim.dt)
@@ -232,7 +221,7 @@ def test_lif(Simulator):
 
 
 @pytest.mark.parametrize("neuron_type", [LIFRate, Sigmoid, RectifiedLinear])
-def test_stateless_neurons(Simulator, neuron_type):
+def test_stateless_neurons(neuron_type):
     """
     Test that the mpi version of a neuron
     model matches the ref-impl version.
@@ -251,7 +240,7 @@ def test_stateless_neurons(Simulator, neuron_type):
 
     probes = [SignalProbe(output)]
 
-    sim = Simulator([op, input_func], probes)
+    sim = TestSimulator([op, input_func], probes)
     sim.run(0.2)
 
     sim_rates = sim.data[probes[0]]
@@ -261,53 +250,8 @@ def test_stateless_neurons(Simulator, neuron_type):
     assert np.allclose(
         np.squeeze(sim_rates[-1, :]), math_rates, atol=0.0001, rtol=0.02)
 
-all_neurons = [
-    LIF, LIFRate, RectifiedLinear, Sigmoid,
-    AdaptiveLIF, AdaptiveLIFRate]  # Izhikevich]
 
-
-@pytest.mark.parametrize("neuron_type", all_neurons)
-@pytest.mark.parametrize("synapse", [None, 0.0, 0.02, 0.05])
-def test_exact_match(neuron_type, synapse):
-    n_neurons = 40
-
-    sequence = np.random.random((1000, 3))
-
-    def f(t):
-        val = sequence[int(t * 1000)]
-        return val
-
-    m = nengo.Network(seed=1)
-    with m:
-        A = nengo.Ensemble(
-            n_neurons, dimensions=3, neuron_type=neuron_type())
-
-        B = nengo.Ensemble(
-            n_neurons, dimensions=3, neuron_type=neuron_type())
-
-        nengo.Connection(A, B, synapse=synapse)
-
-        A_p = nengo.Probe(A)
-        B_p = nengo.Probe(B)
-
-        input = nengo.Node(f)
-        nengo.Connection(input, A, synapse=0.05)
-
-    sim_time = 0.01
-
-    refimpl_sim = nengo.Simulator(m)
-    refimpl_sim.run(sim_time)
-
-    mpi_sim = nengo_mpi.Simulator(m)
-    mpi_sim.run(sim_time)
-
-    assert np.allclose(
-        refimpl_sim.data[A_p], mpi_sim.data[A_p], atol=0.00001, rtol=0.00)
-    assert np.allclose(
-        refimpl_sim.data[B_p], mpi_sim.data[B_p], atol=0.00001, rtol=0.00)
-
-
-def test_filter(Simulator):
+def test_filter():
     D = 1
 
     input = Signal(np.zeros(D), 'input')
@@ -318,88 +262,88 @@ def test_filter(Simulator):
 
     probes = [SignalProbe(output)]
 
-    sim = Simulator([synapse, input_func], probes)
+    sim = TestSimulator([synapse, input_func], probes)
     sim.run(0.2)
 
 
-def test_element_wise_inc(Simulator):
+def test_element_wise_inc():
     M = 3
     N = 2
 
     X = Signal(3 * np.ones(1), 'X')
     A = Signal(2 * np.ones((M, 1)), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, 1)), 'X')
     A = Signal(2 * np.ones(1), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones(1), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((1, N)), 'X')
     A = Signal(2 * np.ones(1), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, 1)), 'X')
     A = Signal(2 * np.ones((M, 1)), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((1, N)), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((1, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones(1), 'X')
     A = Signal(2 * np.ones((M, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones(1), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones((M, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, 1)), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, 1)), 'X')
     A = Signal(2 * np.ones((M, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones((M, 1)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((1, N)), 'X')
     A = Signal(2 * np.ones((M, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
     X = Signal(3 * np.ones((1, 1)), 'X')
     A = Signal(2 * np.ones((1, 1)), 'A')
     Y = Signal(np.zeros((1, 1)), 'Y')
-    ewi_helper(Simulator, A, X, Y, 6)
+    ewi_helper(TestSimulator, A, X, Y, 6)
 
 
 def ewi_helper(Simulator, A, X, Y, reference):
@@ -412,7 +356,7 @@ def ewi_helper(Simulator, A, X, Y, reference):
     assert np.allclose(reference, sim.data[probes[0]][-1])
 
 
-def test_spaun_stimulus(Simulator):
+def test_spaun_stimulus():
     spaun_vision = pytest.importorskip("_spaun.vision.lif_vision")
     spaun_config = pytest.importorskip("_spaun.config")
     spaun_stimulus = pytest.importorskip("_spaun.modules.stimulus")
@@ -430,7 +374,7 @@ def test_spaun_stimulus(Simulator):
     probes = [SignalProbe(output)]
     operators = [spaun_stim]
 
-    sim = Simulator(operators, probes)
+    sim = TestSimulator(operators, probes)
     run_time = spaun_stimulus.get_est_runtime()
 
     sim.run(run_time)
