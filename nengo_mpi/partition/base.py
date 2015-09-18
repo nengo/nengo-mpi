@@ -627,16 +627,16 @@ def evaluate_partition(
     print "Number of edges: ", filter_graph.number_of_edges()
     print "Number of FG nodes containing only nengo Nodes: ", sum(all_nodes)
 
-    print "Mean neurons per filter graph node: ", np.mean(graph_node_n_neurons)
-    print "Std of neurons per filter graph node", np.std(graph_node_n_neurons)
+    print "Mean neurons per FG node: ", np.mean(graph_node_n_neurons)
+    print "Std of neurons per FG node", np.std(graph_node_n_neurons)
 
     print "Min number of neurons", np.min(graph_node_n_neurons)
     print "Max number of neurons", np.max(graph_node_n_neurons)
 
-    print "Mean items per filter graph node: ", np.mean(graph_node_n_items)
-    print "Std of items per filter graph node", np.std(graph_node_n_items)
-    print "Min number of items", np.min(graph_node_n_items)
-    print "Max number of items", np.max(graph_node_n_items)
+    print "Mean nengo obejcts per FG node: ", np.mean(graph_node_n_items)
+    print "Std of nengo objects per FG node", np.std(graph_node_n_items)
+    print "Min number of nengo objects", np.min(graph_node_n_items)
+    print "Max number of nengo objects", np.max(graph_node_n_items)
 
     component_neuron_counts = [0] * n_components
     component_item_counts = [0] * n_components
@@ -657,8 +657,8 @@ def evaluate_partition(
     print "Evaluating partition of network"
 
     print "Total number of neurons: ", total_neurons(network)
-    print "Mean neurons per cluster: ", mean_neuron_count
-    print "Standard deviation of neurons per cluster", neuron_count_std
+    print "Mean neurons per component: ", mean_neuron_count
+    print "Standard deviation of neurons per component", neuron_count_std
     print "Min number of neurons", np.min(component_neuron_counts)
     print "Max number of neurons", np.max(component_neuron_counts)
     print (
@@ -671,12 +671,12 @@ def evaluate_partition(
     print "*" * 10
 
     print (
-        "Total number of nengo items (nodes and ensembles): "
+        "Total number of nengo objects (nodes and ensembles): "
         "%d" % len(network.all_nodes + network.all_ensembles))
-    print "Mean items per cluster: ", mean_item_count
-    print "Standard deviation of items per cluster", item_count_std
-    print "Min number of items", np.min(component_item_counts)
-    print "Max number of items", np.max(component_item_counts)
+    print "Mean nengo objects per component: ", mean_item_count
+    print "Standard deviation of nengo objects per component", item_count_std
+    print "Min number of nengo objects", np.min(component_item_counts)
+    print "Max number of nengo objects", np.max(component_item_counts)
 
     communication_weight = 0
     total_weight = 0
