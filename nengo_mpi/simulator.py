@@ -176,6 +176,7 @@ class Simulator(object):
     def close(self):
         if self.runnable:
             try:
+                self.mpi_sim.close()
                 self.__unclosed_simulators.remove(self)
             except ValueError:
                 raise RuntimeError(

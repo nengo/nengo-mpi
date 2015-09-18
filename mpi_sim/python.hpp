@@ -41,6 +41,7 @@ public:
     bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
 
     void reset();
+    void close();
 
     /* Methods for creating PyFunc operators. */
     void create_PyFunc(bpy::object py_fn, bpy::object t_in, bpy::object index);

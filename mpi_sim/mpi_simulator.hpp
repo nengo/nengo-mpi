@@ -23,7 +23,7 @@ class MpiSimulator: public Simulator{
 public:
     MpiSimulator(bool mpi_merged, bool collect_timings);
 
-    // Used when we need to spaun extra process (e.g. when run through python)
+    // Used when we need to spawn extra process (e.g. when run through python)
     MpiSimulator(int n_processors, dtype dt, bool mpi_merged, bool collect_timings);
 
     ~MpiSimulator();
@@ -31,13 +31,16 @@ public:
     void spawn_processors();
     void init();
 
+    void from_file(string filename) override;
+    void finalize_build() override;
+
     void run_n_steps(int steps, bool progress, string log_filename) override;
 
     void gather_probe_data() override;
 
+    void close() override;
+
     string to_string() const;
-    void from_file(string filename) override;
-    void finalize_build() override;
 
     friend ostream& operator << (ostream &out, const MpiSimulator &sim){
         out << sim.to_string();

@@ -59,37 +59,48 @@ void start_worker(MPI_Comm comm){
     // Worker barrier 1
     MPI_Barrier(comm);
 
-    dbg("Worker " << my_id << " waiting for signal to start simulation...");
-    int steps;
-    MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
+    while(true){
+        dbg("Worker " << my_id << " waiting for signal to start simulation...");
+        int steps;
+        MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
-    dbg("Worker " << my_id << " got the signal to start simulation: "
-        << steps << " steps." << endl);
+        if(steps < 0){
+            break;
+        }
 
-    chunk.run_n_steps(steps, false);
+        dbg("Worker " << my_id << " received the signal to start simulation: "
+            << steps << " steps." << endl);
 
-    // Worker barrier 2
-    MPI_Barrier(comm);
+        chunk.run_n_steps(steps, false);
 
-    if(!chunk.is_logging()){
-        // If we're not logging, send the probe data back to the master
-        for(auto& pair : chunk.probe_map){
-            key_type key = pair.first;
-            shared_ptr<Probe>& probe = pair.second;
+        // Worker barrier 2
+        MPI_Barrier(comm);
 
-            send_key(key, 0, probe_tag, comm);
+        if(!chunk.is_logging()){
+            // If we're not logging, send the probe data back to the master
+            for(auto& pair : chunk.probe_map){
+                key_type key = pair.first;
+                shared_ptr<Probe>& probe = pair.second;
 
-            vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
+                send_key(key, 0, probe_tag, comm);
 
-            send_int(probe_data.size(), 0, probe_tag, comm);
+                vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
 
-            for(auto& pd : probe_data){
-                send_matrix(move(pd), 0, probe_tag, comm);
+                send_int(probe_data.size(), 0, probe_tag, comm);
+
+                for(auto& pd : probe_data){
+                    send_matrix(move(pd), 0, probe_tag, comm);
+                }
             }
         }
+
+        // Worker barrier 3
+        MPI_Barrier(comm);
     }
 
-    // Worker barrier 3
+    dbg("Worker " << my_id << " received the signal to terminate.");
+
+    // Worker barrier 4
     MPI_Barrier(comm);
 
     chunk.close_simulation_log();
@@ -223,6 +234,7 @@ int start_master(int argc, char **argv){
     cout << "Running simulation..." << endl;
 
     sim->run_n_steps(num_steps, show_progress, log_filename);
+    sim->close();
 
     return 0;
 }
@@ -237,7 +249,7 @@ int main(int argc, char **argv){
     if (parent != MPI_COMM_NULL){
         // We have a parent, so we must be a worker process spawned
         // by the master, which must be running through python.
-        // Get a communicator that includes the parent and all children.
+        // Get a merged communicator that includes the parent and all children.
 
         MPI_Comm everyone;
         MPI_Intercomm_merge(parent, true, &everyone);
@@ -245,7 +257,7 @@ int main(int argc, char **argv){
     }else{
         // We don't have a parent, so we must be either the master process
         // or a worker process, in either case created at the beginning of
-        // a call to nengo_mpi run using mpirun. Can use the MPI_COMM_WORLD
+        // a call to nengo_mpi executed using mpirun. Can use the MPI_COMM_WORLD
         // communicator, as it will contain all processes in the simulation.
 
         int rank;

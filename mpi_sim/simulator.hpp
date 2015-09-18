@@ -20,14 +20,13 @@ using namespace std;
 class Simulator{
 
 public:
-    static char delim;
-
     Simulator(bool collect_timings);
     Simulator(dtype dt, bool collect_timings);
 
     virtual ~Simulator(){};
 
-    const virtual string classname() { return "Simulator"; }
+    virtual void from_file(string filename);
+    virtual void finalize_build();
 
     virtual SignalView get_signal(string signal_string);
     virtual void add_pyfunc(unique_ptr<Operator> pyfunc);
@@ -35,14 +34,13 @@ public:
     virtual void run_n_steps(int steps, bool progress, string log_filename);
 
     virtual void gather_probe_data();
-    virtual vector<unique_ptr<BaseSignal>> get_probe_data(key_type probe_key);
+    vector<unique_ptr<BaseSignal>> get_probe_data(key_type probe_key);
     vector<key_type> get_probe_keys();
 
     virtual void reset();
+    virtual void close();
 
     virtual string to_string() const;
-    virtual void from_file(string filename);
-    virtual void finalize_build();
 
     friend ostream& operator << (ostream &out, const Simulator &sim){
         out << sim.to_string();
@@ -56,7 +54,7 @@ public:
     dtype dt;
 
 protected:
-    shared_ptr<MpiSimulatorChunk> chunk;
+    unique_ptr<MpiSimulatorChunk> chunk;
     bool collect_timings;
 
     // Place to store probe data retrieved from worker

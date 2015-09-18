@@ -128,6 +128,10 @@ void PythonMpiSimulator::reset(){
     sim->reset();
 }
 
+void PythonMpiSimulator::close(){
+    sim->close();
+}
+
 void PythonMpiSimulator::create_PyFunc(
         bpy::object py_fn, bpy::object t_in, bpy::object index){
 
@@ -292,6 +296,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
         .def("reset", &PythonMpiSimulator::reset)
+        .def("close", &PythonMpiSimulator::close)
         .def("create_PyFunc", &PythonMpiSimulator::create_PyFunc)
         .def("create_PyFuncO", &PythonMpiSimulator::create_PyFuncO)
         .def("create_PyFuncI", &PythonMpiSimulator::create_PyFuncI)

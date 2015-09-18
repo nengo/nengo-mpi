@@ -69,7 +69,7 @@ void MpiSimulator::init(){
     bcast_send_int(mpi_merged ? 1 : 0, comm);
     bcast_send_int(collect_timings ? 1 : 0, comm);
 
-    chunk = shared_ptr<MpiSimulatorChunk>(
+    chunk = unique_ptr<MpiSimulatorChunk>(
         new MpiSimulatorChunk(0, n_processors, mpi_merged, collect_timings));
 
     for(int i = 0; i < n_processors; i++){
@@ -124,6 +124,13 @@ void MpiSimulator::from_file(string filename){
          << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
 }
 
+void MpiSimulator::finalize_build(){
+    chunk->finalize_build(comm);
+    for(auto pi : chunk->probe_info){
+        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+    }
+}
+
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     clock_t begin = clock();
 
@@ -145,26 +152,16 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     // Master barrier 3
     MPI_Barrier(comm);
 
-    chunk->close_simulation_log();
-    MPI_Finalize();
-
     clock_t end = clock();
     cout << "Simulating " << steps << " steps took "
          << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
-}
-
-void MpiSimulator::finalize_build(){
-    chunk->finalize_build(comm);
-    for(auto pi : chunk->probe_info){
-        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
-    }
 }
 
 void MpiSimulator::gather_probe_data(){
 
     Simulator::gather_probe_data();
 
-    run_dbg("Master gathering probe data from workers..." << endl);
+    cout << "Master gathering probe data from workers..." << endl;
 
     for(auto& pair : probe_counts){
 
@@ -193,6 +190,19 @@ void MpiSimulator::gather_probe_data(){
     }
 
     cout << "Master done gathering probe data from workers." << endl;
+}
+
+void MpiSimulator::close(){
+    cout << "Master sending termination signal to " << n_processors - 1 << " workers." << endl;
+    int signal = -1;
+    MPI_Bcast(&signal, 1, MPI_INT, 0, comm);
+
+    // Master barrier 4
+    MPI_Barrier(comm);
+
+    chunk->close_simulation_log();
+
+    MPI_Finalize();
 }
 
 string MpiSimulator::to_string() const{

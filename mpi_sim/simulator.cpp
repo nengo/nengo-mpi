@@ -1,15 +1,53 @@
 #include "simulator.hpp"
 
-char Simulator::delim = '|';
-
 Simulator::Simulator(bool collect_timings)
 :dt(0.001), collect_timings(collect_timings){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(collect_timings));
+    chunk = unique_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(collect_timings));
 }
 
 Simulator::Simulator(dtype dt, bool collect_timings)
 :dt(dt), collect_timings(collect_timings){
-    chunk = shared_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(collect_timings));
+    chunk = unique_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(collect_timings));
+}
+
+void Simulator::from_file(string filename){
+    clock_t begin = clock();
+
+    if(filename.length() == 0){
+        stringstream s;
+        s << "Got empty string for filename" << endl;
+        throw runtime_error(s.str());
+    }
+
+    ifstream in_file(filename);
+
+    if(!in_file.good()){
+        stringstream s;
+        s << "The network file " << filename << " does not exist." << endl;
+        throw runtime_error(s.str());
+    }
+
+    in_file.close();
+
+    // Use non-parallel property lists.
+    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
+    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
+
+    chunk->from_file(filename, file_plist, read_plist);
+
+    H5Pclose(file_plist);
+    H5Pclose(read_plist);
+
+    clock_t end = clock();
+    cout << "Loading network from file took "
+         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+}
+
+void Simulator::finalize_build(){
+    chunk->finalize_build();
+    for(auto pi : chunk->probe_info){
+        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+    }
 }
 
 SignalView Simulator::get_signal(string signal_string){
@@ -55,7 +93,7 @@ void Simulator::gather_probe_data(){
 vector<unique_ptr<BaseSignal>> Simulator::get_probe_data(key_type probe_key){
     if(chunk->is_logging()){
         throw logic_error(
-            "Calling get_probe_data, but probe data has been written to file");
+            "Calling get_probe_data, but probe data has been written to file.");
     }
 
     return move(probe_data.at(probe_key));
@@ -76,6 +114,9 @@ void Simulator::reset(){
     //Send a signal to remote chunks telling them to reset
 }
 
+void Simulator::close(){
+}
+
 string Simulator::to_string() const{
     stringstream out;
 
@@ -85,44 +126,4 @@ string Simulator::to_string() const{
     out << *chunk << endl;
 
     return out.str();
-}
-
-void Simulator::from_file(string filename){
-    clock_t begin = clock();
-
-    if(filename.length() == 0){
-        stringstream s;
-        s << "Got empty string for filename" << endl;
-        throw runtime_error(s.str());
-    }
-
-    ifstream in_file(filename);
-
-    if(!in_file.good()){
-        stringstream s;
-        s << "The network file " << filename << " does not exist." << endl;
-        throw runtime_error(s.str());
-    }
-
-    in_file.close();
-
-    // Use non-parallel property lists.
-    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
-    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
-
-    chunk->from_file(filename, file_plist, read_plist);
-
-    H5Pclose(file_plist);
-    H5Pclose(read_plist);
-
-    clock_t end = clock();
-    cout << "Loading network from file took "
-         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
-}
-
-void Simulator::finalize_build(){
-    chunk->finalize_build();
-    for(auto pi : chunk->probe_info){
-        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
-    }
 }

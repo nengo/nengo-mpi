@@ -129,6 +129,7 @@ int main(int argc, char **argv){
     cout << "Running simulation..." << endl;
 
     sim->run_n_steps(num_steps, show_progress, log_filename);
+    sim->close();
 
     return 0;
 }
