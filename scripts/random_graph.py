@@ -1,4 +1,3 @@
-import logging
 import argparse
 import time
 from collections import defaultdict
@@ -25,7 +24,7 @@ class FakeSolver(Solver):
         return self.mul_encoders(X, E), info
 
 
-def default_generator(n_nodes, q):
+def default_generator(n_nodes, q, rng=None):
     assert n_nodes > 0
     assert q >= 0 and q <= 1
 
@@ -36,9 +35,11 @@ def default_generator(n_nodes, q):
     adj_list = defaultdict(list)
     edges = []
 
+    rng = np.random.RandomState(seed)
+
     while n_cur_edges < n_edges:
-        A = np.random.choice(n_nodes)
-        B = np.random.choice(n_nodes)
+        A = rng.choice(n_nodes)
+        B = rng.choice(n_nodes)
 
         if B not in adj_list[A]:
             adj_list[A].append(B)
@@ -187,13 +188,18 @@ if __name__ == "__main__":
         help="Number of parts to split each ensemble array up into. "
              "Obviously, only has an effect if --ea is also supplied.")
 
+    parser.add_argument(
+        '--seed', type=int, default=None,
+        help="Seed for random number generation.")
+
     args = parser.parse_args()
     print "Parameters are: ", args
 
     name = 'MpiRandomGraphBenchmark'
     npd = args.npd
     dim = args.d
-    seed = 10
+    seed = args.seed
+    rng = np.random.RandomState(args.seed)
 
     n_nodes = args.n
     q = args.q
@@ -237,11 +243,11 @@ if __name__ == "__main__":
     assert sim_time > 0
 
     if gen_model == "default":
-        edges = default_generator(n_nodes, q)
+        edges = default_generator(n_nodes, q, rng.randint(2000))
     elif gen_model == "ba":
         from networkx.generators import barabasi_albert_graph
         m = int(q * n_nodes)
-        g1 = barabasi_albert_graph(n_nodes, m)
+        g1 = barabasi_albert_graph(n_nodes, m, rng.randint(2000))
         edges1 = g1.edges()
 
         g2 = barabasi_albert_graph(n_nodes, m)
@@ -262,7 +268,8 @@ if __name__ == "__main__":
         raise NotImplemented()
 
     model, probes = nengo_network_from_graph(
-        name, n_nodes, edges, use_ea, fake, dim, npd, pct_probed, seed)
+        name, n_nodes, edges, use_ea, fake, dim,
+        npd, pct_probed, rng.randint(2000))
 
     if use_ea and split_ea > 1:
         splitter = EnsembleArraySplitter()

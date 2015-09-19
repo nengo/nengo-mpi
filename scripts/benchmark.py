@@ -75,6 +75,10 @@ parser.add_argument(
     help="Number of parts to split each ensemble array up into. "
          "Obviously, only has an effect if --ea is also supplied.")
 
+parser.add_argument(
+    '--seed', type=int, default=None,
+    help="Seed for random number generation.")
+
 
 args = parser.parse_args()
 print "Parameters are: ", args
@@ -82,7 +86,7 @@ print "Parameters are: ", args
 name = 'MpiBenchmarkNetwork'
 N = args.npd
 D = args.d
-seed = 10
+seed = args.seed
 
 n_streams = args.ns
 stream_length = args.sl
@@ -114,7 +118,6 @@ progress_bar = not args.noprog
 
 partitioner = args.pfunc
 
-assignment_seed = 11
 if not partitioner:
     partitioner = None
     denom = int(np.ceil(float(stream_length) / n_processors))
