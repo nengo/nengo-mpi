@@ -21,7 +21,6 @@ class Simulator{
 
 public:
     Simulator(bool collect_timings);
-    Simulator(dtype dt, bool collect_timings);
 
     virtual ~Simulator(){};
 
@@ -51,7 +50,9 @@ public:
         return chunk->get_time_pointer();
     }
 
-    dtype dt;
+    dtype dt(){
+        return chunk->dt;
+    }
 
 protected:
     unique_ptr<MpiSimulatorChunk> chunk;

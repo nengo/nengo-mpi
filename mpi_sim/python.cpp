@@ -1,8 +1,33 @@
 #include "python.hpp"
 
+// Note: on the python side, these are renamed to have `python` removed.
+void python_mpi_init(){
+    mpi_init();
+}
+
+void python_mpi_finalize(){
+    mpi_finalize();
+}
+
+int python_get_mpi_rank(){
+    return get_mpi_rank();
+}
+
+int python_get_mpi_n_procs(){
+    return get_mpi_n_procs();
+}
+
+void python_kill_workers(){
+    return kill_workers();
+}
+
+void python_worker_start(){
+    worker_start();
+}
+
 bool hasattr(bpy::object obj, string const &attrName) {
       return PyObject_HasAttrString(obj.ptr(), attrName.c_str());
- }
+}
 
 unique_ptr<BaseSignal> ndarray_to_matrix(bpyn::array a){
 
@@ -52,17 +77,11 @@ unique_ptr<BaseSignal> list_to_matrix(bpy::list l){
     return ret;
 }
 
-PythonMpiSimulator::PythonMpiSimulator(){}
-
-PythonMpiSimulator::PythonMpiSimulator(bpy::object num_components, bpy::object dt){
-
-    int c_num_components = bpy::extract<int>(num_components);
-    dtype c_dt = bpy::extract<dtype>(dt);
-
-    if(c_num_components == 1){
-        sim = unique_ptr<Simulator>(new Simulator(c_dt, false));
+PythonMpiSimulator::PythonMpiSimulator(){
+    if(n_processors_available == 1){
+        sim = unique_ptr<Simulator>(new Simulator(false));
     }else{
-        sim = unique_ptr<Simulator>(new MpiSimulator(c_num_components, c_dt, false, false));
+        sim = unique_ptr<Simulator>(new MpiSimulator(false, false));
     }
 }
 
@@ -288,9 +307,17 @@ string PyFunc::to_string() const{
 
 BOOST_PYTHON_MODULE(mpi_sim)
 {
+    bpy::def("mpi_init", python_mpi_init);
+    bpy::def("mpi_finalize", python_mpi_finalize);
+    bpy::def("get_mpi_rank", python_get_mpi_rank);
+    bpy::def("get_mpi_n_procs", python_get_mpi_n_procs);
+    bpy::def("kill_workers", python_kill_workers);
+    bpy::def("worker_start", python_worker_start);
+
     bpy::numeric::array::set_module_and_type("numpy", "ndarray");
+
     bpy::class_<PythonMpiSimulator, boost::noncopyable>(
-            "PythonMpiSimulator", bpy::init<bpy::object, bpy::object>())
+            "MpiSimulator", bpy::init<>())
         .def("load_network", &PythonMpiSimulator::load_network)
         .def("finalize_build", &PythonMpiSimulator::finalize_build)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
@@ -303,4 +330,3 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("create_PyFuncIO", &PythonMpiSimulator::create_PyFuncIO)
         .def("to_string", &PythonMpiSimulator::to_string);
 }
-

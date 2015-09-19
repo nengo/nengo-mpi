@@ -12,102 +12,6 @@
 
 using namespace std;
 
-// comm: The communicator for the worker to communicate on. Must
-// be an intracommunicator involving all processes, with the master
-// process having rank 0.
-void start_worker(MPI_Comm comm){
-
-    int my_id, n_processors;
-    MPI_Comm_rank(comm, &my_id);
-    MPI_Comm_size(comm, &n_processors);
-
-    int buflen = 512;
-    char name[buflen];
-    MPI_Get_processor_name(name, &buflen);
-
-    dbg("Hello world! I'm a nengo_mpi worker process with "
-        "rank "<< my_id << " on host " << name << "." << endl);
-
-    MPI_Status status;
-
-    dbg("Reading merged...");
-    int mpi_merged = bcast_recv_int(comm);
-
-    dbg("Reading collect_timings...");
-    int collect_timings = bcast_recv_int(comm);
-
-    dbg("Reading filename...");
-    string filename = recv_string(0, setup_tag, comm);
-
-    dbg("Creating chunk...");
-    MpiSimulatorChunk chunk(my_id, n_processors, bool(mpi_merged), bool(collect_timings));
-
-    // Use parallel property lists
-    hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
-    H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
-
-    hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
-
-    dbg("Loading from file...");
-    chunk.from_file(filename, file_plist, read_plist);
-    chunk.finalize_build(comm);
-
-    H5Pclose(file_plist);
-    H5Pclose(read_plist);
-
-    // Worker barrier 1
-    MPI_Barrier(comm);
-
-    while(true){
-        dbg("Worker " << my_id << " waiting for signal to start simulation...");
-        int steps;
-        MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
-
-        if(steps < 0){
-            break;
-        }
-
-        dbg("Worker " << my_id << " received the signal to start simulation: "
-            << steps << " steps." << endl);
-
-        chunk.run_n_steps(steps, false);
-
-        // Worker barrier 2
-        MPI_Barrier(comm);
-
-        if(!chunk.is_logging()){
-            // If we're not logging, send the probe data back to the master
-            for(auto& pair : chunk.probe_map){
-                key_type key = pair.first;
-                shared_ptr<Probe>& probe = pair.second;
-
-                send_key(key, 0, probe_tag, comm);
-
-                vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
-
-                send_int(probe_data.size(), 0, probe_tag, comm);
-
-                for(auto& pd : probe_data){
-                    send_matrix(move(pd), 0, probe_tag, comm);
-                }
-            }
-        }
-
-        // Worker barrier 3
-        MPI_Barrier(comm);
-    }
-
-    dbg("Worker " << my_id << " received the signal to terminate.");
-
-    // Worker barrier 4
-    MPI_Barrier(comm);
-
-    chunk.close_simulation_log();
-
-    MPI_Finalize();
-}
-
 struct Arg: public option::Arg
  {
      static void printError(const char* msg1, const option::Option& opt, const char* msg2)
@@ -161,7 +65,7 @@ const option::Descriptor serial_usage[] =
  {0,0,0,0,0,0}
 };
 
-int start_master(int argc, char **argv){
+int master_start(int argc, char **argv){
 
     argc -= (argc > 0); argv += (argc > 0); // skip program name argv[0] if present
     option::Stats  stats(serial_usage, argc, argv);
@@ -227,14 +131,16 @@ int start_master(int argc, char **argv){
 
     cout << "Done building network..." << endl;
 
-    cout << "dt: " << sim->dt << endl;
-    int num_steps = int(round(sim_length / sim->dt));
+    cout << "dt: " << sim->dt() << endl;
+    int num_steps = int(round(sim_length / sim->dt()));
 
     cout << "Num steps: " << num_steps << endl;
     cout << "Running simulation..." << endl;
 
     sim->run_n_steps(num_steps, show_progress, log_filename);
     sim->close();
+
+    kill_workers();
 
     return 0;
 }
@@ -243,32 +149,16 @@ int main(int argc, char **argv){
 
     MPI_Init(&argc, &argv);
 
-    MPI_Comm parent;
-    MPI_Comm_get_parent(&parent);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (parent != MPI_COMM_NULL){
-        // We have a parent, so we must be a worker process spawned
-        // by the master, which must be running through python.
-        // Get a merged communicator that includes the parent and all children.
-
-        MPI_Comm everyone;
-        MPI_Intercomm_merge(parent, true, &everyone);
-        start_worker(everyone);
+    if(rank == 0){
+        master_start(argc, argv);
     }else{
-        // We don't have a parent, so we must be either the master process
-        // or a worker process, in either case created at the beginning of
-        // a call to nengo_mpi executed using mpirun. Can use the MPI_COMM_WORLD
-        // communicator, as it will contain all processes in the simulation.
-
-        int rank;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-        if(rank == 0){
-            start_master(argc, argv);
-        }else{
-            start_worker(MPI_COMM_WORLD);
-        }
+        worker_start(MPI_COMM_WORLD);
     }
+
+    MPI_Finalize();
 
     return 0;
 }

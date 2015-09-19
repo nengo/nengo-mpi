@@ -2,7 +2,7 @@
 #define NENGO_MPI_DEBUG_HPP
 
 /*
-Adapted by Eric Crawford from stackoverflow:
+Adapted by e2crawfo from stackoverflow:
 
 http://stackoverflow.com/questions/1644868/c-define-macro-for-debug-printing/1644898#1644898
 */

@@ -1,7 +1,7 @@
 """MPIModel"""
 
 try:
-    from mpi_sim import PythonMpiSimulator
+    from mpi_sim import MpiSimulator
     mpi_sim_available = True
 except ImportError:
     print (
@@ -465,8 +465,7 @@ class MpiModel(builder.Model):
 
         # Only create a working simulator if our goal is not to simply
         # save the network to a file
-        self.mpi_sim = (
-            PythonMpiSimulator(n_components, dt) if not save_file else None)
+        self.mpi_sim = MpiSimulator() if not save_file else None
 
         self.h5_compression = 'gzip'
         self.op_strings = defaultdict(list)

@@ -122,8 +122,8 @@ int main(int argc, char **argv){
 
     cout << "Done building network..." << endl;
 
-    cout << "dt: " << sim->dt << endl;
-    int num_steps = int(round(sim_length / sim->dt));
+    cout << "dt: " << sim->dt() << endl;
+    int num_steps = int(round(sim_length / sim->dt()));
 
     cout << "Num steps: " << num_steps << endl;
     cout << "Running simulation..." << endl;

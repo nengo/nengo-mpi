@@ -302,10 +302,10 @@ string signal_to_string(const SignalView signal) {
 
     stringstream ss;
 
-    if(true){
-        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
-    }else{
+    if(RUN_DEBUG_TEST){
         ss << signal;
+    }else{
+        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
     }
 
     return ss.str();

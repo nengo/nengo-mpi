@@ -1,58 +1,10 @@
 #include "mpi_simulator.hpp"
 
+int n_processors_available = 1;
+
 // This constructor assumes that MPI_Initialize has already been called.
 MpiSimulator::MpiSimulator(bool mpi_merged, bool collect_timings)
-:Simulator(collect_timings), n_processors(0), comm(MPI_COMM_NULL), mpi_merged(mpi_merged){
-    init();
-}
-
-MpiSimulator::MpiSimulator(int n_processors, dtype dt, bool mpi_merged, bool collect_timings)
-:Simulator(dt, collect_timings), n_processors(n_processors), mpi_merged(mpi_merged){
-
-    spawn_processors();
-
-    init();
-
-    // Send blank filename, so workers know not to look for a file
-    string filename;
-    for(int i = 0; i < n_processors-1; i++){
-        send_string(filename, i+1, setup_tag, comm);
-        send_dtype(dt, i+1, setup_tag, comm);
-    }
-}
-
-MpiSimulator::~MpiSimulator(){
-    // TODO: send a flag to workers, telling them to clean up and exit
-}
-
-void MpiSimulator::spawn_processors(){
-    int argc = 0;
-    char** argv;
-
-    cout << "Master initing MPI..." << endl;
-    MPI_Init(&argc, &argv);
-    cout << "Master finished initing MPI." << endl;
-
-    cout << "Master spawning " << n_processors - 1 << " workers..." << endl;
-
-    MPI_Comm inter;
-
-    MPI_Comm_spawn(
-        "/home/c/celiasmi/e2crawfo/nengo_mpi/nengo_mpi/mpi_sim_worker",
-         MPI_ARGV_NULL, n_processors - 1,
-         MPI_INFO_NULL, 0, MPI_COMM_SELF, &inter,
-         MPI_ERRCODES_IGNORE);
-
-    cout << "Master finished spawning workers." << endl;
-
-    MPI_Intercomm_merge(inter, false, &comm);
-}
-
-void MpiSimulator::init(){
-    if(comm == MPI_COMM_NULL){
-        comm = MPI_COMM_WORLD;
-    }
-
+:Simulator(collect_timings), comm(MPI_COMM_WORLD), mpi_merged(mpi_merged){
     MPI_Comm_size(comm, &n_processors);
 
     int buflen = 512;
@@ -66,15 +18,16 @@ void MpiSimulator::init(){
     cout << "Master rank in merged communicator: " << rank << " (should be 0)." << endl;
     cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
+    wake_workers();
     bcast_send_int(mpi_merged ? 1 : 0, comm);
     bcast_send_int(collect_timings ? 1 : 0, comm);
 
     chunk = unique_ptr<MpiSimulatorChunk>(
         new MpiSimulatorChunk(0, n_processors, mpi_merged, collect_timings));
+}
 
-    for(int i = 0; i < n_processors; i++){
-        probe_counts[i] = 0;
-    }
+MpiSimulator::~MpiSimulator(){
+    // TODO: send a flag to workers, telling them to clean up and exit
 }
 
 void MpiSimulator::from_file(string filename){
@@ -109,8 +62,10 @@ void MpiSimulator::from_file(string filename){
 
     chunk->from_file(filename, file_plist, read_plist);
 
-    for(auto pi : chunk->probe_info){
+    probe_counts.resize(n_processors);
+    for(const ProbeSpec& pi : chunk->probe_info){
         probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+        probe_counts[pi.component % n_processors] += 1;
     }
 
     H5Pclose(file_plist);
@@ -126,9 +81,6 @@ void MpiSimulator::from_file(string filename){
 
 void MpiSimulator::finalize_build(){
     chunk->finalize_build(comm);
-    for(auto pi : chunk->probe_info){
-        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
-    }
 }
 
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
@@ -159,32 +111,31 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
 
 void MpiSimulator::gather_probe_data(){
 
+    // Gather data on the master process
     Simulator::gather_probe_data();
 
+    // Gather data on the worker processes
     cout << "Master gathering probe data from workers..." << endl;
 
-    for(auto& pair : probe_counts){
+    for(int processor_idx = 1; processor_idx < n_processors; processor_idx++){
 
-        int chunk_index = pair.first;
-        int probe_count = pair.second;
+        int probe_count = probe_counts[processor_idx];
 
-        if(chunk_index > 0){
-            for(unsigned i = 0; i < probe_count; i++){
-                key_type probe_key = recv_key(chunk_index, probe_tag, comm);
+        for(unsigned i = 0; i < probe_count; i++){
+            key_type probe_key = recv_key(processor_idx, probe_tag, comm);
 
-                run_dbg("Master receiving probe data from chunk " << chunk_index << endl
-                        << "with key " << probe_key << "..." << endl);
+            run_dbg("Master receiving probe data from chunk " << processor_idx << endl
+                    << "with key " << probe_key << "..." << endl);
 
-                int data_length = recv_int(chunk_index, probe_tag, comm);
+            int data_length = recv_int(processor_idx, probe_tag, comm);
 
-                auto& data = probe_data[probe_key];
-                data.reserve(data.size() + data_length);
+            auto& data = probe_data[probe_key];
+            data.reserve(data.size() + data_length);
 
-                for(int j = 0; j < data_length; j++){
-                    unique_ptr<BaseSignal> matrix = recv_matrix(chunk_index, probe_tag, comm);
+            for(int j = 0; j < data_length; j++){
+                unique_ptr<BaseSignal> matrix = recv_matrix(processor_idx, probe_tag, comm);
 
-                    data.push_back(move(matrix));
-                }
+                data.push_back(move(matrix));
             }
         }
     }
@@ -201,20 +152,160 @@ void MpiSimulator::close(){
     MPI_Barrier(comm);
 
     chunk->close_simulation_log();
-
-    MPI_Finalize();
 }
 
 string MpiSimulator::to_string() const{
     stringstream out;
 
     out << "<MpiSimulator" << endl;
-    out << "num components: " << n_processors << endl;
+    out << "n_processors: " << n_processors << endl;
 
     out << "**chunk**" << endl;
     out << *chunk << endl;
 
     return out.str();
+}
+
+void mpi_init(){
+    int argc = 0;
+    char** argv;
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_size(MPI_COMM_WORLD, &n_processors_available);
+}
+
+void mpi_finalize(){
+    MPI_Finalize();
+}
+
+int get_mpi_rank(){
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    return rank;
+};
+
+int get_mpi_n_procs(){
+    return n_processors_available;
+}
+
+void wake_workers(){
+    int kill = 0;
+    MPI_Bcast(&kill, 1, MPI_INT, 0, MPI_COMM_WORLD);
+}
+
+void kill_workers(){
+    int kill = 1;
+    MPI_Bcast(&kill, 1, MPI_INT, 0, MPI_COMM_WORLD);
+}
+
+void worker_start(){
+    worker_start(MPI_COMM_WORLD);
+}
+
+// comm: The communicator for the worker to communicate on. Must
+// be an intracommunicator involving all processes, with the master
+// process having rank 0.
+void worker_start(MPI_Comm comm){
+
+    int rank, n_processors;
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &n_processors);
+
+    int buflen = 512;
+    char name[buflen];
+    MPI_Get_processor_name(name, &buflen);
+
+    dbg("Hello world! I'm a nengo_mpi worker process with "
+        "rank "<< rank << " on host " << name << "." << endl);
+
+    while(true){
+        int kill;
+        MPI_Bcast(&kill, 1, MPI_INT, 0, comm);
+
+        if(kill){
+            // Program is ending
+            break;
+        }
+
+        MPI_Status status;
+
+        dbg("Reading merged...");
+        int mpi_merged = bcast_recv_int(comm);
+
+        dbg("Reading collect_timings...");
+        int collect_timings = bcast_recv_int(comm);
+
+        dbg("Reading filename...");
+        string filename = recv_string(0, setup_tag, comm);
+
+        dbg("Creating chunk...");
+        MpiSimulatorChunk chunk(rank, n_processors, bool(mpi_merged), bool(collect_timings));
+
+        // Use parallel property lists
+        hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);
+        H5Pset_fapl_mpio(file_plist, comm, MPI_INFO_NULL);
+
+        hid_t read_plist = H5Pcreate(H5P_DATASET_XFER);
+        H5Pset_dxpl_mpio(read_plist, H5FD_MPIO_INDEPENDENT);
+
+        dbg("Loading from file...");
+        chunk.from_file(filename, file_plist, read_plist);
+        chunk.finalize_build(comm);
+
+        H5Pclose(file_plist);
+        H5Pclose(read_plist);
+
+        // Worker barrier 1
+        MPI_Barrier(comm);
+
+        while(true){
+            dbg("Worker " << rank << " waiting for signal to start simulation...");
+            int steps;
+            MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
+
+            if(steps < 0){
+                // Current simulator is closing
+                break;
+            }
+
+            dbg("Worker " << rank << " received the signal to start simulation: "
+                << steps << " steps." << endl);
+
+            chunk.run_n_steps(steps, false);
+
+            // Worker barrier 2
+            MPI_Barrier(comm);
+
+            if(!chunk.is_logging()){
+                // If we're not logging, send the probe data back to the master
+                for(auto& pair : chunk.probe_map){
+                    key_type key = pair.first;
+                    shared_ptr<Probe>& probe = pair.second;
+
+                    send_key(key, 0, probe_tag, comm);
+
+                    vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
+
+                    send_int(probe_data.size(), 0, probe_tag, comm);
+
+                    for(auto& pd : probe_data){
+                        send_matrix(move(pd), 0, probe_tag, comm);
+                    }
+                }
+            }
+
+            // Worker barrier 3
+            MPI_Barrier(comm);
+        }
+
+        dbg("Worker " << rank << " received the signal to terminate.");
+
+        // Worker barrier 4
+        MPI_Barrier(comm);
+
+        chunk.close_simulation_log();
+    }
 }
 
 string recv_string(int src, int tag, MPI_Comm comm){
@@ -321,7 +412,6 @@ void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm)
 
     MPI_Send(data_buffer.get(), size1 * size2, MPI_DOUBLE, dst, tag, comm);
 }
-
 
 int bcast_recv_int(MPI_Comm comm){
     int src = 0;

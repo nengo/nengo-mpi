@@ -19,17 +19,12 @@ using namespace std;
 const int setup_tag = 1;
 const int probe_tag = 2;
 
+extern int n_processors_available;
+
 class MpiSimulator: public Simulator{
 public:
     MpiSimulator(bool mpi_merged, bool collect_timings);
-
-    // Used when we need to spawn extra process (e.g. when run through python)
-    MpiSimulator(int n_processors, dtype dt, bool mpi_merged, bool collect_timings);
-
     ~MpiSimulator();
-
-    void spawn_processors();
-    void init();
 
     void from_file(string filename) override;
     void finalize_build() override;
@@ -53,10 +48,18 @@ protected:
 
     MPI_Comm comm;
 
-    // Map from a source index to number of probes. Used to gather
-    // probe data from remote chunks after simulation.
-    map<int, int> probe_counts;
+    // Used to gather probe data from workers after simulation.
+    vector<int> probe_counts;
 };
+
+void mpi_init();
+void mpi_finalize();
+int get_mpi_rank();
+int get_mpi_n_procs();
+void wake_workers();
+void kill_workers();
+void worker_start();
+void worker_start(MPI_Comm comm);
 
 string recv_string(int src, int tag, MPI_Comm comm);
 void send_string(string s, int dst, int tag, MPI_Comm comm);

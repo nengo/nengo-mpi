@@ -19,6 +19,13 @@ using namespace std;
 namespace bpy = boost::python;
 namespace bpyn = bpy::numeric;
 
+void python_mpi_init();
+void python_mpi_finalize();
+int python_get_mpi_rank();
+int python_get_mpi_n_procs();
+void python_kill_workers();
+void python_worker_start();
+
 bool hasattr(bpy::object obj, string const &attrName);
 
 unique_ptr<BaseSignal> ndarray_to_matrix(bpyn::array a);
@@ -31,7 +38,7 @@ unique_ptr<BaseSignal> list_to_matrix(bpy::list l);
 class PythonMpiSimulator{
 public:
     PythonMpiSimulator();
-    PythonMpiSimulator(bpy::object num_components, bpy::object dt);
+    PythonMpiSimulator(bpy::object n_components);
 
     void load_network(bpy::object filename);
     void finalize_build();

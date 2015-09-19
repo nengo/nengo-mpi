@@ -1,12 +1,7 @@
 #include "simulator.hpp"
 
 Simulator::Simulator(bool collect_timings)
-:dt(0.001), collect_timings(collect_timings){
-    chunk = unique_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(collect_timings));
-}
-
-Simulator::Simulator(dtype dt, bool collect_timings)
-:dt(dt), collect_timings(collect_timings){
+:collect_timings(collect_timings){
     chunk = unique_ptr<MpiSimulatorChunk>(new MpiSimulatorChunk(collect_timings));
 }
 
@@ -35,6 +30,10 @@ void Simulator::from_file(string filename){
 
     chunk->from_file(filename, file_plist, read_plist);
 
+    for(const ProbeSpec& pi : chunk->probe_info){
+        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+    }
+
     H5Pclose(file_plist);
     H5Pclose(read_plist);
 
@@ -45,9 +44,6 @@ void Simulator::from_file(string filename){
 
 void Simulator::finalize_build(){
     chunk->finalize_build();
-    for(auto pi : chunk->probe_info){
-        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
-    }
 }
 
 SignalView Simulator::get_signal(string signal_string){
