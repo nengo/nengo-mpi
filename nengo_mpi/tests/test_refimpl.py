@@ -30,7 +30,7 @@ def xfail(pattern, msg):
 
 @pytest.fixture(scope="function")
 def Simulator(request):
-    """the Simulator class being tested."""
+    """The Simulator class being tested."""
 
     request.addfinalizer(nengo_mpi.Simulator.close_simulators)
     return nengo_mpi.Simulator

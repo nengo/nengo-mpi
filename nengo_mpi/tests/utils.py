@@ -1,10 +1,84 @@
 import inspect
 import re
+import os
+import h5py
+import subprocess
+import numpy as np
 
 
+def run_standalone_cpp(network_file, log_file, sim_time):
+    """ Execute a standalone simulation using nengo_cpp.
+
+    Assumes the executable nengo_cpp can be found and that a file storing
+    a nengo network (created using nengo_mpi.Simulator) called `network_file`
+    exists.
+    """
+
+    try:
+        subprocess.check_output([
+            'nengo_cpp', '--log', log_file,
+            '--noprog', network_file, str(sim_time)])
+
+        with h5py.File(log_file, 'r') as results:
+            probe_dict = {}
+            for probe_key, probe_data in results.iteritems():
+                probe_dict[probe_key] = np.array(probe_data, copy=True)
+
+        return probe_dict
+
+    finally:
+        try:
+            os.remove(log_file)
+        except:
+            pass
+
+
+def run_standalone_mpi(network_file, log_file, n_processors, sim_time):
+    """ Execute a standalone simulation using nengo_mpi.
+
+    Assumes the executable nengo_mpi can be found and that a file storing
+    a nengo network (created using nengo_mpi.Simulator) called `network_file`
+    exists.
+    """
+    try:
+        subprocess.check_output([
+            'mpirun', '-np', str(n_processors), 'nengo_mpi',
+            '--log', log_file, '--noprog', network_file, str(sim_time)])
+
+        with h5py.File(log_file, 'r') as results:
+            probe_dict = {}
+            for probe_key, probe_data in results.iteritems():
+                probe_dict[probe_key] = np.array(probe_data, copy=True)
+
+        return probe_dict
+
+    finally:
+        try:
+            os.remove(log_file)
+        except:
+            pass
+
+
+def run_python_mpi(n_processors, script_name, script_args):
+    """ Execute a script in the nengo_mpi context.
+
+    Returns: (script output, exit code)
+    """
+    if isinstance(script_args, str):
+        script_args = script_args.split(' ')
+
+    try:
+        output = subprocess.check_output([
+            'mpirun', '-np', str(n_processors), 'python',
+            '-m', 'nengo_mpi', script_name] + script_args)
+        return output, 0
+    except subprocess.CalledProcessError as e:
+        return e.output, e.returncode
+
+
+# Note: Copied this from nengo_ocl.
 # The version of this function in Nengo 2.0 has a bug, so an updated version
 # has been put here. This can be removed when the fix has been made in Nengo.
-# Note: Copied this from nengo_ocl.
 def load_functions(modules, pattern='^test_', arg_pattern='^Simulator$'):
     """Load matching functions from a list of modules.
 

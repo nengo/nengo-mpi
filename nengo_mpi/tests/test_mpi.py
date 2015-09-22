@@ -1,7 +1,5 @@
 import os
-import subprocess
 import pytest
-import h5py
 
 import numpy as np
 
@@ -11,6 +9,30 @@ from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate  # , Izhikevich
 
 import nengo_mpi
 from nengo_mpi import partition
+from nengo_mpi.tests.utils import run_standalone_mpi, run_python_mpi
+
+nengo_mpi_dir = os.path.dirname(nengo_mpi.__file__)
+mpi_test_script_dir = os.path.join(nengo_mpi_dir, "tests/mpi_tests")
+mpi_test_scripts = [
+    os.path.join(mpi_test_script_dir, s)
+    for s in os.listdir(mpi_test_script_dir)
+    if s.endswith(".py")]
+
+
+@pytest.mark.parametrize("script_name", mpi_test_scripts)
+@pytest.mark.parametrize("n_processors", [1, 4])
+def test_mpi_script(n_processors, script_name):
+    """ A test that consists of running a script in the nengo_mpi context.
+
+    For each *.py file in nengo_mpi/tests/mpi_tests/, create a test
+    which simply runs the script using the function run_python_mpi.
+    Consider the test passed if the script returns an exit code of 0.
+
+    """
+    output, exit_code = run_python_mpi(n_processors, script_name, [])
+    print output
+    assert not exit_code, "Script exited with non-zero exit status."
+
 
 all_neurons = [
     LIF, LIFRate, RectifiedLinear, Sigmoid,
@@ -49,27 +71,23 @@ def test_basic_mpi(neuron_type, synapse):
 
     try:
         nengo_mpi.Simulator(
-            m, partitioner=nengo_mpi.Partitioner(2), save_file=network_file)
-        subprocess.check_output([
-            'mpirun', '-np', str(n_processors), 'nengo_mpi',
-            '--noprog', network_file, str(sim_time)])
+            m, partitioner=nengo_mpi.Partitioner(n_processors),
+            save_file=network_file)
 
-        results = h5py.File(log_file, 'r')
+        results = run_standalone_mpi(
+            network_file, log_file, n_processors, sim_time)
+
+        assert np.allclose(
+            refimpl_sim.data[A_p], results[str(id(A_p))],
+            atol=0.00001, rtol=0.00)
+        assert np.allclose(
+            refimpl_sim.data[B_p], results[str(id(B_p))],
+            atol=0.00001, rtol=0.00)
     finally:
         try:
             os.remove(network_file)
         except:
             pass
-
-        try:
-            os.remove(log_file)
-        except:
-            pass
-
-    assert np.allclose(
-        refimpl_sim.data[A_p], results[str(id(A_p))], atol=0.00001, rtol=0.00)
-    assert np.allclose(
-        refimpl_sim.data[B_p], results[str(id(B_p))], atol=0.00001, rtol=0.00)
 
 
 def random_graph(
@@ -124,6 +142,12 @@ def random_graph(
 
 @pytest.fixture(params=all_neurons)
 def refimpl_results(request):
+    """ Returns results of running random graph model.
+
+    Returns the model itself, the nengo.Simulator object used to execute
+    the simulation, and the simulation time.
+    """
+
     neuron_type = request.param
 
     n_nodes = 10
@@ -159,37 +183,23 @@ def test_random_graph(partitioner, refimpl_results):
     try:
         nengo_mpi.Simulator(
             m, partitioner=partitioner, save_file=network_file)
-        subprocess.check_output([
-            'mpirun', '-np', str(n_processors), 'nengo_mpi',
-            '--log', log_file, '--noprog', network_file, str(sim_time)])
-        subprocess.check_output([
-            'mpirun', '-np', '1', 'nengo_mpi',
-            '--log', log_file_1p, '--noprog', network_file, str(sim_time)])
 
-        results = h5py.File(log_file, 'r')
-        results_1p = h5py.File(log_file_1p, 'r')
+        results = run_standalone_mpi(
+            network_file, log_file, n_processors, sim_time)
+        results_1p = run_standalone_mpi(
+            network_file, log_file_1p, 1, sim_time)
+
+        for p in m.probes:
+            assert np.allclose(
+                refimpl_sim.data[p], results[str(id(p))],
+                atol=0.00001, rtol=0.00)
+
+        for p in m.probes:
+            assert np.allclose(
+                refimpl_sim.data[p], results_1p[str(id(p))],
+                atol=0.00001, rtol=0.00)
     finally:
         try:
             os.remove(network_file)
         except:
             pass
-
-        try:
-            os.remove(log_file)
-        except:
-            pass
-
-        try:
-            os.remove(log_file_1p)
-        except:
-            pass
-
-    for p in m.probes:
-        assert np.allclose(
-            refimpl_sim.data[p], results[str(id(p))],
-            atol=0.00001, rtol=0.00)
-
-    for p in m.probes:
-        assert np.allclose(
-            refimpl_sim.data[p], results_1p[str(id(p))],
-            atol=0.00001, rtol=0.00)
