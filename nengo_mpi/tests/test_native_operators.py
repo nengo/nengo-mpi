@@ -4,7 +4,8 @@ from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 
 import nengo
 from nengo.builder.signal import Signal
-from nengo.builder.operator import DotInc, ElementwiseInc, Reset, Copy
+from nengo.builder.operator import DotInc, ElementwiseInc, Reset
+from nengo.builder.operator import Copy, SlicedCopy
 from nengo.builder.node import SimPyFunc
 from nengo.builder.neurons import SimNeurons
 from nengo.builder.synapses import SimSynapse
@@ -161,7 +162,7 @@ def test_reset():
 
     sim.run(0.05)
 
-    assert np.allclose(D + reset_val, sim.data[probes[0]])
+    assert np.allclose(D + reset_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
 
 
 def test_copy():
@@ -180,7 +181,53 @@ def test_copy():
 
     sim.run(0.05)
 
-    assert np.allclose(D + copy_val, sim.data[probes[0]])
+    assert np.allclose(D + copy_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
+
+
+def test_sliced_copy():
+    D = 2 * 20
+
+    data1 = np.random.random(D)
+    S1 = Signal(data1, 'S1')
+
+    data2 = np.random.random(D)
+    S2 = Signal(data2, 'S2')
+
+    data3 = np.random.random(D)
+    S3 = Signal(data3, 'S3')
+
+    converge = Signal(np.zeros(3 * D), 'converge')
+
+    out1 = Signal(np.zeros(1.5 * D), 'out1')
+    out2 = Signal(np.zeros(1.5 * D), 'out2')
+    final_out = Signal(np.zeros(2 * D), 'final_out')
+
+    ops = [
+        Reset(converge, 0),
+        SlicedCopy(S1, converge, b_slice=slice(0, D), inc=True),
+        SlicedCopy(S2, converge, b_slice=slice(D, 2 * D), inc=True),
+        SlicedCopy(S3, converge, b_slice=slice(2 * D, 3 * D), inc=True),
+        SlicedCopy(converge, out1, a_slice=slice(0, int(1.5 * D))),
+        SlicedCopy(converge, out2, a_slice=slice(int(1.5 * D), 3*D)),
+        Reset(final_out, 0),
+        SlicedCopy(
+            out1, final_out, a_slice=slice(0, D, 1),
+            b_slice=slice(0, 2 * D, 2), inc=True),
+        SlicedCopy(
+            out2, final_out, a_slice=slice(0, D, 1),
+            b_slice=slice(1, 2 * D, 2), inc=True)]
+
+    probes = [SignalProbe(final_out), SignalProbe(converge)]
+    sim = TestSimulator(ops, probes)
+
+    sim.run(0.05)
+
+    ground_truth = np.zeros(2*D)
+    ground_truth[0:2*D:2] = data1
+    ground_truth[1:2*D:2] = np.hstack((data2[int(0.5*D):], data3[:int(0.5*D)]))
+
+    assert np.allclose(
+        ground_truth, sim.data[probes[0]], atol=0.000001, rtol=0.0)
 
 
 def test_lif():

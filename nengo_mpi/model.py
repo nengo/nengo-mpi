@@ -858,6 +858,21 @@ class MpiModel(builder.Model):
             op_args = [
                 "Copy", signal_to_string(op.dst), signal_to_string(op.src)]
 
+        elif op_type == builder.operator.SlicedCopy:
+            if op.a_slice == Ellipsis:
+                start_A, stop_A, step_A = 0, op.a.size, 1
+            else:
+                start_A, stop_A, step_A = op.a_slice.indices(op.a.size)
+
+            if op.b_slice == Ellipsis:
+                start_B, stop_B, step_B = 0, op.b.size, 1
+            else:
+                start_B, stop_B, step_B = op.b_slice.indices(op.b.size)
+
+            op_args = [
+                "SlicedCopy", signal_to_string(op.b), signal_to_string(op.a),
+                int(op.inc), start_A, stop_A, step_A, start_B, stop_B, step_B]
+
         elif op_type == builder.operator.DotInc:
             op_args = [
                 "DotInc", signal_to_string(op.A), signal_to_string(op.X),

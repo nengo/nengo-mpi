@@ -10,6 +10,14 @@ Reset::Reset(SignalView dst, dtype value)
 Copy::Copy(SignalView dst, SignalView src)
 :dst(dst), src(src){}
 
+SlicedCopy::SlicedCopy(
+    SignalView B, SignalView A, bool inc,
+    int start_A, int stop_A, int step_A,
+    int start_B, int stop_B, int step_B)
+:B(B), A(A), inc(inc),
+start_A(start_A), stop_A(stop_A), step_A(step_A),
+start_B(start_B), stop_B(stop_B), step_B(step_B){}
+
 DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
 :A(A), X(X), Y(Y){}
 
@@ -110,6 +118,21 @@ void Reset::operator() (){
 void Copy::operator() (){
 
     dst = src;
+
+    run_dbg(*this);
+}
+
+void SlicedCopy::operator() (){
+    int index_A = start_A, index_B = start_B;
+    for(;index_A < stop_A; index_A += step_A){
+        if(inc){
+            B(index_B, 0) += A(index_A, 0);
+        }else{
+            B(index_B, 0) = A(index_A, 0);
+        }
+
+        index_B += step_B;
+    }
 
     run_dbg(*this);
 }
@@ -330,6 +353,28 @@ string Copy::to_string() const  {
     out << signal_to_string(dst) << endl;
     out << "src:" << endl;
     out << signal_to_string(src) << endl;
+
+    return out.str();
+}
+
+string SlicedCopy::to_string() const  {
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "B:" << endl;
+    out << signal_to_string(B) << endl;
+    out << "A:" << endl;
+    out << signal_to_string(A) << endl;
+
+    out << "inc: " << inc << endl;
+
+    out << "start_A: " << start_A << endl;
+    out << "stop_A:" << stop_A << endl;
+    out << "step_A:" << step_A << endl;
+
+    out << "start_B:" << start_B << endl;
+    out << "stop_B:" << stop_B << endl;
+    out << "step_B:" << step_B << endl;
 
     return out.str();
 }

@@ -620,6 +620,26 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
             add_op(unique_ptr<Operator>(new Copy(dst, src)));
 
+        }else if(type_string.compare("SlicedCopy") == 0){
+
+            SignalView dst = get_signal_view(args[0]);
+            SignalView src = get_signal_view(args[1]);
+
+            bool inc = bool(boost::lexical_cast<int>(args[2]));
+
+            int start_A = boost::lexical_cast<int>(args[3]);
+            int stop_A = boost::lexical_cast<int>(args[4]);
+            int step_A = boost::lexical_cast<int>(args[5]);
+
+            int start_B = boost::lexical_cast<int>(args[6]);
+            int stop_B = boost::lexical_cast<int>(args[7]);
+            int step_B = boost::lexical_cast<int>(args[8]);
+
+            add_op(unique_ptr<Operator>(
+                new SlicedCopy(
+                    dst, src, inc, start_A, stop_A, step_A,
+                    start_B, stop_B, step_B)));
+
         }else if(type_string.compare("DotInc") == 0){
             SignalView A = get_signal_view(args[0]);
             SignalView X = get_signal_view(args[1]);
@@ -647,8 +667,9 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView ref_time = get_signal_view(args[8]);
 
             add_op(unique_ptr<Operator>(
-                new LIF(n_neurons, tau_rc, tau_ref, min_voltage,
-                           dt, J, output, voltage, ref_time)));
+                new LIF(
+                    n_neurons, tau_rc, tau_ref, min_voltage,
+                    dt, J, output, voltage, ref_time)));
 
         }else if(type_string.compare("LIFRate") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);
@@ -658,7 +679,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView J = get_signal_view(args[3]);
             SignalView output = get_signal_view(args[4]);
 
-            add_op(unique_ptr<Operator>(new LIFRate(n_neurons, tau_rc, tau_ref, J, output)));
+            add_op(unique_ptr<Operator>(
+                new LIFRate(n_neurons, tau_rc, tau_ref, J, output)));
 
         }else if(type_string.compare("AdaptiveLIF") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);

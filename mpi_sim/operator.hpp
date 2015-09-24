@@ -94,6 +94,33 @@ protected:
     SignalView src;
 };
 
+class SlicedCopy: public Operator{
+public:
+    SlicedCopy(
+        SignalView B, SignalView A, bool inc,
+        int start_A, int stop_A, int step_A,
+        int start_B, int stop_B, int step_B);
+    virtual string classname() const { return "SlicedCopy"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    SignalView B;
+    SignalView A;
+
+    bool inc;
+
+    int start_A;
+    int stop_A;
+    int step_A;
+
+    int start_B;
+    int stop_B;
+    int step_B;
+};
+
+
 // Increment signal Y by dot(A,X)
 class DotInc: public Operator{
 public:
