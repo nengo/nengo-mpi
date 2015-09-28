@@ -396,9 +396,7 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
             cout << "Master beginning step: " << step << endl;
         }
 
-        if(!progress){
-            dbg("Rank " << rank << " beginning step: " << step << endl);
-        }
+        dbg("Rank " << rank << " beginning step: " << step << endl);
 
         // Update time before calling operators, as refimpl does
         n_steps++;
@@ -635,10 +633,13 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             int stop_B = boost::lexical_cast<int>(args[7]);
             int step_B = boost::lexical_cast<int>(args[8]);
 
+            vector<int> seq_A = python_list_to_index_vector(args[9]);
+            vector<int> seq_B = python_list_to_index_vector(args[10]);
+
             add_op(unique_ptr<Operator>(
                 new SlicedCopy(
                     dst, src, inc, start_A, stop_A, step_A,
-                    start_B, stop_B, step_B)));
+                    start_B, stop_B, step_B, seq_A, seq_B)));
 
         }else if(type_string.compare("DotInc") == 0){
             SignalView A = get_signal_view(args[0]);
@@ -783,8 +784,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView input = get_signal_view(args[0]);
             SignalView output = get_signal_view(args[1]);
 
-            unique_ptr<BaseSignal> numerator = extract_float_list(args[2]);
-            unique_ptr<BaseSignal> denominator = extract_float_list(args[3]);
+            unique_ptr<BaseSignal> numerator = python_list_to_signal(args[2]);
+            unique_ptr<BaseSignal> denominator = python_list_to_signal(args[3]);
 
             add_op(unique_ptr<Operator>(new Synapse(input, output, *numerator, *denominator)));
 

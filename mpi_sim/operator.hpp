@@ -99,7 +99,8 @@ public:
     SlicedCopy(
         SignalView B, SignalView A, bool inc,
         int start_A, int stop_A, int step_A,
-        int start_B, int stop_B, int step_B);
+        int start_B, int stop_B, int step_B,
+        vector<int> seq_A, vector<int> seq_B);
     virtual string classname() const { return "SlicedCopy"; }
 
     void operator()();
@@ -109,7 +110,12 @@ protected:
     SignalView B;
     SignalView A;
 
+    int length_A;
+    int length_B;
+
     bool inc;
+
+    int n_assignments;
 
     int start_A;
     int stop_A;
@@ -118,6 +124,9 @@ protected:
     int start_B;
     int stop_B;
     int step_B;
+
+    vector<int> seq_A;
+    vector<int> seq_B;
 };
 
 
@@ -369,7 +378,11 @@ protected:
 
 /* Helper function to extract a BaseSignal from a string. Assumes
  * the data for the BaseSignal is encoded in the string as a python list. */
-unique_ptr<BaseSignal> extract_float_list(string s);
+unique_ptr<BaseSignal> python_list_to_signal(string s);
+
+/* Helper function to extract a vector of indices from a string. Assumes
+ * the data for the index vector is encoded in the string as a python list. */
+vector<int> python_list_to_index_vector(string s);
 
 string signal_to_string(const SignalView signal);
 

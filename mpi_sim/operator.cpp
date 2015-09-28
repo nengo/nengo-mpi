@@ -13,10 +13,60 @@ Copy::Copy(SignalView dst, SignalView src)
 SlicedCopy::SlicedCopy(
     SignalView B, SignalView A, bool inc,
     int start_A, int stop_A, int step_A,
-    int start_B, int stop_B, int step_B)
+    int start_B, int stop_B, int step_B,
+    vector<int> seq_A, vector<int> seq_B)
 :B(B), A(A), inc(inc),
 start_A(start_A), stop_A(stop_A), step_A(step_A),
-start_B(start_B), stop_B(stop_B), step_B(step_B){}
+start_B(start_B), stop_B(stop_B), step_B(step_B),
+seq_A(seq_A), seq_B(seq_B){
+
+    length_A = A.size1();
+    length_B = B.size1();
+
+    if(seq_A.size() > 0 && (start_A != 0 || stop_A != 0 || step_A != 0)){
+        throw runtime_error(
+            "While creating SlicedCopy, seq_A was non-empty, "
+            "but one of start/step/stop was non-zero.");
+    }
+
+    if(seq_B.size() > 0 && (start_B != 0 || stop_B != 0 || step_B != 0)){
+        throw runtime_error(
+            "While creating SlicedCopy, seq_B was non-empty, "
+            "but one of start/step/stop was non-zero.");
+    }
+
+    int n_assignments_A = 0;
+    if(seq_A.size() > 0){
+        n_assignments_A = seq_A.size();
+    }else{
+        if(step_A > 0 || step_A < 0){
+            n_assignments_A = int(ceil(max((stop_A - start_A) / float(step_A), 0.0f)));
+        }else{
+            throw runtime_error("While creating SlicedCopy, step_A equal to 0.");
+        }
+    }
+
+    int n_assignments_B = 0;
+    if(seq_B.size() > 0){
+        n_assignments_B = seq_B.size();
+    }else{
+        if(step_B > 0 || step_B < 0){
+            n_assignments_B = int(ceil(max((stop_B - start_B) / float(step_B), 0.0f)));
+        }else{
+            throw runtime_error("While creating SlicedCopy, step_B equal to 0.");
+        }
+    }
+
+    if(n_assignments_A != n_assignments_B){
+        stringstream ss;
+        ss << "While creating SlicedCopy, got mismatching slice sizes for A and B. "
+           << "Size of A slice was " << n_assignments_A << ", while sice of B slice was "
+           << n_assignments_B << "." << endl;
+        throw runtime_error(ss.str());
+    }
+
+    n_assignments = n_assignments_A;
+}
 
 DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
 :A(A), X(X), Y(Y){}
@@ -123,15 +173,61 @@ void Copy::operator() (){
 }
 
 void SlicedCopy::operator() (){
-    int index_A = start_A, index_B = start_B;
-    for(;index_A < stop_A; index_A += step_A){
+    if(seq_A.size() > 0 && seq_B.size() > 0){
         if(inc){
-            B(index_B, 0) += A(index_A, 0);
+            for(int i = 0; i < n_assignments; i++){
+                B(seq_B[i] % length_B, 0) += A(seq_A[i] % length_A, 0);
+            }
         }else{
-            B(index_B, 0) = A(index_A, 0);
+            for(int i = 0; i < n_assignments; i++){
+                B(seq_B[i] % length_B, 0) = A(seq_A[i] % length_A, 0);
+            }
         }
 
-        index_B += step_B;
+    }else if(seq_A.size() > 0){
+        int index_B = start_B;
+        if(inc){
+            for(int i = 0; i < n_assignments; i++){
+                B(index_B % length_B, 0) += A(seq_A[i] % length_A, 0);
+                index_B += step_B;
+            }
+        }else{
+            for(int i = 0; i < n_assignments; i++){
+                B(index_B % length_B, 0) = A(seq_A[i] % length_A, 0);
+                index_B += step_B;
+            }
+        }
+
+    }else if(seq_B.size() > 0){
+        int index_A = start_A;
+        if(inc){
+            for(int i = 0; i < n_assignments; i++){
+                B(seq_B[i] % length_B, 0) += A(index_A % length_A, 0);
+                index_A += step_A;
+            }
+        }else{
+            for(int i = 0; i < n_assignments; i++){
+                B(seq_B[i] % length_B, 0) = A(index_A % length_A, 0);
+                index_A += step_A;
+            }
+        }
+
+    }else{
+        int index_A = start_A, index_B = start_B;
+        if(inc){
+            for(int i = 0; i < n_assignments; i++){
+                B(index_B % length_B, 0) += A(index_A % length_A, 0);
+                index_A += step_A;
+                index_B += step_B;
+            }
+        }else{
+            for(int i = 0; i < n_assignments; i++){
+                B(index_B % length_B, 0) = A(index_A % length_A, 0);
+                index_A += step_A;
+                index_B += step_B;
+            }
+        }
+
     }
 
     run_dbg(*this);
@@ -376,6 +472,18 @@ string SlicedCopy::to_string() const  {
     out << "stop_B:" << stop_B << endl;
     out << "step_B:" << step_B << endl;
 
+    out << "seq_A: " << endl;
+    for(int i: seq_A){
+        out << i << ", ";
+    }
+    out << endl;
+
+    out << "seq_B: " << endl;
+    for(int i: seq_B){
+        out << i << ", ";
+    }
+    out << endl;
+
     return out.str();
 }
 
@@ -588,7 +696,7 @@ string Izhikevich::to_string() const{
     return out.str();
 }
 
-unique_ptr<BaseSignal> extract_float_list(string s){
+unique_ptr<BaseSignal> python_list_to_signal(string s){
     // Remove surrounding square brackets
     boost::trim_if(s, boost::is_any_of("[]"));
 
@@ -605,9 +713,34 @@ unique_ptr<BaseSignal> extract_float_list(string s){
             i++;
         }
     }catch(const boost::bad_lexical_cast& e){
-        cout << "Caught bad lexical cast while extracting list "
-                "with error " << e.what() << endl;
+        cout << "Caught bad lexical cast converting list to signal "
+                "with error: " << e.what() << endl;
         terminate();
+    }
+
+    return result;
+}
+
+vector<int> python_list_to_index_vector(string s){
+    // Remove surrounding square brackets
+    boost::trim_if(s, boost::is_any_of("[]"));
+
+    vector<string> tokens;
+    boost::split(tokens, s, boost::is_any_of(","));
+
+    vector<int> result;
+
+    if(s.length() > 0){
+        try{
+            for(string token: tokens){
+                boost::trim(token);
+                result.push_back(boost::lexical_cast<int>(token));
+            }
+        }catch(const boost::bad_lexical_cast& e){
+            cout << "Caught bad lexical cast while converting list "
+                    "with error: " << e.what() << endl;
+            terminate();
+        }
     }
 
     return result;

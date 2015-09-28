@@ -162,7 +162,8 @@ def test_reset():
 
     sim.run(0.05)
 
-    assert np.allclose(D + reset_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
+    assert np.allclose(
+        D + reset_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
 
 
 def test_copy():
@@ -181,7 +182,8 @@ def test_copy():
 
     sim.run(0.05)
 
-    assert np.allclose(D + copy_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
+    assert np.allclose(
+        D + copy_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
 
 
 def test_sliced_copy():
@@ -228,6 +230,72 @@ def test_sliced_copy():
 
     assert np.allclose(
         ground_truth, sim.data[probes[0]], atol=0.000001, rtol=0.0)
+
+
+def test_sliced_copy_seq():
+    D = 2 * 20
+
+    permutation1 = list(np.random.permutation(3*D))
+    permutation2 = list(np.random.permutation(3*D))
+    permutation3 = list(np.random.permutation(int(1.5*D)))
+    permutation4 = list(np.random.permutation(int(1.5*D)))
+    permutation5 = list(np.random.permutation(3*D))
+
+    data1 = np.random.random(D)
+    S1 = Signal(data1, 'S1')
+
+    data2 = np.random.random(D)
+    S2 = Signal(data2, 'S2')
+
+    data3 = np.random.random(D)
+    S3 = Signal(data3, 'S3')
+
+    converge = Signal(np.zeros(3 * D), 'converge')
+
+    out1 = Signal(np.zeros(1.5 * D), 'out1')
+    out2 = Signal(np.zeros(1.5 * D), 'out2')
+    final_out = Signal(np.zeros(3 * D), 'final_out')
+
+    ops = [
+        Reset(converge, 0),
+        SlicedCopy(S1, converge, b_slice=permutation1[:D], inc=True),
+        SlicedCopy(S2, converge, b_slice=permutation1[D:2*D], inc=True),
+        SlicedCopy(S3, converge, b_slice=permutation1[2*D:], inc=True),
+        SlicedCopy(
+            converge, out1, a_slice=permutation2[:int(1.5*D)], inc=False),
+        SlicedCopy(
+            converge, out2, a_slice=permutation2[int(1.5*D):], inc=False),
+        Reset(final_out, 0),
+        SlicedCopy(
+            out1, final_out, a_slice=permutation3,
+            b_slice=permutation5[:int(1.5*D)], inc=True),
+        SlicedCopy(
+            out2, final_out, a_slice=permutation4,
+            b_slice=permutation5[int(1.5*D):], inc=True)]
+
+    probes = [SignalProbe(final_out), SignalProbe(converge)]
+    sim = TestSimulator(ops, probes)
+
+    sim.run(0.05)
+
+    data = np.hstack((data1, data2, data3))
+
+    permuted_once = np.zeros(3 * D)
+    permuted_once[permutation1] = data
+
+    permuted_twice = np.zeros(3 * D)
+    permuted_twice[:] = permuted_once[permutation2]
+
+    permuted_thrice = np.zeros(3 * D)
+
+    permuted_thrice[permutation5[:int(1.5*D)]] = (
+        permuted_twice[:int(1.5*D)][permutation3])
+
+    permuted_thrice[permutation5[int(1.5*D):]] = (
+        permuted_twice[int(1.5*D):][permutation4])
+
+    assert np.allclose(
+        permuted_thrice, sim.data[probes[0]], atol=0.000001, rtol=0.0)
 
 
 def test_lif():

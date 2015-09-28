@@ -116,10 +116,9 @@ def test_circconv_split():
     splitter.split(model, max_neurons=npd, preserve_zero_conns=False)
 
     assert len(model.networks) == 4
-    assert len(model.all_networks) == 6
+    assert len(model.all_networks) == 7
     assert len(model.ensembles) == 0
-    assert len(model.all_ensembles) == 3 * dims + (2 * dims + 4)
-    assert len(model.all_nodes) == 2 * (3 * dims) + 3 * (2 * dims + 4) + 2
+    assert len(model.all_ensembles) == 3 * dims + 2 * (2 * dims + 4)
 
     sim_split = nengo.Simulator(model)
     sim_split.run(sim_time)

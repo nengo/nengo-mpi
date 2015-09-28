@@ -541,13 +541,13 @@ class MpiModel(builder.Model):
         self._mpi_tag += 1
         return mpi_tag
 
-    def push_object(self, object):
+    def push_object(self, obj):
         """ Push high-level object onto context stack.
 
         So that we can record which operators implement the object.
 
         """
-        self._object_context.append(object)
+        self._object_context.append(obj)
 
     def pop_object(self):
         """ Pop high-level object off of context stack.
@@ -585,12 +585,16 @@ class MpiModel(builder.Model):
                         "Connections crossing component boundaries "
                         "must not have learning rules.")
 
-                if 'synapse_out' in self.sig[conn]:
-                    signal = self.sig[conn]['synapse_out']
-                else:
+                try:
+                    synapse_op = (
+                        op for op in self.object_ops[conn]
+                        if isinstance(op, builder.synapses.SimSynapse)).next()
+                except StopIteration:
                     raise Exception(
                         "Connections crossing component boundaries "
                         "must be filtered so that there is an update.")
+
+                signal = synapse_op.output
 
                 tag = self._next_mpi_tag()
 
@@ -859,19 +863,31 @@ class MpiModel(builder.Model):
                 "Copy", signal_to_string(op.dst), signal_to_string(op.src)]
 
         elif op_type == builder.operator.SlicedCopy:
-            if op.a_slice == Ellipsis:
-                start_A, stop_A, step_A = 0, op.a.size, 1
-            else:
-                start_A, stop_A, step_A = op.a_slice.indices(op.a.size)
 
-            if op.b_slice == Ellipsis:
-                start_B, stop_B, step_B = 0, op.b.size, 1
-            else:
-                start_B, stop_B, step_B = op.b_slice.indices(op.b.size)
+            try:
+                seq_A = list(iter(op.a_slice))
+                start_A, stop_A, step_A = 0, 0, 0
+            except:
+                seq_A = []
+                if op.a_slice == Ellipsis:
+                    start_A, stop_A, step_A = 0, op.a.size, 1
+                else:
+                    start_A, stop_A, step_A = op.a_slice.indices(op.a.size)
+
+            try:
+                seq_B = list(iter(op.b_slice))
+                start_B, stop_B, step_B = 0, 0, 0
+            except:
+                seq_B = []
+                if op.b_slice == Ellipsis:
+                    start_B, stop_B, step_B = 0, op.b.size, 1
+                else:
+                    start_B, stop_B, step_B = op.b_slice.indices(op.b.size)
 
             op_args = [
                 "SlicedCopy", signal_to_string(op.b), signal_to_string(op.a),
-                int(op.inc), start_A, stop_A, step_A, start_B, stop_B, step_B]
+                int(op.inc), start_A, stop_A, step_A, start_B, stop_B, step_B,
+                str(seq_A), str(seq_B)]
 
         elif op_type == builder.operator.DotInc:
             op_args = [
