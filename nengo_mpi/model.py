@@ -40,7 +40,7 @@ from spaun_mpi import SpaunStimulus, build_spaun_stimulus
 from spaun_mpi import SpaunStimulusOperator
 
 import numpy as np
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import warnings
 from itertools import chain
 import re
@@ -194,8 +194,8 @@ def linear_filter_synapse_args(op, dt, method='zoh'):
     else:
         return [
             "Synapse", signal_to_string(op.input),
-            signal_to_string(op.output), str(list(num)),
-            str(list(den))]
+            signal_to_string(op.output), ndarray_to_string(num),
+            ndarray_to_string(den)]
 
 
 def pyfunc_checks(val):
@@ -399,6 +399,12 @@ def signal_to_string(signal, delim=SIGNAL_DELIM):
     return signal_string
 
 
+def ndarray_to_string(a):
+    s = "%d,%d," % np.atleast_2d(a).shape
+    s += ",".join([str(n) for n in a.flatten()])
+    return s
+
+
 def store_string_list(
         h5_file, dset_name, strings, final_null=True, compression='gzip'):
     """Store a list of strings in a dataset in an hdf5 file or group.
@@ -418,6 +424,12 @@ def store_string_list(
         dset_name, data=data, dtype='S1', compression=compression)
 
     dset.attrs['n_strings'] = len(strings)
+
+
+# Stole this from nengo_ocl
+def get_closures(f):
+    return OrderedDict(zip(
+        f.__code__.co_freevars, (c.cell_contents for c in f.__closure__)))
 
 
 class MpiModel(builder.Model):
@@ -1020,7 +1032,18 @@ class MpiModel(builder.Model):
                     float(mean), float(std), int(do_scale), int(op.inc),
                     self.dt]
 
-            elif process_type in [FilteredNoise, BrownNoise, WhiteSignal]:
+            elif process_type is WhiteSignal:
+                f = op.process.make_step(
+                    0, op.output.size, self.dt, np.random.RandomState())
+                closures = get_closures(f)
+                assert closures['dt'] == self.dt
+                coefs = closures['signal']
+
+                op_args = [
+                    "WhiteSignal", signal_to_string(op.output),
+                    ndarray_to_string(coefs)]
+
+            elif process_type in [FilteredNoise, BrownNoise]:
                 raise NotImplementedError(
                     'nengo_mpi cannot handle processes of '
                     'type %s' % str(process_type))

@@ -257,6 +257,22 @@ protected:
     normal_distribution<dtype> dist;
 };
 
+class WhiteSignal: public Operator{
+
+public:
+    WhiteSignal(SignalView output, BaseSignal coefs);
+
+    virtual string classname() const { return "WhiteSignal"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    SignalView output;
+    BaseSignal coefs;
+    int idx;
+};
+
 class LIF: public Operator{
 
 public:
@@ -416,5 +432,6 @@ unique_ptr<BaseSignal> python_list_to_signal(string s);
 vector<int> python_list_to_index_vector(string s);
 
 string signal_to_string(const SignalView signal);
+string signal_to_string(const BaseSignal signal);
 
 #endif

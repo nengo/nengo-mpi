@@ -68,6 +68,10 @@ xfail('test.nengo.tests.test_synapses.test_triangle',
       'Uses noise')
 xfail('test.nengo.tests.test_neurons.test_izhikevich',
       'Uses noise')
+xfail('test.nengo.tests.test_processes.test_brownnoise',
+      'Uses noise')
+xfail('test.nengo.tests.test_processes.test_reset',
+      'Uses noise')
 
 # learning rules
 # xfail('test.nengo.tests.test_learning_rules.test_unsupervised',

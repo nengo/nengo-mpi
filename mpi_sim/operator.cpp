@@ -118,6 +118,9 @@ do_scale(do_scale), inc(inc), dt(dt){
     alpha = do_scale ? 1.0 / dt : 1.0;
 }
 
+WhiteSignal::WhiteSignal(SignalView output, BaseSignal coefs)
+:output(output), coefs(coefs), idx(0){}
+
 LIF::LIF(
     int n_neurons, dtype tau_rc, dtype tau_ref, dtype min_voltage,
     dtype dt, SignalView J, SignalView output, SignalView voltage,
@@ -319,6 +322,16 @@ void WhiteNoise::operator() (){
     run_dbg(*this);
 }
 
+void WhiteSignal::operator() (){
+    for(int i = 0; i < output.size1(); i++){
+        output(i, 0) = coefs(idx % coefs.size1(), i);
+    }
+
+    idx++;
+
+    run_dbg(*this);
+}
+
 void LIF::operator() (){
     dV = -expm1(-dt / tau_rc) * (J - voltage);
     voltage += dV;
@@ -443,6 +456,19 @@ void Izhikevich::operator() (){
 }
 
 string signal_to_string(const SignalView signal) {
+
+    stringstream ss;
+
+    if(RUN_DEBUG_TEST){
+        ss << signal;
+    }else{
+        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
+    }
+
+    return ss.str();
+}
+
+string signal_to_string(const BaseSignal signal) {
 
     stringstream ss;
 
@@ -625,6 +651,19 @@ string WhiteNoise::to_string() const{
     return out.str();
 }
 
+string WhiteSignal::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "coefs:" << endl;
+    out << signal_to_string(coefs) << endl;
+    out << "idx: " << idx << endl;
+
+    return out.str();
+}
+
 
 string LIF::to_string() const{
 
@@ -738,19 +777,18 @@ string Izhikevich::to_string() const{
 }
 
 unique_ptr<BaseSignal> python_list_to_signal(string s){
-    // Remove surrounding square brackets
-    boost::trim_if(s, boost::is_any_of("[]"));
-
     vector<string> tokens;
     boost::split(tokens, s, boost::is_any_of(","));
 
-    unique_ptr<BaseSignal> result(new BaseSignal(tokens.size(), 1));
+    int size1 = boost::lexical_cast<int>(tokens[0]);
+    int size2 = boost::lexical_cast<int>(tokens[1]);
+
+    unique_ptr<BaseSignal> result(new BaseSignal(size1, size2));
 
     try{
         int i = 0;
-        for(string token: tokens){
-            boost::trim(token);
-            (*result)(i, 0) = boost::lexical_cast<dtype>(token);
+        for(auto token = tokens.begin()+2; token != tokens.end(); token++){
+            (*result)(int(i / size2), i % size2) = boost::lexical_cast<dtype>(*token);
             i++;
         }
     }catch(const boost::bad_lexical_cast& e){

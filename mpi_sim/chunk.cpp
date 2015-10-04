@@ -804,6 +804,13 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             add_op(unique_ptr<Operator>(
                 new WhiteNoise(output, mean, std, do_scale, inc, dt)));
 
+        }else if(type_string.compare("WhiteSignal") == 0){
+
+            SignalView output = get_signal_view(args[0]);
+            unique_ptr<BaseSignal> coefs = python_list_to_signal(args[1]);
+
+            add_op(unique_ptr<Operator>(new WhiteSignal(output, *coefs)));
+
         }else if(type_string.compare("MpiSend") == 0){
 
             if(n_processors > 1){
