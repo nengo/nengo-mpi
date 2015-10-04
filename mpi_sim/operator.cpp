@@ -111,6 +111,13 @@ Synapse::Synapse(
     }
 }
 
+WhiteNoise::WhiteNoise(
+    SignalView output, dtype mean, dtype std, bool do_scale, bool inc, dtype dt)
+:output(output), mean(mean), std(std), dist(mean, std),
+do_scale(do_scale), inc(inc), dt(dt){
+    alpha = do_scale ? 1.0 / dt : 1.0;
+}
+
 LIF::LIF(
     int n_neurons, dtype tau_rc, dtype tau_ref, dtype min_voltage,
     dtype dt, SignalView J, SignalView output, SignalView voltage,
@@ -266,11 +273,15 @@ void ElementwiseInc::operator() (){
 
 void NoDenSynapse::operator() (){
     output = b * input;
+
+    run_dbg(*this);
 }
 
 void SimpleSynapse::operator() (){
     output *= -a;
     output += b * input;
+
+    run_dbg(*this);
 }
 
 void Synapse::operator() (){
@@ -289,6 +300,20 @@ void Synapse::operator() (){
         }
 
         y[i].push_front(output(i, 0));
+    }
+
+    run_dbg(*this);
+}
+
+void WhiteNoise::operator() (){
+    if(inc){
+        for(int i = 0; i < output.size1(); i++){
+            output(i, 0) += alpha * dist(rng);
+        }
+    }else{
+        for(int i = 0; i < output.size1(); i++){
+            output(i, 0) = alpha * dist(rng);
+        }
     }
 
     run_dbg(*this);
@@ -584,6 +609,22 @@ string Synapse::to_string() const{
 
     return out.str();
 }
+
+string WhiteNoise::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "mean: " << mean << endl;
+    out << "std: " << std << endl;
+    out << "do_scale: " << do_scale << endl;
+    out << "inc: " << inc << endl;
+    out << "dt: " << dt << endl;
+
+    return out.str();
+}
+
 
 string LIF::to_string() const{
 

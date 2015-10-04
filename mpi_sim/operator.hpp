@@ -6,6 +6,7 @@
 #include <sstream>
 #include <iostream>
 #include <memory>
+#include <random>
 
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
@@ -227,7 +228,37 @@ protected:
     vector< boost::circular_buffer<dtype> > y;
 };
 
+class WhiteNoise: public Operator{
+
+public:
+    WhiteNoise(
+        SignalView output, dtype mean, dtype std,
+        bool do_scale, bool inc, dtype dt);
+
+    virtual string classname() const { return "WhiteNoise"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    SignalView output;
+
+    dtype mean;
+    dtype std;
+
+    dtype alpha;
+
+    bool do_scale;
+    bool inc;
+
+    dtype dt;
+
+    default_random_engine rng;
+    normal_distribution<dtype> dist;
+};
+
 class LIF: public Operator{
+
 public:
     LIF(
         int n_neuron, dtype tau_rc, dtype tau_ref, dtype min_voltage,

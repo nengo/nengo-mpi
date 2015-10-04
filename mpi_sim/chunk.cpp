@@ -789,6 +789,21 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
             add_op(unique_ptr<Operator>(new Synapse(input, output, *numerator, *denominator)));
 
+        }else if(type_string.compare("WhiteNoise") == 0){
+
+            SignalView output = get_signal_view(args[0]);
+
+            dtype mean = boost::lexical_cast<dtype>(args[1]);
+            dtype std = boost::lexical_cast<dtype>(args[2]);
+
+            bool do_scale = bool(boost::lexical_cast<int>(args[3]));
+            bool inc = bool(boost::lexical_cast<int>(args[4]));
+
+            dtype dt = boost::lexical_cast<dtype>(args[5]);
+
+            add_op(unique_ptr<Operator>(
+                new WhiteNoise(output, mean, std, do_scale, inc, dt)));
+
         }else if(type_string.compare("MpiSend") == 0){
 
             if(n_processors > 1){

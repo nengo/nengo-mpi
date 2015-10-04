@@ -18,11 +18,13 @@ except ImportError:
     h5py_available = False
 
 
+import nengo
 from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
 from nengo.synapses import LinearFilter, Lowpass, Alpha
+from nengo.processes import WhiteNoise, FilteredNoise, BrownNoise, WhiteSignal
 from nengo.utils.filter_design import cont2discrete
 from nengo.utils.graphs import toposort
 from nengo.utils.builder import full_transform
@@ -645,7 +647,7 @@ class MpiModel(builder.Model):
         self.object_ops[self._object_context[-1]].append(op)
 
     def finalize_build(self):
-        """ Finalize the build process.
+        """ Finalize the build step.
 
         Called once the MpiBuilder has finished running. Finalizes
         operators and probes, converting them to strings. Then writes
@@ -988,21 +990,43 @@ class MpiModel(builder.Model):
 
         elif op_type == builder.synapses.SimSynapse:
 
-            synapse = op.synapse
+            synapse_type = type(op.synapse)
 
-            if isinstance(synapse, Alpha) or isinstance(synapse, Lowpass):
-                if synapse.tau <= .03 * self.dt:
+            if synapse_type is Alpha or synapse_type is Lowpass:
+                if op.synapse.tau <= .03 * self.dt:
                     op_args = no_den_synapse_args(op.input, op.output, b=1.0)
                 else:
                     op_args = linear_filter_synapse_args(op, self.dt)
 
-            elif isinstance(synapse, LinearFilter):
+            elif synapse_type is LinearFilter:
                 op_args = linear_filter_synapse_args(op, self.dt)
 
             else:
                 raise NotImplementedError(
                     'nengo_mpi cannot handle synapses of '
-                    'type %s' % str(type(synapse)))
+                    'type %s' % str(synapse_type))
+
+        elif op_type == builder.processes.SimProcess:
+            process_type = type(op.process)
+
+            if process_type is WhiteNoise:
+                assert type(op.process.dist) is nengo.dists.Gaussian
+                mean = op.process.dist.mean
+                std = op.process.dist.std
+                do_scale = op.process.scale
+
+                op_args = [
+                    "WhiteNoise", signal_to_string(op.output),
+                    float(mean), float(std), int(do_scale), int(op.inc),
+                    self.dt]
+
+            elif process_type in [FilteredNoise, BrownNoise, WhiteSignal]:
+                raise NotImplementedError(
+                    'nengo_mpi cannot handle processes of '
+                    'type %s' % str(process_type))
+            else:
+                raise NotImplementedError(
+                    'Unrecognized process type: %s.' % str(process_type))
 
         elif op_type == builder.operator.PreserveValue:
             logger.debug(
