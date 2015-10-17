@@ -143,8 +143,9 @@ bpy::object PythonMpiSimulator::get_probe_data(
     return py_list;
 }
 
-void PythonMpiSimulator::reset(){
-    sim->reset();
+void PythonMpiSimulator::reset(bpy::object seed){
+    unsigned c_seed = bpy::extract<unsigned>(seed);
+    sim->reset(c_seed);
 }
 
 void PythonMpiSimulator::close(){

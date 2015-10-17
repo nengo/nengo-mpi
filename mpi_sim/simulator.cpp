@@ -92,22 +92,24 @@ vector<unique_ptr<BaseSignal>> Simulator::get_probe_data(key_type probe_key){
             "Calling get_probe_data, but probe data has been written to file.");
     }
 
+    // Using move here because we're giving up ownership.
     return move(probe_data.at(probe_key));
 }
 
-vector<key_type> Simulator::get_probe_keys(){
-    vector<key_type> keys;
-    for(auto const& kv: probe_data){
-        keys.push_back(kv.first);
+void Simulator::reset(unsigned seed){
+    chunk->reset(seed);
+
+    // probe_data should already be clear, since it is
+    // gathered after every simulation.
+    for(auto& kv: chunk->probe_map){
+        auto& data = probe_data.at(kv.first);
+        if(data.size() != 0){
+            stringstream msg;
+            msg << "When resetting chunk, probe with key " << kv.first
+                << " had non-empty data array with length " << data.size() << ".";
+            throw runtime_error(msg.str());
+        }
     }
-
-    return keys;
-}
-
-void Simulator::reset(){
-    // TODO
-    //Clear probe data
-    //Send a signal to remote chunks telling them to reset
 }
 
 void Simulator::close(){

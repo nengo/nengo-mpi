@@ -455,33 +455,7 @@ void Izhikevich::operator() (){
     run_dbg(*this);
 }
 
-string signal_to_string(const SignalView signal) {
-
-    stringstream ss;
-
-    if(RUN_DEBUG_TEST){
-        ss << signal;
-    }else{
-        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
-    }
-
-    return ss.str();
-}
-
-string signal_to_string(const BaseSignal signal) {
-
-    stringstream ss;
-
-    if(RUN_DEBUG_TEST){
-        ss << signal;
-    }else{
-        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
-    }
-
-    return ss.str();
-}
-
-//to_string
+// to_string
 string Reset::to_string() const {
 
     stringstream out;
@@ -776,6 +750,27 @@ string Izhikevich::to_string() const{
     return out.str();
 }
 
+// reset
+
+void Synapse::reset(unsigned seed){
+    for(int i = 0; i < input.size1(); i++){
+        for(int j = 0; j < x[i].size(); j++){
+            x[i][j] = 0.0;
+        }
+        for(int j = 0; j < y[i].size(); j++){
+            y[i][j] = 0.0;
+        }
+    }
+}
+
+void WhiteNoise::reset(unsigned seed){
+    rng.seed(seed);
+}
+
+void WhiteSignal::reset(unsigned seed){
+    idx = 0;
+}
+
 unique_ptr<BaseSignal> python_list_to_signal(string s){
     vector<string> tokens;
     boost::split(tokens, s, boost::is_any_of(","));
@@ -824,3 +819,30 @@ vector<int> python_list_to_index_vector(string s){
 
     return result;
 }
+
+string signal_to_string(const SignalView signal) {
+
+    stringstream ss;
+
+    if(RUN_DEBUG_TEST){
+        ss << signal;
+    }else{
+        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
+    }
+
+    return ss.str();
+}
+
+string signal_to_string(const BaseSignal signal) {
+
+    stringstream ss;
+
+    if(RUN_DEBUG_TEST){
+        ss << signal;
+    }else{
+        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
+    }
+
+    return ss.str();
+}
+

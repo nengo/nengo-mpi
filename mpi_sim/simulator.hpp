@@ -34,9 +34,8 @@ public:
 
     virtual void gather_probe_data();
     vector<unique_ptr<BaseSignal>> get_probe_data(key_type probe_key);
-    vector<key_type> get_probe_keys();
 
-    virtual void reset();
+    virtual void reset(unsigned seed);
     virtual void close();
 
     virtual string to_string() const;

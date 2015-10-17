@@ -37,14 +37,16 @@ public:
     MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged, bool collect_timings);
     const string classname() { return "MpiSimulatorChunk"; }
 
-    /*
-     * Add simulation objects to the chunk from an HDF5 file. */
+    /* Add simulation objects to the chunk from an HDF5 file. */
     void from_file(string filename, hid_t file_plist, hid_t read_plist);
 
     /* Run an integer number of steps. Called by a
      * worker process once it gets a signal from the master
      * process telling the worker to begin a simulation. */
     void run_n_steps(int steps, bool progress);
+
+    /* Reset the chunk. */
+    void reset(unsigned seed);
 
     // *** Signals ***
 
@@ -148,6 +150,7 @@ private:
 
     map<key_type, string> signal_labels;
     map<key_type, shared_ptr<BaseSignal>> signal_map;
+    map<key_type, shared_ptr<BaseSignal>> signal_init_value;
 
     // Contains all operators - don't have to worry about deleting these, since we
     // have unique_ptr's for all these ops in the lists below.
@@ -158,9 +161,6 @@ private:
 
     list<unique_ptr<MPIOperator>> mpi_sends;
     list<unique_ptr<MPIOperator>> mpi_recvs;
-
-    // Indices of placeholders in operator_list
-    map<key_type, int> placeholder_indices;
 
     bool mpi_merged;
     bool collect_timings;
@@ -192,24 +192,5 @@ inline bool compare_indices(const OpSpec &left, const OpSpec &right){
 inline bool compare_op_ptr(const Operator* left, const Operator* right){
     return (left->get_index() < right->get_index());
 }
-
-class Placeholder: public Operator{
-
-public:
-    Placeholder(key_type key): key(key) {}
-    virtual string classname() const { return "Placeholder"; }
-
-    void operator()(){ run_dbg(*this);}
-    virtual string to_string() const{
-        stringstream out;
-        out << Operator::to_string();
-        out << "key: " << key << endl;
-
-        return out.str();
-    }
-
-protected:
-    key_type key;
-};
 
 #endif

@@ -70,8 +70,6 @@ xfail('test.nengo.tests.test_neurons.test_izhikevich',
       'Uses noise')
 xfail('test.nengo.tests.test_processes.test_brownnoise',
       'Uses noise')
-xfail('test.nengo.tests.test_processes.test_reset',
-      'Uses noise')
 
 # learning rules
 # xfail('test.nengo.tests.test_learning_rules.test_unsupervised',
@@ -79,8 +77,7 @@ xfail('test.nengo.tests.test_processes.test_reset',
 # xfail('test.nengo.tests.test_learning_rules.test_dt_dependence',
 #       "Filtering matrices (i.e. learned transform) not implemented")
 xfail('test.nengo.tests.test_learning_rules.*',
-      "Learning rules do not currently work in nengo_mpi."
-      'Waiting for 2.1 release of nengo.')
+      "Learning rules not yet implemented")
 
 # nodes
 xfail('test.nengo.tests.test_node.test_none',
@@ -97,12 +94,6 @@ xfail('test.nengo.tests.test_synapses.test_alpha',
       "Only first-order filters implemented")
 xfail('test.nengo.tests.test_synapses.test_general',
       "Only first-order filters implemented")
-
-# resetting
-xfail('test.nengo.tests.test_learning_rules.test_reset',
-      "Resetting not implemented")
-xfail('test.nengo.tests.test_neurons.test_reset',
-      "Resetting not implemented")
 
 # cache
 xfail('test.nengo.tests.test_cache.test_cache_works',

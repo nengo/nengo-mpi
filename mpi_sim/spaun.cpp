@@ -19,28 +19,10 @@ present_blanks(present_blanks){
             "Error in creating SpaunStimulus. HOME environment variable not set.");
     }
 
-    string vision_data_dir(home);
+    vision_data_dir = home;
     vision_data_dir += "/spaun2.0/_spaun/vision/spaun_vision_data";
 
     image_size = output.size1();
-
-    ImageStore image_store = ImageStore(vision_data_dir, image_size);
-
-    int stim_count = 0;
-    for(string label: stim_sequence){
-        cout << "Loading image for stimulus " << stim_count << " with label " << label << endl;
-
-        unique_ptr<BaseSignal> image;
-        if(label == "None" || label == "NULL"){
-            image = unique_ptr<BaseSignal>(new BaseSignal(ScalarSignal(image_size, 1, 0.0)));
-        }else{
-            image = image_store.get_image_with_label(label);
-        }
-
-        images.push_back(move(image));
-
-        stim_count++;
-    }
 }
 
 void SpaunStimulus::operator() (){
@@ -95,9 +77,29 @@ string SpaunStimulus::to_string() const{
     return out.str();
 }
 
-ImageStore::ImageStore(string dir_name, int desired_img_size)
+void SpaunStimulus::reset(unsigned seed){
+    ImageStore image_store = ImageStore(vision_data_dir, image_size, seed);
+
+    int stim_count = 0;
+    for(string label: stim_sequence){
+        cout << "Loading image for stimulus " << stim_count << " with label " << label << endl;
+
+        unique_ptr<BaseSignal> image;
+        if(label == "None" || label == "NULL"){
+            image = unique_ptr<BaseSignal>(new BaseSignal(ScalarSignal(image_size, 1, 0.0)));
+        }else{
+            image = image_store.get_image_with_label(label);
+        }
+
+        images.push_back(move(image));
+
+        stim_count++;
+    }
+}
+
+ImageStore::ImageStore(string dir_name, int desired_img_size, unsigned seed)
 :dir_name(dir_name), desired_img_size(desired_img_size), loaded_img_size(-1){
-    srand (time(NULL));
+    rng.seed(seed);
     load_image_counts(dir_name + "/counts");
 }
 
@@ -127,7 +129,9 @@ unique_ptr<BaseSignal> ImageStore::get_image_with_label(string label){
         throw runtime_error(ss.str());
     }
 
-    int index = rand() % image_counts[label];
+    uniform_int_distribution<int> dist(0, image_counts[label]-1);
+    int index = dist(rng);
+
     stringstream image_file;
     image_file << dir_name << "/" << label << "/" << index;
     cout << "Loading image from file: " << image_file.str() << endl;

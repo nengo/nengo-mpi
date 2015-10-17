@@ -24,13 +24,15 @@ public:
     string classname() const {return "SpaunStimulus"; }
 
     void operator() ();
-
     virtual string to_string() const;
+
+    virtual void reset(unsigned seed);
 
 protected:
     dtype* time_pointer;
 
     int n_stimuli;
+    string vision_data_dir;
     vector<string> stim_sequence;
     dtype present_interval;
     dtype present_blanks;
@@ -44,7 +46,7 @@ protected:
 
 class ImageStore{
 public:
-    ImageStore(string dir_name, int desired_img_size);
+    ImageStore(string dir_name, int desired_img_size, unsigned seed);
 
     void load_image_counts(string filename);
 
@@ -59,6 +61,8 @@ protected:
 
     // -1 initially; set properly when we load the first image
     int loaded_img_size;
+
+    default_random_engine rng;
 };
 
 /*

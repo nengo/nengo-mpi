@@ -86,7 +86,12 @@ void MpiSimulator::finalize_build(){
 void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     clock_t begin = clock();
 
-    cout << "Master sending simulation signal to " << n_processors - 1 << " workers." << endl;
+    if(steps <= 0){
+        throw runtime_error("Number of steps must be > 0.");
+    }
+
+    cout << "Master sending signal to run the simulation for " << steps
+         << " to " << n_processors - 1 << " workers." << endl;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
     cout << "Master starting simulation: " << steps << " steps." << endl;
@@ -143,15 +148,29 @@ void MpiSimulator::gather_probe_data(){
     cout << "Master done gathering probe data from workers." << endl;
 }
 
+void MpiSimulator::reset(unsigned seed){
+    cout << "Master sending signal to reset the simulator to " << n_processors - 1 << " workers." << endl;
+
+    int steps = 0;
+    MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
+
+    // Reset
+    MPI_Bcast(&seed, 1, MPI_UNSIGNED, 0, comm);
+    Simulator::reset(seed);
+
+    // Master barrier 5
+    MPI_Barrier(comm);
+}
+
 void MpiSimulator::close(){
-    cout << "Master sending termination signal to " << n_processors - 1 << " workers." << endl;
-    int signal = -1;
-    MPI_Bcast(&signal, 1, MPI_INT, 0, comm);
+    cout << "Master sending signal to close the simulator to " << n_processors - 1 << " workers." << endl;
+    int steps = -1;
+    MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
+
+    chunk->close_simulation_log();
 
     // Master barrier 4
     MPI_Barrier(comm);
-
-    chunk->close_simulation_log();
 }
 
 string MpiSimulator::to_string() const{
@@ -219,6 +238,7 @@ void worker_start(MPI_Comm comm){
     dbg("Hello world! I'm a nengo_mpi worker process with "
         "rank "<< rank << " on host " << name << "." << endl);
 
+    // Loops once per nengo_mpi.Simulator created
     while(true){
         int kill;
         MPI_Bcast(&kill, 1, MPI_INT, 0, comm);
@@ -264,47 +284,58 @@ void worker_start(MPI_Comm comm){
             int steps;
             MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
-            if(steps < 0){
-                // Current simulator is closing
-                break;
-            }
+            if(steps == 0){
+                // Reset
+                dbg("Worker " << rank << " received the signal to reset the simulation." << endl);
 
-            dbg("Worker " << rank << " received the signal to start simulation: "
-                << steps << " steps." << endl);
+                unsigned seed;
+                MPI_Bcast(&seed, 1, MPI_UNSIGNED, 0, comm);
 
-            chunk.run_n_steps(steps, false);
+                chunk.reset(seed);
 
-            // Worker barrier 2
-            MPI_Barrier(comm);
+                // Worker barrier 5
+                MPI_Barrier(comm);
 
-            if(!chunk.is_logging()){
-                // If we're not logging, send the probe data back to the master
-                for(auto& pair : chunk.probe_map){
-                    key_type key = pair.first;
-                    shared_ptr<Probe>& probe = pair.second;
+            }else if(steps > 0){
+                // Simulate
+                dbg("Worker " << rank << " received the signal to run the simulation for "
+                    << steps << " steps." << endl);
 
-                    send_key(key, 0, probe_tag, comm);
+                chunk.run_n_steps(steps, false);
 
-                    vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
+                // Worker barrier 2
+                MPI_Barrier(comm);
 
-                    send_int(probe_data.size(), 0, probe_tag, comm);
+                if(!chunk.is_logging()){
+                    // If we're not logging, send the probe data back to the master
+                    for(auto& pair : chunk.probe_map){
+                        key_type key = pair.first;
+                        shared_ptr<Probe>& probe = pair.second;
 
-                    for(auto& pd : probe_data){
-                        send_matrix(move(pd), 0, probe_tag, comm);
+                        send_key(key, 0, probe_tag, comm);
+
+                        vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
+
+                        send_int(probe_data.size(), 0, probe_tag, comm);
+
+                        for(auto& pd : probe_data){
+                            send_matrix(move(pd), 0, probe_tag, comm);
+                        }
                     }
                 }
+
+                // Worker barrier 3
+                MPI_Barrier(comm);
+            }else{
+                dbg("Worker " << rank << " received the signal to close the simulation." << endl);
+
+                chunk.close_simulation_log();
+
+                // Worker barrier 4
+                MPI_Barrier(comm);
+                break;
             }
-
-            // Worker barrier 3
-            MPI_Barrier(comm);
         }
-
-        dbg("Worker " << rank << " received the signal to terminate.");
-
-        // Worker barrier 4
-        MPI_Barrier(comm);
-
-        chunk.close_simulation_log();
     }
 }
 

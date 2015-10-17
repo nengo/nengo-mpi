@@ -33,6 +33,7 @@ public:
 
     void gather_probe_data() override;
 
+    void reset(unsigned seed) override;
     void close() override;
 
     string to_string() const;

@@ -109,10 +109,10 @@ class Simulator(object):
 
         print "MPI model ready."
 
-        self.seed = np.random.randint(npext.maxint) if seed is None else seed
-        self.reset(seed=seed)
-
         if self.runnable:
+            seed = np.random.randint(npext.maxint) if seed is None else seed
+            self.reset(seed=seed)
+
             self.__unclosed_simulators.append(self)
 
     @property
@@ -168,10 +168,15 @@ class Simulator(object):
 
         self.n_steps = 0
 
-        try:
-            self.mpi_sim.reset()
-        except:
-            pass
+        if self.runnable:
+            self.mpi_sim.reset(self.seed)
+        else:
+            raise RuntimeError(
+                "Attempting to reset a non-runnable instance of "
+                "nengo_mpi.Simulator.")
+
+        for pk in self.model.probe_keys:
+            self._probe_outputs[pk] = []
 
     def close(self):
         if self.runnable:

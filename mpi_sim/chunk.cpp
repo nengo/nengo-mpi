@@ -526,6 +526,27 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
     }
 }
 
+void MpiSimulatorChunk::reset(unsigned seed){
+    time = 0.0;
+
+    for(Operator* op: operator_list){
+        op->reset(seed);
+    }
+
+    // TODO: store whether signals are read-only, only reset if they are not.
+    for(auto& kv: signal_map){
+        key_type key = kv.first;
+        shared_ptr<BaseSignal> sig = signal_map.at(key);
+        shared_ptr<BaseSignal> init_value = signal_init_value.at(key);
+
+        for(int i = 0; i < sig->size1(); i++){
+            for(int j = 0; j < sig->size2(); j++){
+                (*sig)(i, j) = (*init_value)(i, j);
+            }
+        }
+    }
+}
+
 void MpiSimulatorChunk::add_base_signal(
         key_type key, string l, unique_ptr<BaseSignal> data){
 
@@ -555,6 +576,7 @@ void MpiSimulatorChunk::add_base_signal(
         }
     }else{
         signal_labels[key] = l;
+        signal_init_value[key] = shared_ptr<BaseSignal>(new BaseSignal(*data));
         signal_map[key] = shared_ptr<BaseSignal>(move(data));
     }
 }
@@ -564,7 +586,7 @@ SignalView MpiSimulatorChunk::get_signal_view(
 
     if(signal_map.find(key) == signal_map.end()){
         stringstream msg;
-        msg << "Error accessing MpiSimulatorChunk :: signal with key " << key;
+        msg << "Could not find instance of MpiSimulatorChunk::signal with key " << key;
         throw out_of_range(msg.str());
     }
 

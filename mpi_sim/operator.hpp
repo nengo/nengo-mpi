@@ -45,15 +45,20 @@ typedef long long int key_type;
 // Note that the () operator is a virtual function, which comes with some overhead.
 // Future optimizations should look at another scheme, either function pointers
 // or, ideally, finding some way to make these functions non-pointers and non-virtual.
+//
+// Note that in general reset must be called before the () operator can be called.
 
 class Operator{
 
 public:
     virtual string classname() const { return "Operator"; }
+
     virtual void operator() () = 0;
     virtual string to_string() const{
         return classname() + '\n';
     }
+
+    virtual void reset(unsigned seed){}
 
     friend ostream& operator << (ostream &out, const Operator &op){
         out << "<" << op.to_string() << ">" << endl;
@@ -217,6 +222,8 @@ public:
     void operator()();
     virtual string to_string() const;
 
+    virtual void reset(unsigned seed);
+
 protected:
     SignalView input;
     SignalView output;
@@ -239,6 +246,8 @@ public:
 
     void operator()();
     virtual string to_string() const;
+
+    virtual void reset(unsigned seed);
 
 protected:
     SignalView output;
@@ -266,6 +275,8 @@ public:
 
     void operator()();
     virtual string to_string() const;
+
+    virtual void reset(unsigned seed);
 
 protected:
     SignalView output;

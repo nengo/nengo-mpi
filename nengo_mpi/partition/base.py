@@ -290,8 +290,13 @@ def network_to_filter_graph(
     else:
         component0 = None
 
+    # TODO
     if merge_nengo_nodes:
-        # If component0 has no neurons, merge it with some node that does
+        # For each node in the filter graph which does not contain any
+        # neurons, merge that node with one of the filter graph nodes
+        # which does contain neurons, and which the original node communicates
+        # strongly with.
+
         if component0 and component0.n_neurons == 0:
             merge_with = (n for n in all_nodes if n.n_neurons > 0).next()
             merge_nodes(node_map, component0, merge_with)
