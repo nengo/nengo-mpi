@@ -49,11 +49,7 @@ class TestSimulator(nengo_mpi.Simulator):
     def __init__(
             self, operators, signal_probes, dt=0.001, seed=None):
 
-        # Note: seed is not used right now, but one day...
-        assert seed is None, "Simulator seed not yet implemented"
-        self.seed = np.random.randint(npext.maxint) if seed is None else seed
-
-        self.n_steps = 0
+        self.runnable = True
         self.dt = dt
 
         assignments = defaultdict(int)
@@ -77,6 +73,8 @@ class TestSimulator(nengo_mpi.Simulator):
         self.data = ProbeDict(self._probe_outputs)
 
         print "TestSimulator ready."
+        seed = np.random.randint(npext.maxint) if seed is None else seed
+        self.reset(seed=seed)
 
     def run_steps(self, steps, progress_bar=False, log_filename=""):
         """Simulate for the given number of `dt` steps."""

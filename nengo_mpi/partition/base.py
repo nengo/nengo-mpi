@@ -83,9 +83,9 @@ class Partitioner(object):
         Connection that is bigger than this size are forced to be in the
         same component.
 
-    args: Extra positional args passed to func
+    args: Extra positional args passed to func.
 
-    kwargs: Extra keyword args passed to func
+    kwargs: Extra keyword args passed to func.
     """
 
     def __init__(
@@ -148,11 +148,11 @@ class Partitioner(object):
             be different than the value supplied to Partitioner.__init__ in
             cases where it is deemed impossible to split the network into the
             desired number of components.
-
         assignments: dict
             A mapping from each nengo object in the network to an integer
             specifiying which component of the partition the object is assigned
             to. Component 0 is simulated by the master process.
+
         """
         object_assignments = {}
 
@@ -290,34 +290,32 @@ def network_to_filter_graph(
     else:
         component0 = None
 
-    # TODO
-    if merge_nengo_nodes:
+    some_neurons = any(node.n_neurons > 0 for node in all_nodes)
+    if merge_nengo_nodes and some_neurons:
         # For each node in the filter graph which does not contain any
         # neurons, merge that node with one of the filter graph nodes
         # which does contain neurons, and which the original node communicates
         # strongly with.
 
-        if component0 and component0.n_neurons == 0:
-            merge_with = (n for n in all_nodes if n.n_neurons > 0).next()
-            merge_nodes(node_map, component0, merge_with)
-            all_nodes.remove(merge_with)
-
         without_neurons = filter(lambda x: x.n_neurons == 0, all_nodes)
 
         for node in without_neurons:
-            if node.inputs or node.outputs:
-                # figure out which other node would be most
-                # beneficial to merge with.
-                counts = defaultdict(int)
+            # figure out which node would be most beneficial to merge with.
+            counts = defaultdict(int)
 
-                for i in node.inputs:
-                    pre_obj = neurons2ensemble(i.pre_obj)
-                    counts[node_map[pre_obj]] += i.size_mid
+            for i in node.inputs:
+                pre_obj = neurons2ensemble(i.pre_obj)
+                pre_node = node_map[pre_obj]
+                if pre_node.n_neurons > 0:
+                    counts[pre_node] += i.size_mid
 
-                for o in node.outputs:
-                    post_obj = neurons2ensemble(o.post_obj)
-                    counts[node_map[post_obj]] += o.size_mid
+            for o in node.outputs:
+                post_obj = neurons2ensemble(o.post_obj)
+                post_node = node_map[post_obj]
+                if post_node.n_neurons > 0:
+                    counts[post_node] += o.size_mid
 
+            if counts:
                 best_node = max(counts, key=counts.__getitem__)
             else:
                 best_node = (n for n in all_nodes if n.n_neurons > 0).next()
@@ -326,10 +324,9 @@ def network_to_filter_graph(
             all_nodes.remove(node)
 
     G = nx.Graph()
+    G.add_nodes_from(all_nodes)
 
     update_connections = filter(is_update, network.all_connections)
-
-    G.add_nodes_from(all_nodes)
 
     for conn in update_connections:
         pre_node = node_map[neurons2ensemble(conn.pre_obj)]
@@ -397,11 +394,10 @@ class GraphNode(object):
         ----------
         assignments: dict
             A dict mapping each nengo objects to its component.
-
         component: intent
             The component to assign the nengo objects to.
-        """
 
+        """
         for obj in self.objects:
             assignments[obj] = component
 

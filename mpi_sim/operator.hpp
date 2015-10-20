@@ -436,7 +436,7 @@ protected:
 
 /* Helper function to extract a BaseSignal from a string. Assumes
  * the data for the BaseSignal is encoded in the string as a python list. */
-unique_ptr<BaseSignal> python_list_to_signal(string s);
+unique_ptr<BaseSignal> python_list_to_signal(string s, bool get_size=true);
 
 /* Helper function to extract a vector of indices from a string. Assumes
  * the data for the index vector is encoded in the string as a python list. */

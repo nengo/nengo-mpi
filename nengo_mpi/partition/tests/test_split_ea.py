@@ -58,7 +58,7 @@ def test_simple_split():
     post_split_data = splitter.unsplit_data(sim_split)
 
     assert np.allclose(
-        pre_split_data[p][-10:], post_split_data[p][-10:], atol=0.01)
+        pre_split_data[p][-10:], post_split_data[p][-10:], atol=0.1)
 
     remove_log_file(splitter)
 

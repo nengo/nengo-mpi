@@ -148,7 +148,7 @@ unique_ptr<BaseSignal> ImageStore::get_image_with_label(string label){
     getline(ifs, str_data);
     ifs.close();
 
-    unique_ptr<BaseSignal> image = python_list_to_signal(str_data);
+    unique_ptr<BaseSignal> image = python_list_to_signal(str_data, false);
 
     if(loaded_img_size == -1){
         loaded_img_size = image->size1();
