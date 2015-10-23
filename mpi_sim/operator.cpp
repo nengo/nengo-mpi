@@ -111,6 +111,14 @@ Synapse::Synapse(
     }
 }
 
+TriangleSynapse::TriangleSynapse(
+    SignalView input, SignalView output, dtype n0, dtype ndiff, int n_taps)
+:input(input), output(output), n0(n0), ndiff(ndiff), n_taps(n_taps){
+    for(int i = 0; i < input.size1(); i++){
+        x.push_back(boost::circular_buffer<dtype>(n_taps));
+    }
+}
+
 WhiteNoise::WhiteNoise(
     SignalView output, dtype mean, dtype std, bool do_scale, bool inc, dtype dt)
 :output(output), mean(mean), std(std), dist(mean, std),
@@ -303,6 +311,20 @@ void Synapse::operator() (){
         }
 
         y[i].push_front(output(i, 0));
+    }
+
+    run_dbg(*this);
+}
+
+void TriangleSynapse::operator() (){
+    for(int i = 0; i < input.size1(); i++){
+        output(i, 0) += n0 * input(i, 0);
+
+        for(int j = 0; j < x[i].size(); j++){
+            output(i, 0) -= x[i][j];
+        }
+
+        x[i].push_front(ndiff * input(i, 0));
     }
 
     run_dbg(*this);
@@ -610,6 +632,34 @@ string Synapse::to_string() const{
     return out.str();
 }
 
+string TriangleSynapse::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "input:" << endl;
+    out << signal_to_string(input) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "n0:" << n0 << endl;
+    out << "ndiff:" << ndiff << endl;
+    out << "n_taps: " << n_taps << endl;
+
+    /*
+    out << "x :" << endl;
+    for(int i = 0; i < input.size(); i++){
+        out << "i: " << i << endl;
+
+        out << "x.size " << x[i].size() << endl;
+        for(int j = 0; j < x[i].size(); j++){
+            out << "x[ "<< j << "] = "<< x[i][j] << ", ";
+        }
+        out << endl;
+    }
+    */
+
+    return out.str();
+}
+
 string WhiteNoise::to_string() const{
 
     stringstream out;
@@ -759,6 +809,14 @@ void Synapse::reset(unsigned seed){
         }
         for(int j = 0; j < y[i].size(); j++){
             y[i][j] = 0.0;
+        }
+    }
+}
+
+void TriangleSynapse::reset(unsigned seed){
+    for(int i = 0; i < input.size1(); i++){
+        for(int j = 0; j < x[i].size(); j++){
+            x[i][j] = 0.0;
         }
     }
 }

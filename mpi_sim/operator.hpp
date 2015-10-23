@@ -235,6 +235,30 @@ protected:
     vector< boost::circular_buffer<dtype> > y;
 };
 
+class TriangleSynapse: public Operator{
+
+public:
+    TriangleSynapse(SignalView input, SignalView output, dtype n0, dtype ndiff, int n_taps);
+
+    virtual string classname() const { return "TriangleSynapse"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+    virtual void reset(unsigned seed);
+
+protected:
+    SignalView input;
+    SignalView output;
+
+    dtype n0;
+    dtype ndiff;
+    int n_taps;
+
+    vector< boost::circular_buffer<dtype> > x;
+};
+
+
 class WhiteNoise: public Operator{
 
 public:

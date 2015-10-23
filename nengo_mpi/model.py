@@ -23,7 +23,7 @@ from nengo import builder
 from nengo.builder import Builder as DefaultBuilder
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
-from nengo.synapses import LinearFilter, Lowpass, Alpha
+from nengo.synapses import LinearFilter, Triangle
 from nengo.processes import WhiteNoise, FilteredNoise, BrownNoise, WhiteSignal
 from nengo.utils.filter_design import cont2discrete
 from nengo.utils.graphs import toposort
@@ -987,6 +987,19 @@ class MpiModel(builder.Model):
                         signal_to_string(op.output),
                         ",".join(map(str, num)),
                         ",".join(map(str, den))]
+
+            elif isinstance(op.synapse, Triangle):
+                f = op.synapse.make_step(self.dt, op.output)
+                closures = get_closures(f)
+                n0 = closures['n0']
+                ndiff = closures['ndiff']
+                x = closures['x']
+                n_taps = x.maxlen
+
+                op_args = [
+                    "TriangleSynapse", signal_to_string(op.input),
+                    signal_to_string(op.output), n0, ndiff, n_taps]
+
             else:
                 raise NotImplementedError(
                     'nengo_mpi cannot handle synapses of '

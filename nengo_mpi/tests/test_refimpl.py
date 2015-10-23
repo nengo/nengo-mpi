@@ -45,10 +45,6 @@ nengo_dir = os.path.dirname(nengo.__file__)
 modules = find_modules(nengo_dir, prefix='nengo')
 tests = load_functions(modules, arg_pattern='^(Ref)?Simulator$')
 
-# synapses
-xfail('test.nengo.tests.test_synapses.test_triangle',
-      'Triangle synapses not implemented')
-
 # noise
 xfail('test.nengo.tests.test_ensemble.test_noise_copies_ok',
       "nengo_mpi does not support FilteredNoise")

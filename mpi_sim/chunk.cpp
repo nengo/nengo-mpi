@@ -811,6 +811,17 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
             add_op(unique_ptr<Operator>(new Synapse(input, output, *numerator, *denominator)));
 
+        }else if(type_string.compare("TriangleSynapse") == 0){
+
+            SignalView input = get_signal_view(args[0]);
+            SignalView output = get_signal_view(args[1]);
+
+            dtype n0 = boost::lexical_cast<dtype>(args[2]);
+            dtype ndiff = boost::lexical_cast<dtype>(args[3]);
+            int n_taps = boost::lexical_cast<int>(args[4]);
+
+            add_op(unique_ptr<Operator>(new TriangleSynapse(input, output, n0, ndiff, n_taps)));
+
         }else if(type_string.compare("WhiteNoise") == 0){
 
             SignalView output = get_signal_view(args[0]);
