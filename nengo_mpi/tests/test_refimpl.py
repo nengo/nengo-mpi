@@ -46,20 +46,14 @@ modules = find_modules(nengo_dir, prefix='nengo')
 tests = load_functions(modules, arg_pattern='^(Ref)?Simulator$')
 
 # synapses
-xfail('test.nengo.tests.test_synapses.test_linearfilter',
-      'Not sure why this fails')
 xfail('test.nengo.tests.test_synapses.test_triangle',
       'Triangle synapses not implemented')
-xfail('test.nengo.tests.test_synapses.test_alpha',
-      "Not sure why this fails")
 
 # noise
 xfail('test.nengo.tests.test_ensemble.test_noise_copies_ok',
       "nengo_mpi does not support FilteredNoise")
-xfail('test.nengo.tests.test_neurons.test_izhikevich',
-      'Uses noise')
 xfail('test.nengo.tests.test_processes.test_brownnoise',
-      'Uses noise')
+      'Uses FilteredNoise')
 
 # learning rules
 xfail('test.nengo.tests.test_learning_rules.*',

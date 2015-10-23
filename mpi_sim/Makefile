@@ -41,7 +41,7 @@ else
 	DO_PYTHON=TRUE
 endif
 
-OBJS=simulator.o operator.o spec.o spaun.o probe.o chunk.o sim_log.o debug.o
+OBJS=simulator.o operator.o spec.o spaun.o probe.o chunk.o sim_log.o debug.o utils.o
 MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o
 BIN=${HOME}/nengo_mpi/bin
 
@@ -110,11 +110,12 @@ mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
 psim_log.o: psim_log.cpp psim_log.hpp sim_log.hpp operator.hpp debug.hpp
 probe.o: probe.cpp probe.hpp operator.hpp debug.hpp
 operator.o: operator.cpp operator.hpp debug.hpp
-chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp spaun.hpp probe.hpp debug.hpp sim_log.hpp
+chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp spaun.hpp probe.hpp debug.hpp sim_log.hpp utils.hpp
 simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_simulator.hpp debug.hpp
 spec.o: spec.cpp spec.hpp
-spaun.o: spaun.cpp spaun.hpp operator.hpp debug.hpp
+spaun.o: spaun.cpp spaun.hpp operator.hpp debug.hpp utils.hpp
 sim_log.o: sim_log.cpp sim_log.hpp operator.hpp debug.hpp
+utils.o: utils.cpp utils.hpp operator.hpp
 debug.o: debug.cpp debug.hpp
 
 ${BIN}:

@@ -829,7 +829,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
         }else if(type_string.compare("WhiteSignal") == 0){
 
             SignalView output = get_signal_view(args[0]);
-            unique_ptr<BaseSignal> coefs = python_list_to_signal(args[1]);
+            unique_ptr<BaseSignal> coefs = python_list_to_signal(args[1], true);
 
             add_op(unique_ptr<Operator>(new WhiteSignal(output, *coefs)));
 

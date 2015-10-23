@@ -249,7 +249,9 @@ class EnsembleArraySplitter(object):
     def split_ensemble_array(self, array, parent, n_parts):
         """
         Splits an ensemble array into multiple functionally equivalent ensemble
-        arrays, removing old connections and probes and adding new ones.
+        arrays, removing old connections and probes and adding new ones. Currently
+        will not split ensemble arrays that have neuron output or input nodes, but
+        there is no reason this could not be added in the future.
 
         Parameters
         ----------
@@ -263,7 +265,7 @@ class EnsembleArraySplitter(object):
             Number of arrays to split ``array'' into
         """
 
-        if hasattr(array, 'neuron_input') or hasattr(array, 'neuron_output'):
+        if array.neuron_input is not None or array.neuron_output is not None:
             self.logger.info(
                 "Not splitting ensemble array " + array.label +
                 " because it has neuron nodes.")

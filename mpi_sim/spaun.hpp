@@ -12,6 +12,7 @@
 #include <time.h>
 
 #include "operator.hpp"
+#include "utils.hpp"
 
 using namespace std;
 

@@ -163,41 +163,6 @@ with warnings.catch_warnings():
         make_builder(mpi_build_network))
 
 
-def no_den_synapse_args(input, output, b):
-    return [
-        "NoDenSynapse", signal_to_string(input),
-        signal_to_string(output), b]
-
-
-def simple_synapse_args(input, output, a, b):
-    return [
-        "SimpleSynapse", signal_to_string(input),
-        signal_to_string(output), a, b]
-
-
-def linear_filter_synapse_args(op, dt, method='zoh'):
-    """
-    A copy of some of the functionality that gets applied to
-    linear filters in the reference implementation.
-    """
-    num, den = op.synapse.num, op.synapse.den
-    num, den, _ = cont2discrete(
-        (num, den), dt, method=method)
-    num = num.flatten()
-    num = num[1:] if num[0] == 0 else num
-    den = den[1:]  # drop first element (equal to 1)
-
-    if len(num) == 1 and len(den) == 0:
-        return no_den_synapse_args(op.input, op.output, b=num[0])
-    elif len(num) == 1 and len(den) == 1:
-        return simple_synapse_args(op.input, op.output, a=den[0], b=num[0])
-    else:
-        return [
-            "Synapse", signal_to_string(op.input),
-            signal_to_string(op.output), ndarray_to_string(num),
-            ndarray_to_string(den)]
-
-
 def pyfunc_checks(val):
     """Check a value to make sure it conforms to expectations.
 
@@ -1002,21 +967,30 @@ class MpiModel(builder.Model):
 
         elif op_type == builder.synapses.SimSynapse:
 
-            synapse_type = type(op.synapse)
+            if isinstance(op.synapse, LinearFilter):
 
-            if synapse_type is Alpha or synapse_type is Lowpass:
-                if op.synapse.tau <= .03 * self.dt:
-                    op_args = no_den_synapse_args(op.input, op.output, b=1.0)
+                step = op.synapse.make_step(self.dt, [])
+                den = step.den
+                num = step.num
+
+                if len(num) == 1 and len(den) == 0:
+                    op_args = [
+                        "NoDenSynapse", signal_to_string(op.input),
+                        signal_to_string(op.output), num[0]]
+                elif len(num) == 1 and len(den) == 1:
+                    op_args = [
+                        "SimpleSynapse", signal_to_string(op.input),
+                        signal_to_string(op.output), den[0], num[0]]
                 else:
-                    op_args = linear_filter_synapse_args(op, self.dt)
-
-            elif synapse_type is LinearFilter:
-                op_args = linear_filter_synapse_args(op, self.dt)
-
+                    op_args = [
+                        "Synapse", signal_to_string(op.input),
+                        signal_to_string(op.output),
+                        ",".join(map(str, num)),
+                        ",".join(map(str, den))]
             else:
                 raise NotImplementedError(
                     'nengo_mpi cannot handle synapses of '
-                    'type %s' % str(synapse_type))
+                    'type %s' % type(op.synapse))
 
         elif op_type == builder.processes.SimProcess:
             process_type = type(op.process)

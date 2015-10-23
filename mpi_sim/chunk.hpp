@@ -16,6 +16,7 @@
 #include <mpi.h>
 
 #include "operator.hpp"
+#include "utils.hpp"
 #include "spec.hpp"
 #include "mpi_operator.hpp"
 #include "spaun.hpp"
