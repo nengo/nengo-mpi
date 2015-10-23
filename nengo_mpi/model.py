@@ -65,14 +65,14 @@ def make_builder(base_function):
 
     """
 
-    def build_object(model, obj):
+    def build_object(model, obj, *args, **kwargs):
         try:
             model.push_object(obj)
         except AttributeError:
             raise ValueError(
                 "Must use an instance of MpiModel.")
 
-        r = base_function(model, obj)
+        r = base_function(model, obj, *args, **kwargs)
         model.pop_object()
         return r
 
@@ -540,9 +540,9 @@ class MpiModel(builder.Model):
         s = re.sub('([0-9])L', lambda x: x.groups()[0], s)
         return s
 
-    def build(self, *objs):
+    def build(self, obj, *args, **kwargs):
         """ Overrides Model.build """
-        return MpiBuilder.build(self, *objs)
+        return MpiBuilder.build(self, obj, *args, **kwargs)
 
     def _next_mpi_tag(self):
         """ Return the next mpi tag.

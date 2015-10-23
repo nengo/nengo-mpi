@@ -45,37 +45,23 @@ nengo_dir = os.path.dirname(nengo.__file__)
 modules = find_modules(nengo_dir, prefix='nengo')
 tests = load_functions(modules, arg_pattern='^(Ref)?Simulator$')
 
-# noise
-xfail('test.nengo.tests.test_ensemble.test_noise*',
-      "nengo_mpi does not support noise")
-xfail('test.nengo.tests.test_simulator.test_noise*',
-      "nengo_mpi does not support noise")
-xfail("test.nengo.utils.tests.test_neurons.test_rates_kernel",
-      'Uses noise.')
-xfail('test.nengo.utils.tests.test_neurons.test_rates_isi',
-      'Uses noise')
+# synapses
 xfail('test.nengo.tests.test_synapses.test_linearfilter',
-      'Uses noise')
-xfail('test.nengo.tests.test_synapses.test_lowpass',
-      'Uses noise')
-xfail('test.nengo.tests.test_synapses.test_decoders',
-      'Uses noise')
-xfail('test.nengo.tests.test_neurons.test_dt_dependence*',
-      'Uses noise')
-xfail('test.nengo.tests.test_probe.test_defaults',
-      'Uses noise')
+      'Not sure why this fails')
 xfail('test.nengo.tests.test_synapses.test_triangle',
-      'Uses noise')
+      'Triangle synapses not implemented')
+xfail('test.nengo.tests.test_synapses.test_alpha',
+      "Not sure why this fails")
+
+# noise
+xfail('test.nengo.tests.test_ensemble.test_noise_copies_ok',
+      "nengo_mpi does not support FilteredNoise")
 xfail('test.nengo.tests.test_neurons.test_izhikevich',
       'Uses noise')
 xfail('test.nengo.tests.test_processes.test_brownnoise',
       'Uses noise')
 
 # learning rules
-# xfail('test.nengo.tests.test_learning_rules.test_unsupervised',
-#       "Unsupervised learning rules not implemented")
-# xfail('test.nengo.tests.test_learning_rules.test_dt_dependence',
-#       "Filtering matrices (i.e. learned transform) not implemented")
 xfail('test.nengo.tests.test_learning_rules.*',
       "Learning rules not yet implemented")
 
@@ -89,12 +75,6 @@ xfail('test.nengo.tests.test_node.test_set_output',
 xfail('test.nengo.tests.test_node.test_args',
       "This test fails for an unknown reason")
 
-# synapses
-xfail('test.nengo.tests.test_synapses.test_alpha',
-      "Only first-order filters implemented")
-xfail('test.nengo.tests.test_synapses.test_general',
-      "Only first-order filters implemented")
-
 # cache
 xfail('test.nengo.tests.test_cache.test_cache_works',
       'Not set up correctly.')
@@ -104,14 +84,18 @@ xfail('test.nengo.tests.test_connection.test_decoder_probe',
       'Cannot probe connections in nengo_mpi')
 xfail('test.nengo.tests.test_connection.test_transform_probe',
       'Cannot probe connections in nengo_mpi')
+xfail('test.nengo.tests.test_probe.test_defaults',
+      'Cannot probe connections in nengo_mpi')
 
 # Opens multiple simulators
 xfail('test.nengo.tests.test_probe.test_dts',
-      'This test opens multiple simulators.')
+      'Opens multiple simulators.')
 xfail('test.nengo.tests.test_connection.test_shortfilter',
-      'This test opens multiple simulators.')
+      'Opens multiple simulators.')
 xfail('test.nengo.tests.test_connection.test_set_function',
-      'This test opens multiple simulators.')
+      'Opens multiple simulators.')
+xfail('test.nengo.tests.test_neurons.test_dt_dependence',
+      'Opens multiple simulators.')
 
 locals().update(tests)
 
