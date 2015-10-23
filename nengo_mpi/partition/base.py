@@ -29,7 +29,7 @@ def partitioners():
 
 def verify_assignments(network, assignments):
     """
-    Propogate the assignments given in ``assignments'' to form a complete
+    Propagate the assignments given in ``assignments'' to form a complete
     partition of the network, and verify that the resulting partition is
     usable.
 
@@ -38,7 +38,7 @@ def verify_assignments(network, assignments):
 
     assignments: dict
         A mapping from each nengo object in the network to an integer
-        specifiying which component of the partition the object is assigned
+        specifying which component of the partition the object is assigned
         to. Component 0 is simulated by the master process.
     """
 
@@ -66,9 +66,9 @@ class Partitioner(object):
 
     func: function
         A function to partition the nengo graph, assigning nengo objects
-        to component indices. Ignored if n_components == 1.
+        to component indices. Ignored if ``n_components == 1``.
 
-        Arguments:
+        Arguments for func:
             filter_graph
             n_components
 
@@ -129,12 +129,16 @@ class Partitioner(object):
 
     def partition(self, network):
         """
-        Partition the network using the partitioning function self.func.
-        If self.n_components == 1 or the number of independently
-        simulatable chunks of the network is less than self.n_components, the
-        partitioning function is not used. In the former case, all objects
+        Partition the network using the partitioning function ``self.func``.
+        If ``self.n_components == 1`` or the number of independently
+        simulatable chunks of the network is less than ``self.n_components``,
+        the partitioning function is not used. In the former case, all objects
         go on component 0, and in the latter case, we arbitrarily assign each
         independently simulatable chunk to its own component.
+
+        Implementation:
+            1. Construct a "filter graph" from the nengo network.
+            2. Partition the filter graph using ``self.func``.
 
         Parameters
         ----------
@@ -150,7 +154,7 @@ class Partitioner(object):
             desired number of components.
         assignments: dict
             A mapping from each nengo object in the network to an integer
-            specifiying which component of the partition the object is assigned
+            specifying which component of the partition the object is assigned
             to. Component 0 is simulated by the master process.
 
         """
@@ -201,9 +205,9 @@ def network_to_filter_graph(
         use_weights=True, merge_nengo_nodes=True):
 
     """
-    Creates a graph from a nengo network, where the nodes are collections
+    Creates a graph from a nengo network, where the nodes are clusters
     of nengo objects that are connected by non-filtered connections, and edges
-    are filtered connections between those components. More precisely, two
+    are filtered connections between those clusters. More precisely, two
     nengo objects are in the same node of this higher order graph iff there
     exists a path between them in the undirected graph of nengo objects which
     does not contain a filter. This is required for partitioning a network
@@ -213,13 +217,13 @@ def network_to_filter_graph(
     Parameters
     ----------
     network: nengo.Network
-        The network whose filter graph we want to find.
+        The network whose filter graph we want to construct.
 
     straddle_conn_max_size: int/float
         Connections of this size or greater are not permitted to straddle
-        component boundaries. Two nengo objects that are connected by a
-        Connection that is bigger than this size are forced to be in the same
-        component.
+        cluster boundaries. Two nengo objects that are connected by a
+        Connection that is bigger than this size are assigned to the same
+        cluster.
 
     use_weights: boolean
         Whether edges in the filter graph should be weighted by the size_mid
@@ -227,22 +231,22 @@ def network_to_filter_graph(
         equally.
 
     merge_nengo_nodes: boolean
-        If True, then nodes in the filter graph which would consist entirely of
-        nengo nodes are merged with a neighboring node. This is done because
+        If True, then clusters which would consist entirely of
+        nengo nodes are merged with a neighboring cluster. This is done because
         it is typically not useful to have a processor simulating only nodes,
-        as it will only add to the communication, while not significantly
-        easing the computational burden.
+        as it will only add extra communication without significantly easing the
+        computational burden.
 
     Returns
     -------
-    component0: GraphNode
-        A GraphNode containing all nengo objects which must be simulated on the
-        master node in the nengo_mpi simulator. If there are no such objects,
+    component0: NengoObjectCluster
+        A NengoObjectCluster containing all nengo objects which must be simulated on the
+        master process in the nengo_mpi simulator. If there are no such objects,
         then this has value None.
 
     filter_graph: networkx Graph
-        Where the nodes are intances of GraphNode. Importantly, the filter
-        GraphNode contains the node ``component0'' if ``component0'' is not
+        Where the nodes are instances of NengoObjectCluster. Importantly, the filter
+        graph contains the node ``component0`` if ``component0`` is not
         None.
     """
 
@@ -259,7 +263,7 @@ def network_to_filter_graph(
         return a
 
     node_map = {
-        obj: GraphNode(obj) for obj
+        obj: NengoObjectCluster(obj) for obj
         in network.all_nodes + network.all_ensembles}
 
     for conn in network.all_connections:
@@ -294,7 +298,7 @@ def network_to_filter_graph(
     if merge_nengo_nodes and some_neurons:
         # For each node in the filter graph which does not contain any
         # neurons, merge that node with one of the filter graph nodes
-        # which does contain neurons, and which the original node communicates
+        # which *does* contain neurons, and which the original node communicates
         # strongly with.
 
         without_neurons = filter(lambda x: x.n_neurons == 0, all_nodes)
@@ -343,13 +347,24 @@ def network_to_filter_graph(
     return component0, G
 
 
-class GraphNode(object):
+class NengoObjectCluster(object):
     """
-    A class to use for nodes in the filter graph which is created as part
-    of the partitioning process. Represents a group of nengo obejects
-    which must be simulated on the same processor in nengo_mpi.
-    """
+    A collection of nengo objects that must be simulated together.
 
+    Two nengo objects must be simulated together if there exists a
+    path of nengo Connections between them that does not contain an
+    update operation (which effectively means that none of the
+    Connections constituting the path have synapses).
+
+    NengoObjectClusters are used as the nodes in the filter graph which is
+    created as part of the partitioning process.
+
+    Parameters
+    ----------
+    obj: nengo object
+        The initial nengo object stored in the node.
+
+    """
     def __init__(self, obj):
         self.objects = set()
         self.inputs = set()
@@ -379,7 +394,7 @@ class GraphNode(object):
         return len(self.objects) == 0
 
     def __str__(self):
-        s = "<GraphNode: " + ", ".join(str(o) for o in self.objects) + ">"
+        s = "<NengoObjectCluster: " + ", ".join(str(o) for o in self.objects) + ">"
         return s
 
     def __repr__(self):
@@ -387,13 +402,13 @@ class GraphNode(object):
 
     def assign_to_component(self, assignments, component):
         """
-        Assign all nengo objects in this GraphNode to the given component.
-        Alters the provided ``assignments'' dictionary. Returns None.
+        Assign all nengo objects in ``self`` to the ``component``.
+        Alters the provided ``assignments`` dictionary.
 
         Parameters
         ----------
         assignments: dict
-            A dict mapping each nengo objects to its component.
+            A dict mapping each nengo object to its component.
         component: intent
             The component to assign the nengo objects to.
 
@@ -402,7 +417,7 @@ class GraphNode(object):
             assignments[obj] = component
 
     def merge(self, other):
-        """Return True if a merging occurs."""
+        """ Merge ``self`` with ``other``. Return True if a merging occurs. """
 
         if self == other:
             return False
@@ -427,6 +442,7 @@ class GraphNode(object):
 
 
 def is_update(conn):
+    """ Return whether ``conn`` has an update operation. """
     return conn.synapse is not None
 
 
@@ -634,7 +650,7 @@ def evaluate_partition(
     print "Min number of neurons", np.min(graph_node_n_neurons)
     print "Max number of neurons", np.max(graph_node_n_neurons)
 
-    print "Mean nengo obejcts per FG node: ", np.mean(graph_node_n_items)
+    print "Mean nengo objects per FG node: ", np.mean(graph_node_n_items)
     print "Std of nengo objects per FG node", np.std(graph_node_n_items)
     print "Min number of nengo objects", np.min(graph_node_n_items)
     print "Max number of nengo objects", np.max(graph_node_n_items)
