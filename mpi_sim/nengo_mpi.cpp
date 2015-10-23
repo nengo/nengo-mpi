@@ -12,37 +12,7 @@
 
 using namespace std;
 
-struct Arg: public option::Arg
- {
-     static void printError(const char* msg1, const option::Option& opt, const char* msg2)
-     {
-         fprintf(stderr, "ERROR: %s", msg1);
-         fwrite(opt.name, opt.namelen, 1, stderr);
-         fprintf(stderr, "%s", msg2);
-     }
-
-     static option::ArgStatus NonEmpty(const option::Option& option, bool msg)
-     {
-         if (option.arg != 0 && option.arg[0] != 0)
-             return option::ARG_OK;
-
-         if (msg) printError("Option '", option, "' requires a non-empty argument\n");
-         return option::ARG_ILLEGAL;
-     }
-
-     static option::ArgStatus Numeric(const option::Option& option, bool msg)
-     {
-         char* endptr = 0;
-         if (option.arg != 0 && strtol(option.arg, &endptr, 10)){};
-         if (endptr != option.arg && *endptr == 0)
-             return option::ARG_OK;
-
-         if (msg) printError("Option '", option, "' requires a numeric argument\n");
-         return option::ARG_ILLEGAL;
-     }
- };
-
-enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, TIMING, LOG, MERGED};
+enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, TIMING, LOG, SEED, MERGED};
 
 const option::Descriptor serial_usage[] =
 {
@@ -55,9 +25,10 @@ const option::Descriptor serial_usage[] =
  {HELP,     0, "" , "help",     option::Arg::None, "  --help  \tPrint usage and exit." },
  {NO_PROG,  0, "",  "noprog",   option::Arg::None, "  --noprog  \tSupply to omit the progress bar." },
  {TIMING,   0, "",  "timing",   option::Arg::None, "  --timing  \tSupply to collect timing info." },
- {LOG,      0, "",  "log",      Arg::NonEmpty,     "  --log  \tName of file to log results to using HDF5. "
+ {LOG,      0, "",  "log",      option::Arg::NonEmpty, "  --log  \tName of file to log results to using HDF5. "
                                                                "If not specified, the log filename is the same as the "
                                                                "name of the network file, but with the .h5 extension."},
+ {SEED,     0, "",  "seed",     option::Arg::Numeric, "  --seed  \tSeed for stochastic processes in the network."},
  {MERGED,   0, "",  "merged",   option::Arg::None, "  --merged  \tSupply to use merged communication mode."},
  {UNKNOWN,  0, "" , ""   ,      option::Arg::None, "\nExamples:\n"
                                                    "  nengo_mpi --noprog basal_ganglia.net 1.0\n"
@@ -122,7 +93,14 @@ int master_start(int argc, char **argv){
     }else{
         log_filename = net_filename.substr(0, net_filename.find_last_of(".")) + ".h5";
     }
-    cout << "Will write simulation results to " << log_filename << endl;
+    cout << "Will write simulation results to: " << log_filename << endl;
+
+    int seed = 1;
+    if(options[SEED]){
+        seed = boost::lexical_cast<unsigned>(options[SEED].arg);
+    }
+
+    cout << "Will simulate with seed: " << seed << endl;
 
     cout << "Building network..." << endl;
     auto sim = unique_ptr<MpiSimulator>(new MpiSimulator(mpi_merged, collect_timings));
@@ -131,12 +109,13 @@ int master_start(int argc, char **argv){
 
     cout << "Done building network..." << endl;
 
+    sim->reset(seed);
+
     cout << "dt: " << sim->dt() << endl;
     int num_steps = int(round(sim_length / sim->dt()));
 
     cout << "Num steps: " << num_steps << endl;
     cout << "Running simulation..." << endl;
-
     sim->run_n_steps(num_steps, show_progress, log_filename);
     sim->close();
 
