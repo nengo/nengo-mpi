@@ -101,22 +101,23 @@ int master_start(int argc, char **argv){
     }
 
     cout << "Will simulate with seed: " << seed << endl;
+    cout << endl;
 
     cout << "Building network..." << endl;
     auto sim = unique_ptr<MpiSimulator>(new MpiSimulator(mpi_merged, collect_timings));
     sim->from_file(net_filename);
     sim->finalize_build();
 
-    cout << "Done building network..." << endl;
+    cout << "Done building network." << endl;
+    cout << endl;
 
     sim->reset(seed);
+    cout << endl;
 
-    cout << "dt: " << sim->dt() << endl;
-    int num_steps = int(round(sim_length / sim->dt()));
+    int n_steps = int(round(sim_length / sim->dt()));
+    cout << "Running simulation for " << n_steps << " steps with dt = " << sim->dt() << "." << endl;
 
-    cout << "Num steps: " << num_steps << endl;
-    cout << "Running simulation..." << endl;
-    sim->run_n_steps(num_steps, show_progress, log_filename);
+    sim->run_n_steps(n_steps, show_progress, log_filename);
     sim->close();
 
     kill_workers();
