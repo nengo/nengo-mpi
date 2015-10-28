@@ -18,34 +18,34 @@ def metis_available():
     return _metis_available
 
 
-def write_metis_input_file(filter_graph):
+def write_metis_input_file(cluster_graph):
     """
-    Writes a filter graph (created via network_to_filter_graph) to file in
+    Writes a cluster graph (created via network_to_cluster_graph) to file in
     the format required by metis (a graph-partitioning utility).
 
     Parameters
     ----------
-    filter_graph: networkx Graph
-        A graph created from a network using network_to_filter_graph.
+    cluster_graph: networkx Graph
+        A graph created from a network using network_to_cluster_graph.
 
     Returns
     -------
     filename: string
-        The name of the file stroing the graph.
+        The name of the file storing the graph.
     """
     f = tempfile.NamedTemporaryFile(mode='w', prefix='metis', delete=False)
 
     print "Writing metis file: %s" % f.name
 
     with f:
-        m = filter_graph.number_of_edges()
-        n = filter_graph.number_of_nodes()
+        m = cluster_graph.number_of_edges()
+        n = cluster_graph.number_of_nodes()
 
         f.write("%d %d 011" % (n, m))
 
-        indices = {node: i+1 for i, node in enumerate(filter_graph.nodes())}
+        indices = {node: i+1 for i, node in enumerate(cluster_graph.nodes())}
 
-        for u in filter_graph.nodes():
+        for u in cluster_graph.nodes():
             f.write('\n')
 
             vertex_weight = 0
@@ -56,7 +56,7 @@ def write_metis_input_file(filter_graph):
 
             f.write("%d" % vertex_weight)
 
-            for v, weight_dict in filter_graph[u].iteritems():
+            for v, weight_dict in cluster_graph[u].iteritems():
                 f.write(" %d %d" % (indices[v], weight_dict['weight']))
 
     return f.name
@@ -88,14 +88,14 @@ def metis_output_filename(filename, n_components):
     return '%s.part.%d' % (filename, n_components)
 
 
-def metis_partitioner(filter_graph, n_components, delete_file=True):
+def metis_partitioner(cluster_graph, n_components, delete_file=True):
     """
-    Partitions a filter graph using the metis partitioning package.
+    Partitions a cluster graph using the metis partitioning package.
 
     Parameters
     ----------
-    filter_graph: networkx Graph
-        A graph created from a network using network_to_filter_graph.
+    cluster_graph: networkx Graph
+        A graph created from a network using network_to_cluster_graph.
 
     n_components: int
         Desired number of components in the partition.
@@ -103,7 +103,7 @@ def metis_partitioner(filter_graph, n_components, delete_file=True):
     Returns
     -------
     assignments: dict
-        A mapping from nodes in the filter graph to components.
+        A mapping from nodes in the cluster graph to components.
     """
 
     if not metis_available():
@@ -113,7 +113,7 @@ def metis_partitioner(filter_graph, n_components, delete_file=True):
 
     assert n_components > 1
 
-    filename = write_metis_input_file(filter_graph)
+    filename = write_metis_input_file(cluster_graph)
 
     print "Running metis..."
     subprocess.check_call(['gpmetis', filename, str(n_components)])
@@ -127,4 +127,4 @@ def metis_partitioner(filter_graph, n_components, delete_file=True):
     return {
         node: component
         for node, component
-        in zip(filter_graph.nodes(), node_assignments)}
+        in zip(cluster_graph.nodes(), node_assignments)}

@@ -1,7 +1,7 @@
 from heapq import heapify, heappush, heappop
 
 
-def work_balanced_partitioner(filter_graph, n_components):
+def work_balanced_partitioner(cluster_graph, n_components):
     """
     Tries to give each component of the partition an equal number of
     neurons, making no attempt to minimize the weight of edges that
@@ -9,8 +9,8 @@ def work_balanced_partitioner(filter_graph, n_components):
 
     Parameters
     ----------
-    filter_graph: networkx Graph
-        A graph created from a network using network_to_filter_graph.
+    cluster_graph: networkx Graph
+        A graph created from a network using network_to_cluster_graph.
 
     n_components: int
         Desired number of components in the partition.
@@ -18,12 +18,12 @@ def work_balanced_partitioner(filter_graph, n_components):
     Returns
     -------
     assignments: dict
-        A mapping from nodes in the filter graph to components.
+        A mapping from nodes in the cluster graph to components.
     """
     assert n_components > 1
 
     components, _ = greedy_balanced_partition(
-        filter_graph.nodes(), n_components,
+        cluster_graph.nodes(), n_components,
         key=lambda n: n.n_neurons)
 
     assignments = {}

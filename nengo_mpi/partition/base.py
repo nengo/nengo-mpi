@@ -3,15 +3,18 @@ import warnings
 
 import networkx as nx
 import numpy as np
+
 from nengo import Direct, Node, Ensemble
 from nengo.base import ObjView
 from nengo.ensemble import Neurons
 from nengo.utils.builder import find_all_io
 
-from .work_balanced import work_balanced_partitioner
-from .metis import metis_available, metis_partitioner
-from .spectral import spectral_available, spectral_partitioner
-from .random import random_partitioner
+from nengo_mpi.partition.work_balanced import work_balanced_partitioner
+from nengo_mpi.partition.metis import metis_available, metis_partitioner
+from nengo_mpi.partition.spectral import (
+    spectral_available, spectral_partitioner)
+from nengo_mpi.partition.random import random_partitioner
+
 
 import logging
 logger = logging.getLogger(__name__)
@@ -29,7 +32,7 @@ def partitioners():
 
 def verify_assignments(network, assignments):
     """
-    Propagate the assignments given in ``assignments'' to form a complete
+    Propagate the assignments given in ``assignments`` to form a complete
     partition of the network, and verify that the resulting partition is
     usable.
 
@@ -46,17 +49,17 @@ def verify_assignments(network, assignments):
     n_components = max(assignments.values()) + 1
 
     if n_components > 1:
-        component0, filter_graph = network_to_filter_graph(network)
+        component0, cluster_graph = network_to_cluster_graph(network)
         evaluate_partition(
-            network, n_components, assignments, filter_graph)
+            network, n_components, assignments, cluster_graph)
 
     return n_components, assignments
 
 
 class Partitioner(object):
     """
-    A class for dividing a nengo network into components. Connections that
-    straddle component boundaries must be filtered connections.
+    A class for dividing a nengo network into components. Any connections
+    that straddles a component boundaries must have a synapse.
 
     Parameters
     ----------
@@ -69,7 +72,7 @@ class Partitioner(object):
         to component indices. Ignored if ``n_components == 1``.
 
         Arguments for func:
-            filter_graph
+            cluster_graph
             n_components
 
     use_weights: boolean
@@ -137,8 +140,8 @@ class Partitioner(object):
         independently simulatable chunk to its own component.
 
         Implementation:
-            1. Construct a "filter graph" from the nengo network.
-            2. Partition the filter graph using ``self.func``.
+            1. Construct a "cluster graph" from the nengo network.
+            2. Partition the cluster graph using ``self.func``.
 
         Parameters
         ----------
@@ -158,193 +161,52 @@ class Partitioner(object):
             to. Component 0 is simulated by the master process.
 
         """
+        # Eventually, a mapping from each nengo object to its component index
         object_assignments = {}
 
         if self.n_components > 1:
-            # component0 is also in the filter graph
-            component0, filter_graph = network_to_filter_graph(
+            # component0 is also in the cluster graph
+            component0, cluster_graph = network_to_cluster_graph(
                 network, self.straddle_conn_max_size)
 
-            n_nodes = len(filter_graph)
+            n_clusters = len(cluster_graph)
 
-            if n_nodes <= self.n_components:
-                self.n_components = n_nodes
-                node_assignments = {
-                    node: i for i, node in enumerate(filter_graph)}
+            # cluster_assignments is a mapping from
+            # each cluster to its component index
+            if n_clusters <= self.n_components:
+                self.n_components = n_clusters
+                cluster_assignments = {
+                    cluster: i for i, cluster in enumerate(cluster_graph)}
             else:
-                node_assignments = self.func(
-                    filter_graph, self.n_components,
+                cluster_assignments = self.func(
+                    cluster_graph, self.n_components,
                     *self.args, **self.kwargs)
 
             if component0:
-                # Assign the node ``component0'' to component 0
+                # Assign the objects in ``component0`` to component 0
                 on_zero = filter(
-                    lambda n: node_assignments[n] == 0, node_assignments)
-                c = node_assignments[component0]
+                    lambda n: cluster_assignments[n] == 0, cluster_assignments)
+                c = cluster_assignments[component0]
                 on_c = filter(
-                    lambda n: node_assignments[n] == c, node_assignments)
+                    lambda n: cluster_assignments[n] == c, cluster_assignments)
 
-                node_assignments.update({node: c for node in on_zero})
-                node_assignments.update({node: 0 for node in on_c})
+                cluster_assignments.update({cluster: c for cluster in on_zero})
+                cluster_assignments.update({cluster: 0 for cluster in on_c})
 
-            for node in node_assignments:
-                node.assign_to_component(
-                    object_assignments, node_assignments[node])
+            for cluster, component in cluster_assignments.iteritems():
+                cluster.assign_to_component(object_assignments, component)
 
         propogate_assignments(network, object_assignments)
 
+        # for node in network.all_nodes:
+        #     if isinstance(node, SpaunStimulus):
+        #         for conn in cluster_graph.
+
         if self.n_components > 1:
             evaluate_partition(
-                network, self.n_components, object_assignments, filter_graph)
+                network, self.n_components, object_assignments, cluster_graph)
 
         return self.n_components, object_assignments
-
-
-def network_to_filter_graph(
-        network, straddle_conn_max_size=np.inf,
-        use_weights=True, merge_nengo_nodes=True):
-
-    """
-    Creates a graph from a nengo network, where the nodes are clusters
-    of nengo objects that are connected by non-filtered connections, and edges
-    are filtered connections between those clusters. More precisely, two
-    nengo objects are in the same node of this higher order graph iff there
-    exists a path between them in the undirected graph of nengo objects which
-    does not contain a filter. This is required for partitioning a network
-    for use by nengo_mpi, since we can only send data across nengo connections
-    that contain an update operation, which means they must be filtered.
-
-    Parameters
-    ----------
-    network: nengo.Network
-        The network whose filter graph we want to construct.
-
-    straddle_conn_max_size: int/float
-        Connections of this size or greater are not permitted to straddle
-        cluster boundaries. Two nengo objects that are connected by a
-        Connection that is bigger than this size are assigned to the same
-        cluster.
-
-    use_weights: boolean
-        Whether edges in the filter graph should be weighted by the size_mid
-        attribute of the connection. If not, then all connections are weighted
-        equally.
-
-    merge_nengo_nodes: boolean
-        If True, then clusters which would consist entirely of
-        nengo nodes are merged with a neighboring cluster. This is done because
-        it is typically not useful to have a processor simulating only nodes,
-        as it will only add extra communication without significantly easing the
-        computational burden.
-
-    Returns
-    -------
-    component0: NengoObjectCluster
-        A NengoObjectCluster containing all nengo objects which must be simulated on the
-        master process in the nengo_mpi simulator. If there are no such objects,
-        then this has value None.
-
-    filter_graph: networkx Graph
-        Where the nodes are instances of NengoObjectCluster. Importantly, the filter
-        graph contains the node ``component0`` if ``component0`` is not
-        None.
-    """
-
-    def merge_nodes(node_map, a, b, conn=None):
-        if a.merge(b):
-            for obj in b.objects:
-                node_map[obj] = a
-
-            del b
-
-        if conn is not None:
-            a.connections.append(conn)
-
-        return a
-
-    node_map = {
-        obj: NengoObjectCluster(obj) for obj
-        in network.all_nodes + network.all_ensembles}
-
-    for conn in network.all_connections:
-        pre_obj = neurons2ensemble(conn.pre_obj)
-        pre_node = node_map[pre_obj]
-
-        post_obj = neurons2ensemble(conn.post_obj)
-        post_node = node_map[post_obj]
-
-        if is_update(conn) and conn.size_mid < straddle_conn_max_size:
-            pre_node.add_output(conn)
-            post_node.add_input(conn)
-        else:
-            merge_nodes(node_map, pre_node, post_node, conn)
-
-    all_nodes = list(set(node_map.values()))
-
-    _, outputs = find_all_io(network.all_connections)
-
-    # merge together all nodes that have to go on component 0
-    component0 = filter(
-        lambda x: for_component0(x, outputs), all_nodes)
-
-    if component0:
-        all_nodes = filter(lambda x: x not in component0[1:], all_nodes)
-        component0 = reduce(
-            lambda u, v: merge_nodes(node_map, u, v), component0)
-    else:
-        component0 = None
-
-    some_neurons = any(node.n_neurons > 0 for node in all_nodes)
-    if merge_nengo_nodes and some_neurons:
-        # For each node in the filter graph which does not contain any
-        # neurons, merge that node with one of the filter graph nodes
-        # which *does* contain neurons, and which the original node communicates
-        # strongly with.
-
-        without_neurons = filter(lambda x: x.n_neurons == 0, all_nodes)
-
-        for node in without_neurons:
-            # figure out which node would be most beneficial to merge with.
-            counts = defaultdict(int)
-
-            for i in node.inputs:
-                pre_obj = neurons2ensemble(i.pre_obj)
-                pre_node = node_map[pre_obj]
-                if pre_node.n_neurons > 0:
-                    counts[pre_node] += i.size_mid
-
-            for o in node.outputs:
-                post_obj = neurons2ensemble(o.post_obj)
-                post_node = node_map[post_obj]
-                if post_node.n_neurons > 0:
-                    counts[post_node] += o.size_mid
-
-            if counts:
-                best_node = max(counts, key=counts.__getitem__)
-            else:
-                best_node = (n for n in all_nodes if n.n_neurons > 0).next()
-
-            merge_nodes(node_map, best_node, node)
-            all_nodes.remove(node)
-
-    G = nx.Graph()
-    G.add_nodes_from(all_nodes)
-
-    update_connections = filter(is_update, network.all_connections)
-
-    for conn in update_connections:
-        pre_node = node_map[neurons2ensemble(conn.pre_obj)]
-        post_node = node_map[neurons2ensemble(conn.post_obj)]
-
-        if pre_node != post_node:
-            weight = conn.size_mid if use_weights else 1.0
-
-            if G.has_edge(pre_node, post_node):
-                G[pre_node][post_node]['weight'] += weight
-            else:
-                G.add_edge(pre_node, post_node, weight=weight)
-
-    return component0, G
 
 
 class NengoObjectCluster(object):
@@ -356,8 +218,8 @@ class NengoObjectCluster(object):
     update operation (which effectively means that none of the
     Connections constituting the path have synapses).
 
-    NengoObjectClusters are used as the nodes in the filter graph which is
-    created as part of the partitioning process.
+    NengoObjectClusters are used as the nodes in the cluster graph (which is
+    created as part of the partitioning process).
 
     Parameters
     ----------
@@ -394,7 +256,9 @@ class NengoObjectCluster(object):
         return len(self.objects) == 0
 
     def __str__(self):
-        s = "<NengoObjectCluster: " + ", ".join(str(o) for o in self.objects) + ">"
+        s = (
+            "<NengoObjectCluster: "
+            + ", ".join(str(o) for o in self.objects) + ">")
         return s
 
     def __repr__(self):
@@ -441,6 +305,155 @@ class NengoObjectCluster(object):
         return True
 
 
+def network_to_cluster_graph(
+        network, straddle_conn_max_size=np.inf,
+        use_weights=True, merge_nengo_nodes=True):
+
+    """
+    Creates a graph from a nengo Network, where the nodes are clusters
+    of nengo objects that are connected by connections without synapses, and
+    edges are synapsed connections between objects in those clusters. More
+    precisely, two nengo objects are in the same cluster iff there exists
+    a path between them in the undirected graph of nengo objects which does
+    not contain a synapse. This is required for partitioning a nengo Network
+    for use by nengo_mpi, since nengo_mpi can only send data across nengo
+    Connections that contain an ``update`` operation, which means they must
+    contain a synapse.
+
+    Parameters
+    ----------
+    network: nengo.Network
+        The network whose cluster graph we want to construct.
+
+    straddle_conn_max_size: int/float
+        Connections of this size or greater (as measured by the attribute
+        ``size_mid``) are not permitted to straddle cluster boundaries.
+        Two nengo objects that are connected by a Connection that is bigger
+        than this size are assigned to the same cluster.
+
+    use_weights: boolean
+        Whether edges in the cluster graph should be weighted by the
+        ``size_mid`` attribute of the connection. If not, then all connections
+        are weighted equally.
+
+    merge_nengo_nodes: boolean
+        If True, then clusters which would consist entirely of nengo Nodes are
+        merged with a neighboring cluster. This is done because it is typically
+        not useful to have a processor simulating only Nodes, as it will only
+        add extra communication without significantly easing the computational
+        burden.
+
+    Returns
+    -------
+    component0: NengoObjectCluster
+        A NengoObjectCluster containing all nengo objects which must be
+        simulatedon the master process in the nengo_mpi simulator. If there are
+        no such objects, then this has value None.
+
+    cluster_graph: networkx.Graph
+        A graph wherein the nodes are instances of NengoObjectCluster.
+        Importantly, the cluster graph graph contains `component0``
+        if ``component0`` is not None.
+
+    """
+    def merge_clusters(cluster_map, a, b, conn=None):
+        if a.merge(b):
+            for obj in b.objects:
+                cluster_map[obj] = a
+
+            del b
+
+        if conn is not None:
+            a.connections.append(conn)
+
+        return a
+
+    # A mapping from each nengo object to the cluster it is a member of
+    cluster_map = {
+        obj: NengoObjectCluster(obj) for obj
+        in network.all_nodes + network.all_ensembles}
+
+    for conn in network.all_connections:
+        pre_obj = neurons2ensemble(conn.pre_obj)
+        pre_cluster = cluster_map[pre_obj]
+
+        post_obj = neurons2ensemble(conn.post_obj)
+        post_cluster = cluster_map[post_obj]
+
+        if is_update(conn) and conn.size_mid < straddle_conn_max_size:
+            pre_cluster.add_output(conn)
+            post_cluster.add_input(conn)
+        else:
+            merge_clusters(cluster_map, pre_cluster, post_cluster, conn)
+
+    all_clusters = list(set(cluster_map.values()))
+
+    _, outputs = find_all_io(network.all_connections)
+
+    # merge together all clusters that have to go on component 0
+    component0 = filter(
+        lambda x: for_component0(x, outputs), all_clusters)
+
+    if component0:
+        all_clusters = filter(lambda x: x not in component0[1:], all_clusters)
+        component0 = reduce(
+            lambda u, v: merge_clusters(cluster_map, u, v), component0)
+    else:
+        component0 = None
+
+    some_neurons = any(cluster.n_neurons > 0 for cluster in all_clusters)
+    if merge_nengo_nodes and some_neurons:
+        # For each cluster which does not contain any neurons, merge the
+        # cluster with another cluster which *does* contain neurons,
+        # and which the original cluster communicates strongly with.
+
+        without_neurons = filter(lambda c: c.n_neurons == 0, all_clusters)
+
+        for cluster in without_neurons:
+            # figure out which cluster would be most beneficial to merge with.
+            counts = defaultdict(int)
+
+            for i in cluster.inputs:
+                pre_obj = neurons2ensemble(i.pre_obj)
+                pre_cluster = cluster_map[pre_obj]
+                if pre_cluster.n_neurons > 0:
+                    counts[pre_cluster] += i.size_mid
+
+            for o in cluster.outputs:
+                post_obj = neurons2ensemble(o.post_obj)
+                post_cluster = cluster_map[post_obj]
+                if post_cluster.n_neurons > 0:
+                    counts[post_cluster] += o.size_mid
+
+            if counts:
+                best_cluster = max(counts, key=counts.__getitem__)
+            else:
+                best_cluster = (
+                    n for n in all_clusters if n.n_neurons > 0).next()
+
+            merge_clusters(cluster_map, best_cluster, cluster)
+            all_clusters.remove(cluster)
+
+    G = nx.Graph()
+    G.add_nodes_from(all_clusters)
+
+    update_connections = filter(is_update, network.all_connections)
+
+    for conn in update_connections:
+        pre_cluster = cluster_map[neurons2ensemble(conn.pre_obj)]
+        post_cluster = cluster_map[neurons2ensemble(conn.post_obj)]
+
+        if pre_cluster != post_cluster:
+            weight = conn.size_mid if use_weights else 1.0
+
+            if G.has_edge(pre_cluster, post_cluster):
+                G[pre_cluster][post_cluster]['weight'] += weight
+            else:
+                G.add_edge(pre_cluster, post_cluster, weight=weight)
+
+    return component0, G
+
+
 def is_update(conn):
     """ Return whether ``conn`` has an update operation. """
     return conn.synapse is not None
@@ -450,10 +463,10 @@ def neurons2ensemble(e):
     return e.ensemble if isinstance(e, Neurons) else e
 
 
-def for_component0(node, outputs):
-    """Returns whether the component must be simulated on process 0."""
+def for_component0(cluster, outputs):
+    """Returns whether the cluster must be simulated on process 0."""
 
-    for obj in node.objects:
+    for obj in cluster.objects:
         if isinstance(obj, Node) and callable(obj.output):
             return True
 
@@ -469,9 +482,9 @@ def for_component0(node, outputs):
 
 def propogate_assignments(network, assignments):
     """
-    Propogates the component assignments stored in the dict ``assignments''
-    (which only needs to contain assignments for top level networks, nodes and
-    ensembles) down to objects that are contained in those top-level objects.
+    Propogates the component assignments stored in the dict ``assignments``
+    (which only needs to contain assignments for top level Networks, Nodes and
+    Ensembles) down to objects that are contained in those top-level objects.
     If assignments is empty, then all objects will be assigned to the 1st
     component, which has index 0. The intent is to have some partitioning
     algorithm determine some of the assignments before this function is called,
@@ -479,12 +492,12 @@ def propogate_assignments(network, assignments):
 
     Also does a small amount of validation, making sure that certain types of
     objects are assigned to the master component (component 0), and making sure
-    that connections that straddle component boundaries have a filter on them.
+    that connections that straddle component boundaries have a synapse on them.
 
     These objects are:
         1. Nodes with callable outputs.
         2. Ensembles of Direct neurons.
-        3. Any node that is the source of a Connection that has a function.
+        3. Any Node that is the source of a Connection that has a function.
 
     Parameters
     ----------
@@ -500,7 +513,7 @@ def propogate_assignments(network, assignments):
 
     Returns
     -------
-    Nothing, but ``assignments'' is modified.
+    Nothing, but ``assignments`` is modified.
 
     """
     def helper(network, assignments, outputs):
@@ -511,8 +524,8 @@ def propogate_assignments(network, assignments):
             if callable(node.output):
                 if node in assignments and assignments[node] != 0:
                     warnings.warn(
-                        "Found Node with callable output was assigned to a "
-                        "component other than component 0. Overriding "
+                        "Found Node with callable output that was assigned to "
+                        "a component other than component 0. Overriding "
                         "previous assignment.")
 
                 assignments[node] = 0
@@ -554,7 +567,7 @@ def propogate_assignments(network, assignments):
 
     def probe_helper(network, assignments):
         # TODO: properly handle probes that target connections
-        # connections will not be in ``assignments'' at this point.
+        # connections will not be in ``assignments`` at this point.
         for probe in network.probes:
             target = (
                 probe.target.obj
@@ -594,7 +607,7 @@ def propogate_assignments(network, assignments):
 
         if pre_component != post_component:
             raise RuntimeError(
-                "Non-filtered connection %s straddles component "
+                "Non-synapsed connection %s straddles component "
                 "boundaries. Pre-object assigned to %d, post-object "
                 "assigned to %d." % (conn, pre_component, post_component))
 
@@ -623,8 +636,7 @@ def total_neurons(network):
     return n_neurons
 
 
-def evaluate_partition(
-        network, n_components, assignments, filter_graph):
+def evaluate_partition(network, n_components, assignments, cluster_graph):
     """Prints a summary of the quality of a partition."""
 
     print "*" * 80
@@ -632,28 +644,28 @@ def evaluate_partition(
     key = lambda n: sum(
         e.n_neurons for e in n.objects if hasattr(e, 'n_neurons'))
 
-    graph_node_n_neurons = [key(n) for n in filter_graph.nodes()]
-    graph_node_n_items = [len(n.objects) for n in filter_graph.nodes()]
+    cluster_n_neurons = [key(n) for n in cluster_graph.nodes()]
+    cluster_n_items = [len(n.objects) for n in cluster_graph.nodes()]
 
-    all_nodes = [
+    only_nodes = [
         all(isinstance(o, Node) for o in n.objects)
-        for n in filter_graph.nodes()]
+        for n in cluster_graph.nodes()]
 
-    print "Filter graph statistics:"
-    print "Number of nodes: ", filter_graph.number_of_nodes()
-    print "Number of edges: ", filter_graph.number_of_edges()
-    print "Number of FG nodes containing only nengo Nodes: ", sum(all_nodes)
+    print "Cluster graph statistics:"
+    print "Number of clusters: ", cluster_graph.number_of_nodes()
+    print "Number of edges: ", cluster_graph.number_of_edges()
+    print "Number of clusters containing only nengo Nodes: ", sum(only_nodes)
 
-    print "Mean neurons per FG node: ", np.mean(graph_node_n_neurons)
-    print "Std of neurons per FG node", np.std(graph_node_n_neurons)
+    print "Mean neurons per cluster: ", np.mean(cluster_n_neurons)
+    print "Std of neurons per cluster", np.std(cluster_n_neurons)
 
-    print "Min number of neurons", np.min(graph_node_n_neurons)
-    print "Max number of neurons", np.max(graph_node_n_neurons)
+    print "Min number of neurons", np.min(cluster_n_neurons)
+    print "Max number of neurons", np.max(cluster_n_neurons)
 
-    print "Mean nengo objects per FG node: ", np.mean(graph_node_n_items)
-    print "Std of nengo objects per FG node", np.std(graph_node_n_items)
-    print "Min number of nengo objects", np.min(graph_node_n_items)
-    print "Max number of nengo objects", np.max(graph_node_n_items)
+    print "Mean nengo objects per cluster: ", np.mean(cluster_n_items)
+    print "Std of nengo objects per cluster", np.std(cluster_n_items)
+    print "Min number of nengo objects", np.min(cluster_n_items)
+    print "Max number of nengo objects", np.max(cluster_n_items)
 
     component_neuron_counts = [0] * n_components
     component_item_counts = [0] * n_components
@@ -688,7 +700,7 @@ def evaluate_partition(
     print "*" * 10
 
     print (
-        "Total number of nengo objects (nodes and ensembles): "
+        "Total number of nengo objects (Nodes and Ensembles): "
         "%d" % len(network.all_nodes + network.all_ensembles))
     print "Mean nengo objects per component: ", mean_item_count
     print "Standard deviation of nengo objects per component", item_count_std
@@ -710,9 +722,9 @@ def evaluate_partition(
 
     print "*" * 10
     print "Number of dimensions that are communicated: ", communication_weight
-    print "Total number of filtered dimensions: ", total_weight
+    print "Total number of communicable dimensions: ", total_weight
     print (
-        "Percentage of filtered dimensions that are "
+        "Percentage of communicable dimensions that *are* "
         "communicated: %f" % (float(communication_weight) / total_weight))
 
     send_partners = [set() for i in range(n_components)]

@@ -7,7 +7,7 @@ from nengo_mpi.partition import spectral_partitioner
 from nengo_mpi.partition import work_balanced_partitioner
 from nengo_mpi.partition import metis_available, metis_partitioner
 
-from nengo_mpi.partition.base import network_to_filter_graph
+from nengo_mpi.partition.base import network_to_cluster_graph
 
 import nengo
 
@@ -39,14 +39,14 @@ def test_default(simple_network, n_components):
     # Save the network to a file so that an MpiSimulator is not created.
     save_file = 'test.net'
 
-    component0, filter_graph = network_to_filter_graph(simple_network)
+    component0, cluster_graph = network_to_cluster_graph(simple_network)
 
     partitioner = Partitioner(n_components)
 
     sim = Simulator(
         simple_network, partitioner=partitioner, save_file=save_file)
 
-    assert sim.n_components == min(len(filter_graph), n_components)
+    assert sim.n_components == min(len(cluster_graph), n_components)
     assert os.path.isfile(save_file)
     os.remove(save_file)
 
@@ -153,20 +153,20 @@ def test_insufficient_chunks(simple_network):
     specified number of components.
     """
 
-    component0, filter_graph = network_to_filter_graph(simple_network)
+    component0, cluster_graph = network_to_cluster_graph(simple_network)
 
-    partitioner = Partitioner(len(filter_graph) + 10)
+    partitioner = Partitioner(len(cluster_graph) + 10)
 
     save_file = 'test.net'
     sim = Simulator(
         simple_network, partitioner=partitioner, save_file=save_file)
 
-    assert sim.n_components == len(filter_graph)
+    assert sim.n_components == len(cluster_graph)
     assert os.path.isfile(save_file)
     os.remove(save_file)
 
 
-def test_filter_graph():
+def test_cluster_graph():
     network = nengo.Network()
 
     with network:
@@ -177,43 +177,43 @@ def test_filter_graph():
         nengo.Connection(node, A)
         nengo.Connection(A, B)
 
-    component0, filter_graph = network_to_filter_graph(network)
-    assert len(filter_graph) == 2
+    component0, cluster_graph = network_to_cluster_graph(network)
+    assert len(cluster_graph) == 2
 
-    component0, filter_graph = network_to_filter_graph(
+    component0, cluster_graph = network_to_cluster_graph(
         network, merge_nengo_nodes=False)
-    assert len(filter_graph) == 3
+    assert len(cluster_graph) == 3
 
     with network:
         node = nengo.Node(lambda x: 0.5, label='Node 1')
 
-    component0, filter_graph = network_to_filter_graph(network)
-    assert len(filter_graph) == 2
+    component0, cluster_graph = network_to_cluster_graph(network)
+    assert len(cluster_graph) == 2
     assert component0 is not None
 
-    component0, filter_graph = network_to_filter_graph(
+    component0, cluster_graph = network_to_cluster_graph(
         network, merge_nengo_nodes=False)
-    assert len(filter_graph) == 4
+    assert len(cluster_graph) == 4
     assert component0 is not None
 
     with network:
         node = nengo.Node(lambda x: 0.7, label='Node 2')
         nengo.Connection(node, A, synapse=None)
 
-    component0, filter_graph = network_to_filter_graph(network)
-    assert len(filter_graph) == 2
+    component0, cluster_graph = network_to_cluster_graph(network)
+    assert len(cluster_graph) == 2
 
-    component0, filter_graph = network_to_filter_graph(
+    component0, cluster_graph = network_to_cluster_graph(
         network, merge_nengo_nodes=False)
-    assert len(filter_graph) == 3
+    assert len(cluster_graph) == 3
 
     with network:
         C = nengo.Ensemble(100, 1, label='C')
         nengo.Connection(C, A)
 
-    component0, filter_graph = network_to_filter_graph(network)
-    assert len(filter_graph) == 3
+    component0, cluster_graph = network_to_cluster_graph(network)
+    assert len(cluster_graph) == 3
 
-    component0, filter_graph = network_to_filter_graph(
+    component0, cluster_graph = network_to_cluster_graph(
         network, merge_nengo_nodes=False)
-    assert len(filter_graph) == 4
+    assert len(cluster_graph) == 4

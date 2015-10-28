@@ -13,7 +13,7 @@ def spectral_available():
     return _spectral_available
 
 
-def spectral_partitioner(filter_graph, n_components):
+def spectral_partitioner(cluster_graph, n_components):
     """
     A heuristic approach to partitioning using a spectral ordering.
     First computes the spectral ordering (which effectively tries to place
@@ -26,8 +26,8 @@ def spectral_partitioner(filter_graph, n_components):
 
     Parameters
     ----------
-    filter_graph: networkx Graph
-        A graph created from a network using network_to_filter_graph.
+    cluster_graph: networkx Graph
+        A graph created from a network using network_to_cluster_graph.
 
     n_components: int
         Desired number of components in the partition.
@@ -35,15 +35,15 @@ def spectral_partitioner(filter_graph, n_components):
     Returns
     -------
     assignments: dict
-        A mapping from nodes in the filter graph to components.
+        A mapping from nodes in the cluster graph to components.
     """
     assert n_components > 1
 
-    ordering = nx.spectral_ordering(filter_graph)
+    ordering = nx.spectral_ordering(cluster_graph)
 
     total_neurons = sum(
         n.n_neurons
-        for n in filter_graph.nodes())
+        for n in cluster_graph.nodes())
 
     neurons_per_component = float(total_neurons) / n_components
 

@@ -25,7 +25,6 @@ from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
 from nengo.synapses import LinearFilter, Triangle
 from nengo.processes import WhiteNoise, FilteredNoise, BrownNoise, WhiteSignal
-from nengo.utils.filter_design import cont2discrete
 from nengo.utils.graphs import toposort
 from nengo.utils.builder import full_transform
 from nengo.utils.simulator import operator_depencency_graph
@@ -571,7 +570,7 @@ class MpiModel(builder.Model):
                 except StopIteration:
                     raise Exception(
                         "Connections crossing component boundaries "
-                        "must be filtered so that there is an update.")
+                        "must be have synapses so that there is an update.")
 
                 signal = synapse_op.output
 
