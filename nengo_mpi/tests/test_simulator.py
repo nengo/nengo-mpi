@@ -1,12 +1,11 @@
 import nengo_mpi
+
 import nengo
-
-import numpy as np
-
-import pytest
-
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate  # , Izhikevich
+
+import numpy as np
+import pytest
 
 all_neurons = [
     LIF, LIFRate, RectifiedLinear, Sigmoid,

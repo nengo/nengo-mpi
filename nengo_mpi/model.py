@@ -35,8 +35,8 @@ from nengo.ensemble import Ensemble
 from nengo.node import Node
 from nengo.probe import Probe
 
-from spaun_mpi import SpaunStimulus, build_spaun_stimulus
-from spaun_mpi import SpaunStimulusOperator
+from nengo_mpi.spaun_mpi import SpaunStimulus, build_spaun_stimulus
+from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 
 import numpy as np
 from collections import defaultdict, OrderedDict

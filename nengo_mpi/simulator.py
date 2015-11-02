@@ -1,12 +1,11 @@
 from nengo.simulator import ProbeDict
-import nengo.utils.numpy as npext
 from nengo.cache import get_default_decoder_cache
+import nengo.utils.numpy as npext
 
-from model import MpiBuilder, MpiModel
-from partition import Partitioner, verify_assignments
+from nengo_mpi.model import MpiBuilder, MpiModel
+from nengo_mpi.partition import Partitioner, verify_assignments
 
 import numpy as np
-
 import atexit
 import logging
 logger = logging.getLogger(__name__)

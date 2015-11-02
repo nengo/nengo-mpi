@@ -14,10 +14,9 @@ from .version import version as __version__
 
 import logging
 
-from .simulator import Simulator
-from .partition import Partitioner, work_balanced_partitioner, random_partitioner
-from .partition import spectral_partitioner, metis_partitioner, metis_available
-from .spaun_mpi import SpaunStimulus
+from nengo_mpi.simulator import Simulator
+from nengo_mpi.partition import Partitioner
+from nengo_mpi.spaun_mpi import SpaunStimulus
 
 logger = logging.getLogger(__name__)
 try:
