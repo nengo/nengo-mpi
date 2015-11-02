@@ -68,7 +68,9 @@ public:
     void set_index(float i){ index = i;}
     float get_index() const{ return index; }
 
-private:
+    virtual unsigned get_seed_modifier() const{ return unsigned(index); }
+
+protected:
     float index;
 };
 

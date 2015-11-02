@@ -1057,7 +1057,7 @@ class MpiModel(builder.Model):
 
             op_args = [
                 "SpaunStimulus", output, op.stimulus_sequence,
-                op.present_interval, op.present_blanks]
+                op.present_interval, op.present_blanks, op.identifier]
 
         else:
             raise NotImplementedError(

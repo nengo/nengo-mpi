@@ -1,11 +1,13 @@
 #include "spaun.hpp"
 
+unique_ptr<ImageStore> SpaunStimulus::image_store = nullptr;
+
 SpaunStimulus::SpaunStimulus(
     SignalView output, dtype* time_pointer, vector<string> stim_sequence,
-    dtype present_interval, dtype present_blanks)
+    dtype present_interval, dtype present_blanks, int identifier)
 :output(output), time_pointer(time_pointer), previous_index(-1),
 stim_sequence(stim_sequence), present_interval(present_interval),
-present_blanks(present_blanks){
+present_blanks(present_blanks), identifier(identifier){
 
     if(stim_sequence.empty()){
         throw runtime_error("Cannot create SpaunStimulus with empty stimulus sequence.");
@@ -13,14 +15,17 @@ present_blanks(present_blanks){
 
     n_stimuli = stim_sequence.size();
 
-    char* home = getenv("HOME");
-    if(!home){
-        throw runtime_error(
-            "Error in creating SpaunStimulus. HOME environment variable not set.");
-    }
+    if(image_store == nullptr){
+        char* home = getenv("HOME");
+        if(!home){
+            throw runtime_error(
+                "Error in creating SpaunStimulus. HOME environment variable not set.");
+        }
 
-    vision_data_dir = home;
-    vision_data_dir += "/spaun2.0/_spaun/vision/spaun_vision_data";
+        vision_data_dir = home;
+        vision_data_dir += "/spaun2.0/_spaun/vision/spaun_vision_data";
+        image_store = static_cast<unique_ptr<ImageStore>>(new ImageStore(vision_data_dir));
+    }
 
     image_size = output.size1();
 }
@@ -78,7 +83,13 @@ string SpaunStimulus::to_string() const{
 }
 
 void SpaunStimulus::reset(unsigned seed){
-    ImageStore image_store = ImageStore(vision_data_dir, image_size, seed);
+    default_random_engine rng(seed);
+
+    // We shouldn't need to do this, but in practice I've found the first number is
+    // consistently 0. Not sure why.
+    rng.discard(1);
+
+    images.clear();
 
     int stim_count = 0;
     for(string label: stim_sequence){
@@ -88,18 +99,19 @@ void SpaunStimulus::reset(unsigned seed){
         if(label == "None" || label == "NULL"){
             image = unique_ptr<BaseSignal>(new BaseSignal(ScalarSignal(image_size, 1, 0.0)));
         }else{
-            image = image_store.get_image_with_label(label);
+            image = image_store->get_image_with_label(label, image_size, rng);
         }
 
         images.push_back(move(image));
 
         stim_count++;
     }
+
+    previous_index = -1;
 }
 
-ImageStore::ImageStore(string dir_name, int desired_img_size, unsigned seed)
-:dir_name(dir_name), desired_img_size(desired_img_size), loaded_img_size(-1){
-    rng.seed(seed);
+ImageStore::ImageStore(string dir_name)
+:dir_name(dir_name), loaded_img_size(-1){
     load_image_counts(dir_name + "/counts");
 }
 
@@ -122,13 +134,16 @@ void ImageStore::load_image_counts(string filename){
     ifs.close();
 }
 
-unique_ptr<BaseSignal> ImageStore::get_image_with_label(string label){
+unique_ptr<BaseSignal> ImageStore::get_image_with_label(
+        string label, int desired_img_size, default_random_engine rng){
+
     if(image_counts.find(label) == image_counts.end()){
         stringstream ss;
         ss << "Image store contains no images with label " << label << ".";
         throw runtime_error(ss.str());
     }
 
+    cout << "Image count for label " << label << ": "<< image_counts[label] << endl;
     uniform_int_distribution<int> dist(0, image_counts[label]-1);
     int index = dist(rng);
 

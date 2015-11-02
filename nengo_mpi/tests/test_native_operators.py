@@ -482,7 +482,8 @@ def test_spaun_stimulus():
     output = Signal(np.zeros(dimension), name="spaun stimulus output")
 
     spaun_stim = SpaunStimulusOperator(
-        output, cfg.raw_seq, cfg.present_interval, cfg.present_blanks)
+        output, cfg.raw_seq, cfg.present_interval,
+        cfg.present_blanks, identifier=0)
 
     probes = [SignalProbe(output)]
     operators = [spaun_stim]
@@ -516,6 +517,9 @@ def test_spaun_stimulus():
 
     assert ref_sim.data[ref_p].shape[0] == sim.data[p].shape[0]
 
+    # We don't compare when the stimulus is one of the MNIST numbers
+    # because these are chosen randomly at runtime, and the random numbers
+    # from the reference impl and the mpi impl will not match.
     compare_indices = range(0, 2) + range(interval-2, interval)
     compare_indices += range(2*interval-2, 2*interval)
     compare_indices += range(3*interval-2, 3*interval-2)

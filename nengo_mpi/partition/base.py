@@ -4,11 +4,12 @@ import warnings
 import networkx as nx
 import numpy as np
 
-from nengo import Direct, Node, Ensemble
+from nengo import Direct, Node, Ensemble, Connection
 from nengo.base import ObjView
 from nengo.ensemble import Neurons
 from nengo.utils.builder import find_all_io
 
+from nengo_mpi.spaun_mpi import SpaunStimulus
 from nengo_mpi.partition.work_balanced import work_balanced_partitioner
 from nengo_mpi.partition.metis import metis_available, metis_partitioner
 from nengo_mpi.partition.spectral import (
@@ -43,8 +44,8 @@ def verify_assignments(network, assignments):
         A mapping from each nengo object in the network to an integer
         specifying which component of the partition the object is assigned
         to. Component 0 is simulated by the master process.
-    """
 
+    """
     propogate_assignments(network, assignments)
     n_components = max(assignments.values()) + 1
 
@@ -89,8 +90,8 @@ class Partitioner(object):
     args: Extra positional args passed to func.
 
     kwargs: Extra keyword args passed to func.
-    """
 
+    """
     def __init__(
             self, n_components=None, func=None,
             use_weights=True, straddle_conn_max_size=np.inf,
@@ -132,7 +133,8 @@ class Partitioner(object):
 
     def partition(self, network):
         """
-        Partition the network using the partitioning function ``self.func``.
+        Partition ``network`` using the partitioning function ``self.func``.
+
         If ``self.n_components == 1`` or the number of independently
         simulatable chunks of the network is less than ``self.n_components``,
         the partitioning function is not used. In the former case, all objects
@@ -161,8 +163,34 @@ class Partitioner(object):
             to. Component 0 is simulated by the master process.
 
         """
-        # Eventually, a mapping from each nengo object to its component index
+        # A mapping from each nengo object to its component index
         object_assignments = {}
+
+        # Make copies of SpaunStimulus nodes to limit communication
+        with network:
+            for node in network.all_nodes:
+                if isinstance(node, SpaunStimulus):
+                    for conn in network.all_connections:
+                        if conn.pre_obj is node:
+                            stim = SpaunStimulus(
+                                dimension=node.dimension,
+                                stimulus_sequence=node.stimulus_sequence,
+                                present_interval=node.present_interval,
+                                present_blanks=node.present_blanks,
+                                identifier=node.identifier)
+
+                            if isinstance(conn.pre, ObjView):
+                                stim = ObjView(stim, conn.pre.slice)
+
+                            Connection(
+                                stim, conn.post,
+                                transform=conn.transform,
+                                function=conn.function,
+                                synapse=conn.synapse)
+
+                            assert remove_from_network(network, conn)
+
+                    assert remove_from_network(network, node)
 
         if self.n_components > 1:
             # component0 is also in the cluster graph
@@ -197,10 +225,6 @@ class Partitioner(object):
                 cluster.assign_to_component(object_assignments, component)
 
         propogate_assignments(network, object_assignments)
-
-        # for node in network.all_nodes:
-        #     if isinstance(node, SpaunStimulus):
-        #         for conn in cluster_graph.
 
         if self.n_components > 1:
             evaluate_partition(
@@ -267,6 +291,7 @@ class NengoObjectCluster(object):
     def assign_to_component(self, assignments, component):
         """
         Assign all nengo objects in ``self`` to the ``component``.
+
         Alters the provided ``assignments`` dictionary.
 
         Parameters
@@ -317,7 +342,7 @@ def network_to_cluster_graph(
     a path between them in the undirected graph of nengo objects which does
     not contain a synapse. This is required for partitioning a nengo Network
     for use by nengo_mpi, since nengo_mpi can only send data across nengo
-    Connections that contain an ``update`` operation, which means they must
+    Connections that contain an update operation, which means they must
     contain a synapse.
 
     Parameters
@@ -448,8 +473,11 @@ def network_to_cluster_graph(
 
             if G.has_edge(pre_cluster, post_cluster):
                 G[pre_cluster][post_cluster]['weight'] += weight
+                G[pre_cluster][post_cluster]['connections'].append(conn)
             else:
-                G.add_edge(pre_cluster, post_cluster, weight=weight)
+                G.add_edge(
+                    pre_cluster, post_cluster,
+                    weight=weight, connections=[conn])
 
     return component0, G
 
@@ -755,3 +783,29 @@ def evaluate_partition(network, n_components, assignments, cluster_graph):
     print "Standard dev of recv partners: ", np.std(n_recv_partners)
     print "Max number of recv partners: ", np.max(n_recv_partners)
     print "Min number of recv partners: ", np.min(n_recv_partners)
+
+
+def remove_from_network(network, obj):
+    """Remove ``obj`` from network.
+
+    Returns True if ``obj`` was successfully found and removed.
+
+    """
+    key = None
+    for t in network.objects.keys():
+        if isinstance(obj, t):
+            key = t
+            break
+
+    if key:
+        if obj in network.objects[key]:
+            network.objects[key].remove(obj)
+            return True
+
+    for sub_net in network.networks:
+        removed = remove_from_network(sub_net, obj)
+
+        if removed:
+            return True
+
+    return False

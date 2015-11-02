@@ -14,35 +14,7 @@ import logging
 
 import nengo
 from nengo.utils.builder import full_transform
-
-
-def find_all_io(connections):
-    """Build up a list of all inputs and outputs for each object"""
-
-    inputs = collections.defaultdict(list)
-    outputs = collections.defaultdict(list)
-    for c in connections:
-        inputs[c.post_obj].append(c)
-        outputs[c.pre_obj].append(c)
-    return inputs, outputs
-
-
-def remove_from_network(network, obj):
-    """Remove ``obj'' from network.
-
-    Returns True if ``obj'' was successfully found and removed."""
-
-    if obj in network.objects[type(obj)]:
-        network.objects[type(obj)].remove(obj)
-        return True
-
-    for sub_net in network.networks:
-        removed = remove_from_network(sub_net, obj)
-
-        if removed:
-            return True
-
-    return False
+from nengo_mpi.partition.base import find_all_io, remove_from_network
 
 
 def remove_all_connections(network, ea=False):
@@ -550,9 +522,9 @@ def remove_passthrough_nodes(
         objs, connections,
         create_connection_fn=_create_replacement_connection):
     """
-    NOTE: this was ripped and slightly modified from the main nengo repo.
-
     Returns a version of the model without passthrough Nodes
+
+    NOTE: this was ripped and slightly modified from the main nengo repo.
 
     For some backends (such as SpiNNaker), it is useful to remove Nodes that
     have 'None' as their output.  These nodes simply sum their inputs and

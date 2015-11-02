@@ -528,9 +528,10 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
 void MpiSimulatorChunk::reset(unsigned seed){
     time = 0.0;
+    n_steps = 0;
 
     for(Operator* op: operator_list){
-        op->reset(seed);
+        op->reset(seed + op->get_seed_modifier());
     }
 
     // TODO: store whether signals are read-only, only reset if they are not.
@@ -888,10 +889,12 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             float present_interval = boost::lexical_cast<float>(args[2]);
             float present_blanks = boost::lexical_cast<float>(args[3]);
 
+            int identifier = boost::lexical_cast<int>(args[4]);
+
             auto op = unique_ptr<Operator>(
                 new SpaunStimulus(
                      output, get_time_pointer(), stim_seq,
-                     present_interval, present_blanks));
+                     present_interval, present_blanks, identifier));
 
             add_op(move(op));
 

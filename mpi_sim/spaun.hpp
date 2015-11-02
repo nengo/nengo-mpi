@@ -16,11 +16,13 @@
 
 using namespace std;
 
+class ImageStore;
+
 class SpaunStimulus: public Operator{
 public:
     SpaunStimulus(
         SignalView output, dtype* time_pointer, vector<string> stim_sequence,
-        dtype present_interval, dtype present_blanks);
+        dtype present_interval, dtype present_blanks, int identifier);
 
     string classname() const {return "SpaunStimulus"; }
 
@@ -28,6 +30,8 @@ public:
     virtual string to_string() const;
 
     virtual void reset(unsigned seed);
+
+    virtual unsigned get_seed_modifier() const{ return unsigned(identifier); }
 
 protected:
     dtype* time_pointer;
@@ -41,29 +45,29 @@ protected:
     int image_size;
     vector<unique_ptr<BaseSignal>> images;
     SignalView output;
-
     int previous_index;
+
+    int identifier;
+
+    static unique_ptr<ImageStore> image_store;
 };
 
 class ImageStore{
 public:
-    ImageStore(string dir_name, int desired_img_size, unsigned seed);
+    ImageStore(string dir_name);
 
     void load_image_counts(string filename);
 
     // Get a random image with the given label
-    unique_ptr<BaseSignal> get_image_with_label(string label);
+    unique_ptr<BaseSignal> get_image_with_label(
+        string label, int desired_img_size, default_random_engine rng);
 
 protected:
     string dir_name;
     map<string, int> image_counts;
 
-    int desired_img_size;
-
     // -1 initially; set properly when we load the first image
     int loaded_img_size;
-
-    default_random_engine rng;
 };
 
 /*
