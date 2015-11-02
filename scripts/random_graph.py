@@ -10,8 +10,7 @@ import nengo
 from nengo.solvers import Solver
 import nengo_mpi
 from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
-from nengo_mpi.partition import spectral_partitioner, random_partitioner
-from nengo_mpi.partition import EnsembleArraySplitter
+from nengo_mpi.partition import random_partitioner, EnsembleArraySplitter
 
 
 class FakeSolver(Solver):
@@ -163,7 +162,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--pfunc', type=str, default='',
         help='Specify the algorithm to use for partitioning. '
-             'Possible values are: default, metis, random, spectral, work.')
+             'Possible values are: default, metis, random, work.')
 
     parser.add_argument(
         '--save', nargs='?', type=str, default='', const='random_graph',
@@ -279,8 +278,8 @@ if __name__ == "__main__":
     if use_mpi:
         fmap = {
             'default': None, '': None,
-            'metis': metis_partitioner, 'spectral': spectral_partitioner,
-            'random': random_partitioner, 'work': work_balanced_partitioner}
+            'metis': metis_partitioner, 'random': random_partitioner,
+            'work': work_balanced_partitioner}
 
         t0 = time.time()
         partitioner = nengo_mpi.Partitioner(

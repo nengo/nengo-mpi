@@ -12,8 +12,6 @@ from nengo.utils.builder import find_all_io
 from nengo_mpi.spaun_mpi import SpaunStimulus
 from nengo_mpi.partition.work_balanced import work_balanced_partitioner
 from nengo_mpi.partition.metis import metis_available, metis_partitioner
-from nengo_mpi.partition.spectral import (
-    spectral_available, spectral_partitioner)
 from nengo_mpi.partition.random import random_partitioner
 
 
@@ -23,8 +21,6 @@ logger = logging.getLogger(__name__)
 _partitioners = [random_partitioner, work_balanced_partitioner]
 if metis_available():
     _partitioners.append(metis_partitioner)
-if spectral_available():
-    _partitioners.append(spectral_partitioner)
 
 
 def partitioners():
@@ -124,9 +120,6 @@ class Partitioner(object):
         if metis_available():
             print "Defaulting to metis partitioner"
             return metis_partitioner
-        elif spectral_available():
-            print "Defaulting to spectral partitioner"
-            return spectral_partitioner
         else:
             print "Defaulting to work-balanced partitioner"
             return work_balanced_partitioner

@@ -6,8 +6,7 @@ import numpy as np
 import nengo
 import nengo_mpi
 from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
-from nengo_mpi.partition import spectral_partitioner, random_partitioner
-from nengo_mpi.partition import EnsembleArraySplitter
+from nengo_mpi.partition import random_partitioner, EnsembleArraySplitter
 
 logger = logging.getLogger(__name__)
 nengo.log(debug=False)
@@ -49,7 +48,7 @@ parser.add_argument(
 parser.add_argument(
     '--pfunc', type=str, default='',
     help='Specify the algorithm to use for partitioning. '
-         'Possible values are: default, metis, random, spectral, work.'
+         'Possible values are: default, metis, random, work.'
          'If not supplied, an assignment scheme is used.')
 
 parser.add_argument(
@@ -124,8 +123,8 @@ if not partitioner:
 else:
     fmap = {
         'default': None,
-        'metis': metis_partitioner, 'spectral': spectral_partitioner,
-        'random': random_partitioner, 'work': work_balanced_partitioner}
+        'metis': metis_partitioner, 'random': random_partitioner,
+        'work': work_balanced_partitioner}
 
     partitioner = nengo_mpi.Partitioner(n_processors, func=fmap[partitioner])
 

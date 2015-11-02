@@ -3,7 +3,6 @@ import pytest
 from nengo_mpi import Simulator
 
 from nengo_mpi import Partitioner
-from nengo_mpi.partition import spectral_partitioner
 from nengo_mpi.partition import work_balanced_partitioner
 from nengo_mpi.partition import metis_available, metis_partitioner
 
@@ -47,19 +46,6 @@ def test_default(simple_network, n_components):
         simple_network, partitioner=partitioner, save_file=save_file)
 
     assert sim.n_components == min(len(cluster_graph), n_components)
-    assert os.path.isfile(save_file)
-    os.remove(save_file)
-
-
-def test_spectral(simple_network):
-    save_file = 'test.net'
-
-    n_components = 2
-    partitioner = Partitioner(n_components, func=spectral_partitioner)
-    sim = Simulator(
-        simple_network, partitioner=partitioner, save_file=save_file)
-
-    assert sim.n_components == 2
     assert os.path.isfile(save_file)
     os.remove(save_file)
 
