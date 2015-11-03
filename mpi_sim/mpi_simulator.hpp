@@ -43,6 +43,8 @@ public:
         return out;
     }
 
+    void write_to_time_file(char* filename, double delta) override;
+
 protected:
     int n_processors;
     bool mpi_merged;

@@ -1,7 +1,9 @@
 import logging
 import argparse
-
 import numpy as np
+import time
+import pandas as pd
+import os
 
 import nengo
 import nengo_mpi
@@ -11,8 +13,7 @@ from nengo_mpi.partition import random_partitioner, EnsembleArraySplitter
 logger = logging.getLogger(__name__)
 nengo.log(debug=False)
 
-parser = argparse.ArgumentParser(
-    description="Benchmarking script for nengo_mpi.")
+parser = argparse.ArgumentParser(description="A grid network.")
 
 parser.add_argument(
     '--ns', type=int, default=1,
@@ -52,14 +53,14 @@ parser.add_argument(
          'If not supplied, an assignment scheme is used.')
 
 parser.add_argument(
-    '--save', nargs='?', type=str, default='', const='bench',
+    '--save', nargs='?', type=str, default='', const='grid',
     help="Supply a filename to write the network to (so it can be "
          "later be used by the stand-alone version of nengo_mpi). "
          "In this case, the network will not be simulated.")
 
 parser.add_argument(
     '--mpi-log', nargs='?', type=str,
-    default='', const='bench', dest='mpi_log',
+    default='', const='grid', dest='mpi_log',
     help="Supply a filename to write the results of the simulation "
          "to, if an MPI simulation is performed.")
 
@@ -82,7 +83,7 @@ parser.add_argument(
 args = parser.parse_args()
 print "Parameters are: ", args
 
-name = 'MpiBenchmarkNetwork'
+name = 'Grid'
 N = args.npd
 D = args.d
 seed = args.seed
@@ -96,16 +97,18 @@ split_ea = args.split_ea
 
 use_mpi = args.mpi
 
+build_times = '/data/nengo_mpi_benchmarking/grid/buildtimes.db'
+
 save_file = args.save
-if save_file == 'bench':
+if save_file == 'grid':
     save_file = (
-        'bench_p{0}_sl{1}_ns{2}.net'.format(
+        'grid_p{0}_sl{1}_ns{2}.net'.format(
             args.p, stream_length, n_streams))
 
 mpi_log = args.mpi_log
-if mpi_log == 'bench':
+if mpi_log == 'grid':
     mpi_log = (
-        'bench_p{0}_sl{1}_ns{2}.h5'.format(
+        'grid_p{0}_sl{1}_ns{2}.h5'.format(
             args.p, stream_length, n_streams))
 
 if mpi_log:
@@ -132,6 +135,8 @@ assert n_streams > 0
 assert stream_length > 0
 assert n_processors >= 1
 assert sim_time > 0
+
+n_neurons = N * D * n_streams * stream_length
 
 assignments = {}
 
@@ -189,8 +194,26 @@ if use_ea and split_ea > 1:
 
 if use_mpi:
     if partitioner is not None:
+        t0 = time.time()
         sim = nengo_mpi.Simulator(
             m, dt=0.001, partitioner=partitioner, save_file=save_file)
+        t1 = time.time()
+
+        print "BUILD TIME: %f" % (t1 - t0)
+        try:
+            do_header = not os.path.isfile(build_times)
+
+            vals = vars(args).copy()
+            vals['build_times'] = t1 - t0
+            vals['n_neurons'] = n_neurons
+
+            now = pd.datetime.now()
+            df = pd.DataFrame(vals, index=pd.date_range(now, periods=1))
+
+            with open(build_times, 'a') as f:
+                df.to_csv(f, header=do_header)
+        except:
+            print "Could not write build times files."
     else:
         sim = nengo_mpi.Simulator(
             m, dt=0.001, assignments=assignments, save_file=save_file)
@@ -201,8 +224,6 @@ else:
     sim = nengo.Simulator(m, dt=0.001)
 
 if not save_file:
-    import time
-
     t0 = time.time()
 
     if use_mpi:
@@ -220,13 +241,9 @@ if not save_file:
             print "Stream %d result: " % i
             print sim.data[p][-10:]
 
-    n_neurons = N * D * n_streams * stream_length
     print "Total simulation time:", t1 - t0, "seconds"
     print "Parameters were: ", args
     print "Number of neurons in simulations: ", n_neurons
-
-    import pandas as pd
-    import os
 
     try:
         runtimes_file = "/scratch/c/celiasmi/e2crawfo/benchmark_runtimes.csv"

@@ -66,9 +66,7 @@ int main(int argc, char **argv){
             msg << "Specified simulation time, " << s_sim_length
                 << ", could not be interpreted as a float." << endl;
             throw runtime_error(msg.str());
-        }
-    }
-
+        } } 
     cout << "Will load network from file: " << net_filename << "." << endl;
     cout << "Will run simulation for " << sim_length << " second(s)." << endl;
 

@@ -53,9 +53,22 @@ public:
         return chunk->dt;
     }
 
+    virtual void write_to_time_file(char* filename, double delta);
+
+    void write_to_loadtimes_file(double delta){
+        char* filename = getenv("NENGO_MPI_LOADTIMES_FILE");
+        write_to_time_file(filename, delta);
+    }
+
+    void write_to_runtimes_file(double delta){
+        char* filename = getenv("NENGO_MPI_RUNTIMES_FILE");
+        write_to_time_file(filename, delta);
+    }
+
 protected:
     unique_ptr<MpiSimulatorChunk> chunk;
     bool collect_timings;
+    string label;
 
     // Place to store probe data retrieved from worker
     // processes after simulation has finished.

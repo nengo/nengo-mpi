@@ -99,7 +99,6 @@ int master_start(int argc, char **argv){
     if(options[SEED]){
         seed = boost::lexical_cast<unsigned>(options[SEED].arg);
     }
-
     cout << "Will simulate with seed: " << seed << endl;
     cout << endl;
 

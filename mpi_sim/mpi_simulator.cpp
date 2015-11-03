@@ -27,12 +27,12 @@ MpiSimulator::MpiSimulator(bool mpi_merged, bool collect_timings)
 }
 
 MpiSimulator::~MpiSimulator(){
-    // TODO: send a flag to workers, telling them to clean up and exit
 }
 
 void MpiSimulator::from_file(string filename){
     clock_t begin = clock();
 
+    label = filename;
     if(filename.length() == 0){
         stringstream s;
         s << "Got empty string for filename" << endl;
@@ -75,8 +75,10 @@ void MpiSimulator::from_file(string filename){
     MPI_Barrier(comm);
 
     clock_t end = clock();
-    cout << "Loading network from file took "
-         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+    double delta = double(end - begin) / CLOCKS_PER_SEC;
+    cout << "Loading network from file took " << delta << " seconds." << endl;
+
+    write_to_loadtimes_file(delta);
 }
 
 void MpiSimulator::finalize_build(){
@@ -110,8 +112,10 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     MPI_Barrier(comm);
 
     clock_t end = clock();
-    cout << "Simulating " << steps << " steps took "
-         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+    double delta = double(end - begin) / CLOCKS_PER_SEC;
+    cout << "Simulating " << steps << " steps took " << delta << " seconds." << endl;
+
+    write_to_runtimes_file(delta);
 }
 
 void MpiSimulator::gather_probe_data(){
@@ -336,6 +340,23 @@ void worker_start(MPI_Comm comm){
                 break;
             }
         }
+    }
+}
+
+void MpiSimulator::write_to_time_file(char* filename, double delta){
+    if(filename){
+        ofstream f(filename, ios::app);
+
+        if(f.good()){
+            if(f.tellp() == 0){
+                // Write the header
+                f << "seconds,nprocs,label" << endl;
+            }
+
+            f << delta << "," << n_processors << "," << label << endl;
+        }
+
+        f.close();
     }
 }
 

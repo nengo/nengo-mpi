@@ -8,6 +8,7 @@ Simulator::Simulator(bool collect_timings)
 void Simulator::from_file(string filename){
     clock_t begin = clock();
 
+    label = filename;
     if(filename.length() == 0){
         stringstream s;
         s << "Got empty string for filename" << endl;
@@ -38,8 +39,10 @@ void Simulator::from_file(string filename){
     H5Pclose(read_plist);
 
     clock_t end = clock();
-    cout << "Loading network from file took "
-         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+    double delta = double(end - begin) / CLOCKS_PER_SEC;
+    cout << "Loading network from file took " << delta << " seconds." << endl;
+
+    write_to_loadtimes_file(delta);
 }
 
 void Simulator::finalize_build(){
@@ -54,7 +57,8 @@ void Simulator::add_pyfunc(unique_ptr<Operator> pyfunc){
     chunk->add_op(move(pyfunc));
 }
 
-void Simulator::run_n_steps(int steps, bool progress, string log_filename){
+void Simulator::run_n_steps(
+        int steps, bool progress, string log_filename){
 
     clock_t begin = clock();
 
@@ -68,8 +72,10 @@ void Simulator::run_n_steps(int steps, bool progress, string log_filename){
     chunk->close_simulation_log();
 
     clock_t end = clock();
-    cout << "Simulating " << steps << " steps took "
-         << double(end - begin) / CLOCKS_PER_SEC << " seconds." << endl;
+    double delta = double(end - begin) / CLOCKS_PER_SEC;
+    cout << "Simulating " << steps << " steps took " << delta << " seconds." << endl;
+
+    write_to_runtimes_file(delta);
 }
 
 void Simulator::gather_probe_data(){
@@ -124,4 +130,21 @@ string Simulator::to_string() const{
     out << *chunk << endl;
 
     return out.str();
+}
+
+void Simulator::write_to_time_file(char* filename, double delta){
+    if(filename){
+        ofstream f(filename, ios::app);
+
+        if(f.good()){
+            if(f.tellp() == 0){
+                // Write the header
+                f << "seconds,nprocs,label" << endl;
+            }
+
+            f << delta << "," << 1 << "," << label << endl;
+        }
+
+        f.close();
+    }
 }
