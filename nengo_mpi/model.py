@@ -740,37 +740,44 @@ class MpiModel(builder.Model):
             recv_signals = self.recv_signals[component]
             component_ops = self.component_ops[component]
 
+            # Store some info to make the next two loops faster
+            for i, op in enumerate(component_ops):
+                for sig in op.updates:
+                    if not hasattr(sig, 'updated_by'):
+                        sig.updated_by = []
+
+                    sig.updated_by.append(op)
+
+                for sig in op.reads:
+                    if not hasattr(sig, 'read_by'):
+                        sig.read_by = []
+
+                    sig.read_by.append(op)
+
             for signal, tag, dst in send_signals:
                 mpi_send = MpiSend(dst, tag, signal)
 
-                update_indices = filter(
-                    lambda i: signal in component_ops[i].updates,
-                    range(len(component_ops)))
-
-                assert len(update_indices) == 1
-
-                self.global_ordering[mpi_send] = (
-                    self.global_ordering[component_ops[update_indices[0]]]
-                    + 0.5)
+                assert len(signal.updated_by) == 1
 
                 # Put the send after the op that updates the signal.
-                component_ops.insert(update_indices[0]+1, mpi_send)
+                self.global_ordering[mpi_send] = (
+                    self.global_ordering[signal.updated_by[0]] + 0.5)
+                component_ops.append(mpi_send)
 
             for signal, tag, src in recv_signals:
                 mpi_recv = MpiRecv(src, tag, signal)
 
-                read_indices = filter(
-                    lambda i: signal in component_ops[i].reads,
-                    range(len(component_ops)))
-
-                self.global_ordering[mpi_recv] = (
-                    self.global_ordering[component_ops[read_indices[0]]] - 0.5)
+                assert len(signal.read_by) > 0
 
                 # Put the recv in front of the first op that reads the signal.
-                component_ops.insert(read_indices[0], mpi_recv)
+                self.global_ordering[mpi_recv] = (
+                    self.global_ordering[signal.read_by[0]] - 0.5)
+                component_ops.append(mpi_recv)
 
+            # Sort to make the ordering take effect.
             op_order = sorted(
                 component_ops, key=self.global_ordering.__getitem__)
+            self.component_ops[component] = op_order
 
             for op in op_order:
                 op_type = type(op)
