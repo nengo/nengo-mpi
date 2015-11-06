@@ -1,6 +1,7 @@
 import argparse
 import time
 from collections import defaultdict
+import os
 
 import numpy as np
 import pandas as pd
@@ -11,6 +12,8 @@ from nengo.solvers import Solver
 import nengo_mpi
 from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
 from nengo_mpi.partition import random_partitioner, EnsembleArraySplitter
+
+from utils import write_to_csv
 
 
 class FakeSolver(Solver):
@@ -211,6 +214,10 @@ if __name__ == "__main__":
 
     use_mpi = args.mpi
 
+    bench_home = os.getenv("NENGO_MPI_BENCH_HOME")
+    build_times = os.path.join(bench_home, 'random/buildtimes.db')
+    run_times = os.path.join(bench_home, 'random/runtimes.db')
+
     save_file = args.save
     if save_file == 'random_graph':
         save_file = (
@@ -275,25 +282,33 @@ if __name__ == "__main__":
         max_neurons = np.ceil(float(dim) / split_ea) * npd
         splitter.split(model, max_neurons)
 
+    t0 = time.time()
     if use_mpi:
         fmap = {
             'default': None, '': None,
             'metis': metis_partitioner, 'random': random_partitioner,
             'work': work_balanced_partitioner}
 
-        t0 = time.time()
         partitioner = nengo_mpi.Partitioner(
             n_processors, func=fmap[partitioner])
         sim = nengo_mpi.Simulator(
             model, dt=0.001, partitioner=partitioner, save_file=save_file)
-        t1 = time.time()
-
-        print "Total build time: %s seconds", t1 - t0
 
         if save_file:
             print "Saved network to", save_file
     else:
         sim = nengo.Simulator(model, dt=0.001)
+
+    t1 = time.time()
+
+    n_neurons = npd * dim * n_nodes
+
+    vals = vars(args).copy()
+    vals['buildtime'] = t1 - t0
+    vals['n_neurons'] = n_neurons
+    write_to_csv(build_times, vals)
+
+    print "BUILD TIME: %f" % (t1 - t0)
 
     if not save_file:
         t0 = time.time()
@@ -310,28 +325,12 @@ if __name__ == "__main__":
                 print "Result from %s: " % p
                 print sim.data[p][-10:]
 
-        n_neurons = npd * dim * n_nodes
-        print "Total simulation time:", t1 - t0, "seconds"
+        print "Total simulation time: %g seconds" % (t1 - t0)
         print "Parameters were: ", args
         print "Number of neurons in network: ", n_neurons
         print "Number of nodes in network: ", n_nodes
 
-        import pandas as pd
-        import os
-
-        try:
-            runtimes_file = (
-                "/scratch/c/celiasmi/e2crawfo/random_graph_runtimes.csv")
-            header = not os.path.isfile(runtimes_file)
-
-            vals = vars(args).copy()
-            vals['runtime'] = t1 - t0
-            vals['n_neurons'] = n_neurons
-
-            now = pd.datetime.now()
-            df = pd.DataFrame(vals, index=pd.date_range(now, periods=1))
-
-            with open(runtimes_file, 'a') as f:
-                df.to_csv(f, header=header)
-        except:
-            print "Could not write runtimes files."
+        vals = vars(args).copy()
+        vals['runtime'] = t1 - t0
+        vals['n_neurons'] = n_neurons
+        write_to_csv(run_times, vals)

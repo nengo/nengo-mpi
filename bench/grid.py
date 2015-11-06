@@ -2,13 +2,13 @@ import logging
 import argparse
 import numpy as np
 import time
-import pandas as pd
 import os
 
 import nengo
 import nengo_mpi
 from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
 from nengo_mpi.partition import random_partitioner, EnsembleArraySplitter
+from utils import write_to_csv
 
 logger = logging.getLogger(__name__)
 nengo.log(debug=False)
@@ -97,7 +97,9 @@ split_ea = args.split_ea
 
 use_mpi = args.mpi
 
-build_times = '/data/nengo_mpi_benchmarking/grid/buildtimes.db'
+bench_home = os.getenv("NENGO_MPI_BENCH_HOME")
+build_times = os.path.join(bench_home, 'grid/buildtimes.db')
+run_times = os.path.join(bench_home, 'grid/runtimes.db')
 
 save_file = args.save
 if save_file == 'grid':
@@ -192,28 +194,11 @@ if use_ea and split_ea > 1:
     max_neurons = np.ceil(float(D) / split_ea) * N
     splitter.split(m, max_neurons)
 
+t0 = time.time()
 if use_mpi:
     if partitioner is not None:
-        t0 = time.time()
         sim = nengo_mpi.Simulator(
             m, dt=0.001, partitioner=partitioner, save_file=save_file)
-        t1 = time.time()
-
-        print "BUILD TIME: %f" % (t1 - t0)
-        try:
-            do_header = not os.path.isfile(build_times)
-
-            vals = vars(args).copy()
-            vals['build_times'] = t1 - t0
-            vals['n_neurons'] = n_neurons
-
-            now = pd.datetime.now()
-            df = pd.DataFrame(vals, index=pd.date_range(now, periods=1))
-
-            with open(build_times, 'a') as f:
-                df.to_csv(f, header=do_header)
-        except:
-            print "Could not write build times files."
     else:
         sim = nengo_mpi.Simulator(
             m, dt=0.001, assignments=assignments, save_file=save_file)
@@ -222,6 +207,13 @@ if use_mpi:
         print "Saved network to", save_file
 else:
     sim = nengo.Simulator(m, dt=0.001)
+
+t1 = time.time()
+
+vals = vars(args).copy()
+vals['buildtime'] = t1 - t0
+vals['n_neurons'] = n_neurons
+write_to_csv(build_times, vals)
 
 if not save_file:
     t0 = time.time()
@@ -245,18 +237,7 @@ if not save_file:
     print "Parameters were: ", args
     print "Number of neurons in simulations: ", n_neurons
 
-    try:
-        runtimes_file = "/scratch/c/celiasmi/e2crawfo/benchmark_runtimes.csv"
-        header = not os.path.isfile(runtimes_file)
-
-        vals = vars(args).copy()
-        vals['runtime'] = t1 - t0
-        vals['n_neurons'] = n_neurons
-
-        now = pd.datetime.now()
-        df = pd.DataFrame(vals, index=pd.date_range(now, periods=1))
-
-        with open(runtimes_file, 'a') as f:
-            df.to_csv(f, header=header)
-    except:
-        print "Could not write runtimes files."
+    vals = vars(args).copy()
+    vals['runtime'] = t1 - t0
+    vals['n_neurons'] = n_neurons
+    write_to_csv(run_times, vals)
