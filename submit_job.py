@@ -11,12 +11,13 @@ import subprocess
 import argparse
 import datetime
 import math
+import re
 
 
 def write_bgq_jobfile(
         filename, n_processors, network_file, network_name,
         working_dir, wall_time, exe_loc, t, log, merged, timing,
-        ranks_per_node=16):
+        envs, ranks_per_node=16):
 
     n_nodes = math.ceil(float(n_processors) / ranks_per_node)
     n_nodes = max(64, n_nodes)
@@ -36,17 +37,17 @@ def write_bgq_jobfile(
 
         outf.write(
             'runjob --np {p} --ranks-per-node={ranks_per_node} '
-            '--envs OMP_NUM_THREADS=1 HOME=$HOME --cwd={wd} : '
+            '--envs OMP_NUM_THREADS=1 HOME=$HOME {envs} --cwd={wd} : '
             '{exe_loc} --noprog {log} {merged} {timing} {network_file} {t}'.format(
                 p=n_processors, ranks_per_node=ranks_per_node, exe_loc=exe_loc,
                 log=log, merged=merged, timing=timing, network_file=network_file,
-                t=t, wd=working_dir))
+                t=t, wd=working_dir, envs=' '.join(envs)))
 
 
 def write_gpc_jobfile(
         filename, n_processors, network_file, network_name,
         working_dir, wall_time, exe_loc, t, log, merged, timing,
-        ranks_per_node=8):
+        envs, ranks_per_node=8):
 
     network_file = path.split(network_file)[-1]
 
@@ -61,7 +62,6 @@ def write_gpc_jobfile(
             "#PBS -l nodes=%d:ppn=%d,walltime=%s"
             "\n" % (n_nodes, ranks_per_node, wall_time))
         outf.write(line)
-
         outf.write("#PBS -N %s\n" % network_name)
         outf.write("#PBS -m abe\n\n")
 
@@ -74,11 +74,14 @@ def write_gpc_jobfile(
         outf.write("module load gcc/4.8.1\n")
         outf.write("module load hdf5/1813-v18-openmpi-intel\n")
         outf.write("module load use.own\n")
-
         outf.write("module load nengo\n\n")
 
-        outf.write("cd %s\n" % working_dir)
+        for e in envs:
+            outf.write("export %s\n" % e)
+        if envs:
+            outf.write("\n")
 
+        outf.write("cd %s\n" % working_dir)
         outf.write("cp ${PBS_NODEFILE} .\n\n")
 
         outf.write("# EXECUTION COMMAND;\n")
@@ -145,6 +148,10 @@ if __name__ == "__main__":
     parser.add_argument(
         '--rpn', default=0, type=int, help="MPI Ranks per node.")
 
+    parser.add_argument(
+        '--envs', default=None, nargs='*',
+        help="Environment variables to run the job with.")
+
     # Parse args
     args = parser.parse_args()
     print args
@@ -180,6 +187,12 @@ if __name__ == "__main__":
     else:
         wall_time = args.w
 
+    # Checks envs
+    envs = args.envs
+    pattern = '\w+=\w+'
+    for e in envs:
+        assert re.match(pattern, e), "``envs`` supplied in incorrect format."
+
     # Define constants
     submit_script = "submit_script.sh"
     exe_loc = path.join(os.getenv('HOME'), 'nengo_mpi/bin/nengo_mpi')
@@ -200,11 +213,13 @@ if __name__ == "__main__":
     if platform == 'gpc':
         write_gpc_jobfile(
             submit_script_path, n_processors, network_file, network_name,
-            working_dir, wall_time, exe_loc, t, log, merged, timing, ranks_per_node)
+            working_dir, wall_time, exe_loc, t, log, merged, timing,
+            envs, ranks_per_node)
     else:
         write_bgq_jobfile(
             submit_script_path, n_processors, network_file, network_name,
-            working_dir, wall_time, exe_loc, t, log, merged, timing, ranks_per_node)
+            working_dir, wall_time, exe_loc, t, log, merged, timing,
+            envs, ranks_per_node)
 
     # Create convenience `latest` symlink
     make_sym_link(working_dir, path.join(experiments_dir, 'latest'))
