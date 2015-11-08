@@ -3,11 +3,18 @@ from __future__ import print_function
 import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn
+seaborn.set(style="white")
+seaborn.set_context(rc={'lines.markeredgewidth': 0.1})
+from matplotlib.markers import MarkerStyle
 import subprocess
 import shutil
 import re
 import time
 from doit import get_var
+
+from utils import write_to_csv
 
 # Modify these by supplying key=val at the end of a doit-command
 params = {
@@ -132,7 +139,7 @@ def task_runsa():
             for netfile in os.listdir(dir_path):
                 m = re.match(pattern, netfile)
                 if m:
-                    n_procs = m.groupdict()['p']
+                    n_procs = int(m.groupdict()['p'])
 
                     if n_procs <= max_procs:
                         print("** Running %s" % netfile)
@@ -147,22 +154,11 @@ def task_runsa():
                         print(output)
                         print("** The command took " + str(t1 - t0) + " seconds.")
 
-                        try:
-                            runtimes_file = os.path.join(loc, 'total_runtimes.csv')
-                            do_header = not os.path.isfile(runtimes_file)
-
-                            vals = dict(
-                                runtimes=t1-t0, label=netfile,
-                                t=t, nprocs=n_procs)
-
-                            now = pd.datetime.now()
-                            df = pd.DataFrame(
-                                vals, index=pd.date_range(now, periods=1))
-
-                            with open(runtimes_file, 'a') as f:
-                                df.to_csv(f, header=do_header)
-                        except:
-                            print("** Could not write build times files.")
+                        vals = dict(
+                            runtimes=t1-t0, label=netfile,
+                            t=t, nprocs=n_procs)
+                        runtimes_file = os.path.join(loc, 'total_runtimes.csv')
+                        write_to_csv(runtimes_file, vals)
                     else:
                         print("** Ignoring %s because maxprocs (%s) "
                               "exceeded" % (netfile, max_procs))
@@ -199,4 +195,84 @@ def task_cleantimes():
                 os.remove(ff)
 
     return {'actions': [(f, [network],)],
+            'verbosity': 2}
+
+
+def task_plot():
+    def plot(
+            save, path, xlabel, ylabel, title, fn_pattern,
+            ind_var_name, do_log=True, realtime=None):
+
+        plt.figure()
+        df = pd.read_csv(path)
+        ind_var = [re.match(fn_pattern, s).groups()[0] for s in df.label]
+        df[ind_var_name] = ind_var
+        mean_runtime = df.groupby(['nprocs', ind_var_name])['seconds'].mean()
+        if realtime:
+            plt.axhline(
+                realtime, color='k', linestyle='dashed', label="Real Time")
+
+        xticks = set()
+        plot_params = ['-'+m for m in MarkerStyle.filled_markers]
+        for p, n_procs in zip(plot_params, mean_runtime.index.levels[0]):
+            s = mean_runtime.loc[n_procs]
+            s = pd.Series(data=list(s), index=[int(n) for n in s.index])
+            s = s.sort_index()
+
+            x = list(s.index)
+            y = list(s)
+
+            xticks |= set(x)
+
+            if do_log:
+                plt.loglog(
+                    x, y, p, label="%d proc" % int(n_procs),
+                    basex=2, basey=10)
+            else:
+                plt.plot(x, y, p, label="%d proc" % int(n_procs))
+
+        if do_log:
+            minx = min(xticks)
+            maxx = max(xticks)
+
+            plt.xlim((2**(np.log2(minx)-0.5), 2**(np.log2(maxx)+0.5)))
+
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+
+        plt.legend(
+            loc='center left', bbox_to_anchor=(1, 0.5), prop={'size': 10},
+            handlelength=2.0, handletextpad=.5, shadow=False, frameon=False)
+        plt.subplots_adjust(left=0.2, right=0.8, top=0.9, bottom=0.1)
+
+        plt.savefig(save)
+
+    params = {
+        'bgq_grid_run': dict(
+            save='plots/bgq_grid_run.pdf',
+            path="results/bgq_grid/runtimes.csv",
+            xlabel="# of Ensembles",
+            ylabel="Run time (s)",
+            title="Grid Network on BGQ",
+            do_log=True,
+            fn_pattern="grid_p\d+_e(\w+)_c0.net",
+            ind_var_name="n_ens",
+            realtime=5.0),
+        'bgq_grid_load': dict(
+            save='plots/bgq_grid_load.pdf',
+            path="results/bgq_grid/loadtimes.csv",
+            xlabel="# of Ensembles",
+            ylabel="Load time (s)",
+            title="Grid Network on BGQ",
+            do_log=True,
+            fn_pattern="grid_p\d+_e(\w+)_c0.net",
+            ind_var_name="n_ens",
+            realtime=None),
+    }
+
+    for name, kwargs in params.iteritems():
+        yield {
+            'name': name,
+            'actions': [(plot, [], kwargs)],
             'verbosity': 2}
