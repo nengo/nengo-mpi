@@ -20,7 +20,7 @@ def write_bgq_jobfile(
         envs, ranks_per_node=16):
 
     n_nodes = math.ceil(float(n_processors) / ranks_per_node)
-    n_nodes = max(64, n_nodes)
+    n_nodes = int(max(64, n_nodes))
 
     network_file = path.split(network_file)[-1]
     with open(filename, 'w') as outf:
@@ -152,6 +152,10 @@ if __name__ == "__main__":
         '--envs', default=None, nargs='*',
         help="Environment variables to run the job with.")
 
+    parser.add_argument(
+        '--dir', default=None,
+        help="Path to store the experiment directories.")
+
     # Parse args
     args = parser.parse_args()
     print args
@@ -187,16 +191,18 @@ if __name__ == "__main__":
     else:
         wall_time = args.w
 
-    # Checks envs
-    envs = args.envs
-    pattern = '\w+=\w+'
+    # Checks envs - \S matches any non-whitespace character
+    envs = [] if args.envs is None else args.envs
+    pattern = '\S+=\S+'
     for e in envs:
         assert re.match(pattern, e), "``envs`` supplied in incorrect format."
 
     # Define constants
     submit_script = "submit_script.sh"
     exe_loc = path.join(os.getenv('HOME'), 'nengo_mpi/bin/nengo_mpi')
-    experiments_dir = path.join(os.getenv('SCRATCH'), "experiments")
+    experiments_dir = (
+        path.join(os.getenv('SCRATCH'), "experiments")
+        if args.dir is None else args.dir)
 
     network_name = path.split(network_file)[-1]
     network_name = path.splitext(network_name)[0]
