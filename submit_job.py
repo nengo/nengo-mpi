@@ -56,7 +56,7 @@ def write_gpc_jobfile(
         outf.write("# MOAB/Torque submission script for SciNet GPC\n")
         outf.write("#\n")
 
-        n_nodes = math.ceil(float(n_processors) / ranks_per_node)
+        n_nodes = int(math.ceil(float(n_processors) / ranks_per_node))
 
         line = (
             "#PBS -l nodes=%d:ppn=%d,walltime=%s"
@@ -89,7 +89,8 @@ def write_gpc_jobfile(
             "mpirun -np {p} --mca pml ob1 {exe_loc} --noprog {log} {merged} "
             "{timing} {network_file} {t}\n".format(
                 p=n_processors, ranks_per_node=ranks_per_node, exe_loc=exe_loc,
-                log=log, merged=merged, timing=timing, network_file=network_file, t=t))
+                log=log, merged=merged, timing=timing,
+                network_file=network_file, t=t))
 
 
 def make_directory_name(experiments_dir, network_name):
