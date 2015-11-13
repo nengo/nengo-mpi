@@ -127,6 +127,7 @@ class EnsembleArraySplitter(object):
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(logging.FileHandler(
             filename=self.log_file_name, mode='w'))
+        self.logger.propagate = False
 
         self.max_neurons = max_neurons
         self.preserve_zero_conns = preserve_zero_conns
