@@ -139,10 +139,10 @@ void Simulator::write_to_time_file(char* filename, double delta){
         if(f.good()){
             if(f.tellp() == 0){
                 // Write the header
-                f << "seconds,nprocs,label" << endl;
+                f << "seconds,nprocs,label,t" << endl;
             }
 
-            f << delta << "," << 1 << "," << label << endl;
+            f << delta << "," << 1 << "," << label << "," << *get_time_pointer() << endl;
         }
 
         f.close();

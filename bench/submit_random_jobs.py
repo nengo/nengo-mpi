@@ -15,7 +15,7 @@ if not os.path.isdir(dest):
 
 command_template = (
     "python ../submit_job.py {netfile} -p {nprocs} "
-    "-t {t} --envs {envs} --dir %s" % dest)
+    "-t {t} --envs {envs} -w 30:00 --dir %s" % dest)
 pattern = "random_p(?P<p>.+)_e(?P<e>.+)_q(?P<q>.+)_c(?P<c>.+).net"
 
 envs = "NENGO_MPI_RUNTIMES_FILE=%s NENGO_MPI_LOADTIMES_FILE=%s" % (
@@ -40,6 +40,7 @@ for d in os.listdir(loc):
             netfile_path = os.path.join(dir_path, netfile)
             command = command_template.format(
                 nprocs=n_procs, netfile=netfile_path, t=t, envs=envs)
+            print("**Command: %s" % command)
             output = subprocess.check_output(command.split())
             print(output)
             time.sleep(1.1)
