@@ -53,11 +53,8 @@ endif
 
 DEFS=
 
-all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG
+all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG -O3
 all: build
-
-opt: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG -O3
-opt: build
 
 run_dbg: DEFS+= -DRUN_DEBUG
 run_dbg: mpi_dbg
