@@ -845,6 +845,35 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
             add_op(unique_ptr<Operator>(new WhiteSignal(output, *coefs)));
 
+        }else if(type_string.compare("BCM") == 0){
+
+            SignalView pre_filtered = get_signal_view(args[0]);
+            SignalView post_filtered = get_signal_view(args[1]);
+            SignalView theta = get_signal_view(args[2]);
+            SignalView delta = get_signal_view(args[3]);
+
+            dtype learning_rate = boost::lexical_cast<dtype>(args[4]);
+            dtype dt = boost::lexical_cast<dtype>(args[5]);
+
+            add_op(unique_ptr<Operator>(
+                new BCM(
+                    pre_filtered, post_filtered, theta, delta, learning_rate, dt)));
+
+        }else if(type_string.compare("Oja") == 0){
+
+            SignalView pre_filtered = get_signal_view(args[0]);
+            SignalView post_filtered = get_signal_view(args[1]);
+            SignalView weights = get_signal_view(args[2]);
+            SignalView delta = get_signal_view(args[3]);
+
+            dtype learning_rate = boost::lexical_cast<dtype>(args[4]);
+            dtype dt = boost::lexical_cast<dtype>(args[5]);
+            dtype beta = boost::lexical_cast<dtype>(args[6]);
+
+            add_op(unique_ptr<Operator>(
+                new Oja(
+                    pre_filtered, post_filtered, weights, delta, learning_rate, dt, beta)));
+
         }else if(type_string.compare("MpiSend") == 0){
 
             if(n_processors > 1){

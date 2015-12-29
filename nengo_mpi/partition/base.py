@@ -6,10 +6,10 @@ import networkx as nx
 import numpy as np
 
 from nengo import Direct, Node, Ensemble, Connection, Probe
-from nengo.connection import LearningRule
 from nengo.base import ObjView
 from nengo.ensemble import Neurons
 from nengo.utils.builder import find_all_io
+from nengo.utils.compat import is_iterable, itervalues
 
 from nengo_mpi import PartitionError
 from nengo_mpi.spaun_mpi import SpaunStimulus
@@ -661,56 +661,54 @@ def propogate_assignments(network, assignments, can_cross_boundary):
 
             helper(n, assignments, outputs)
 
-    def probe_helper(network, assignments):
-        for probe in network.probes:
-            target = (
-                probe.target.obj
-                if isinstance(probe.target, ObjView) else probe.target)
-
-            if isinstance(target, LearningRule):
-                target = target.connection()
-
-            if isinstance(target, Connection):
-                target = target.pre_obj
-
-            assignments[probe] = assignments[target]
-
-        for n in network.networks:
-            probe_helper(n, assignments)
-
     assignments[network] = 0
 
     _, outputs = find_all_io(network.all_connections)
 
     try:
         helper(network, assignments, outputs)
+
+        # Assign learning rules
+        for conn in network.all_connections:
+            if conn.learning_rule is not None:
+                rule = conn.learning_rule
+                if is_iterable(rule):
+                    for r in itervalues(rule) if isinstance(rule, dict) else rule:
+                        assignments[r] = assignments[conn.pre_obj]
+                elif rule is not None:
+                    assignments[rule] = assignments[conn.pre_obj]
+
+        # Check for connections erroneously crossing component boundaries
+        non_crossing = [
+            conn for conn in network.all_connections
+            if not can_cross_boundary(conn)]
+
+        for conn in non_crossing:
+            pre_component = assignments[conn.pre_obj]
+            post_component = assignments[conn.post_obj]
+
+            if pre_component != post_component:
+                raise PartitionError(
+                    "Connection %s crosses a component "
+                    "boundary, but it is not permitted to. "
+                    "Pre-object assigned to %d, post-object "
+                    "assigned to %d." % (conn, pre_component, post_component))
+
+        # Assign probes
+        for probe in network.all_probes:
+            target = (
+                probe.target.obj
+                if isinstance(probe.target, ObjView)
+                else probe.target)
+
+            if isinstance(target, Connection):
+                target = target.pre_obj
+
+            assignments[probe] = assignments[target]
+
     except KeyError as e:
         # Nengo tests require a value error to be raised in these cases.
         msg = "Invalid Partition. KeyError: %s" % e.message,
-        raise ValueError(msg)
-
-    non_crossing = [
-        conn for conn in network.all_connections
-        if not can_cross_boundary(conn)]
-
-    for conn in non_crossing:
-        pre_component = assignments[conn.pre_obj]
-        post_component = assignments[conn.post_obj]
-
-        if pre_component != post_component:
-            raise PartitionError(
-                "Connection %s crosses a component "
-                "boundary, but it is not permitted to. "
-                "Pre-object assigned to %d, post-object "
-                "assigned to %d." % (conn, pre_component, post_component))
-
-    try:
-        probe_helper(network, assignments)
-    except KeyError as e:
-        # Nengo tests require a value error to be raised in these cases.
-        msg = (
-            "Invalid Partition. Something is wrong with "
-            "the probes. KeyError: %s." % e.message)
         raise ValueError(msg)
 
     nodes = network.all_nodes
@@ -720,10 +718,6 @@ def propogate_assignments(network, assignments, can_cross_boundary):
     ensembles = network.all_ensembles
     ensembles_in = all([ensemble in assignments for ensemble in ensembles])
     assert ensembles_in, "Assignments incomplete, missing ensembles."
-
-    probes = network.all_probes
-    probes_in = all([probe in assignments for probe in probes])
-    assert probes_in, "Assignments incomplete, missing probes."
 
 
 def total_neurons(network):

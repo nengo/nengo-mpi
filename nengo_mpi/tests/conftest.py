@@ -1,5 +1,21 @@
 from nengo.tests.conftest import *
 
+import nengo_mpi
+import nengo
+
+
+@pytest.fixture(scope='function')
+def Simulator(request):
+    '''The Simulator class being tested.'''
+
+    request.addfinalizer(nengo_mpi.Simulator.close_simulators)
+    return nengo_mpi.Simulator
+
+
+def pytest_funcarg__RefSimulator(request):
+    '''the Simulator class being tested.'''
+    return nengo.Simulator
+
 
 def pytest_addoption(parser):
     parser.addoption(

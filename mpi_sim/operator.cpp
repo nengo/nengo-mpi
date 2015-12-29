@@ -175,6 +175,20 @@ J(J), output(output), voltage(voltage), recovery(recovery){
     bias = ScalarSignal(n_neurons, 1, 140);
 }
 
+BCM::BCM(
+    SignalView pre_filtered, SignalView post_filtered, SignalView theta,
+    SignalView delta, dtype learning_rate, dtype dt)
+:pre_filtered(pre_filtered), post_filtered(post_filtered), theta(theta), delta(delta),
+alpha(learning_rate * dt){
+}
+
+Oja::Oja(
+    SignalView pre_filtered, SignalView post_filtered, SignalView weights,
+    SignalView delta, dtype learning_rate, dtype dt, dtype beta)
+:pre_filtered(pre_filtered), post_filtered(post_filtered), weights(weights), delta(delta),
+alpha(learning_rate * dt), beta(beta){
+}
+
 // Function operator overloads
 void Reset::operator() (){
 
@@ -473,6 +487,29 @@ void Izhikevich::operator() (){
             recovery(i, 0) += reset_recovery;
         }
     }
+
+    run_dbg(*this);
+}
+
+void BCM::operator() (){
+    opb_prod(
+        alpha * element_prod(post_filtered, post_filtered - theta),
+        trans(pre_filtered), delta, true);
+
+    run_dbg(*this);
+}
+
+void Oja::operator() (){
+    for(int i = 0; i < weights.size1(); i++){
+        dtype post_squared = post_filtered(i, 0);
+        post_squared *= alpha * post_squared;
+
+        for(int j = 0; j < weights.size2(); j++){
+            delta(i, j) = -beta * weights(i, j) * post_squared;
+        }
+    }
+
+    opb_prod(alpha * post_filtered, trans(pre_filtered), delta, false);
 
     run_dbg(*this);
 }
@@ -800,7 +837,46 @@ string Izhikevich::to_string() const{
     return out.str();
 }
 
+string BCM::to_string() const{
+    stringstream out;
+    out << Operator::to_string();
+    out << "alpha: " << alpha << endl;
+
+    out << "pre_filtered:" << endl;
+    out << signal_to_string(pre_filtered) << endl;
+    out << "post_filtered:" << endl;
+    out << signal_to_string(post_filtered) << endl;
+    out << "theta:" << endl;
+    out << signal_to_string(theta) << endl;
+    out << "delta:" << endl;
+    out << signal_to_string(delta) << endl;
+
+    return out.str();
+}
+
+string Oja::to_string() const{
+    stringstream out;
+    out << Operator::to_string();
+    out << "alpha: " << alpha << endl;
+    out << "beta: " << beta << endl;
+
+    out << "pre_filtered:" << endl;
+    out << signal_to_string(pre_filtered) << endl;
+    out << "post_filtered:" << endl;
+    out << signal_to_string(post_filtered) << endl;
+    out << "weights:" << endl;
+    out << signal_to_string(weights) << endl;
+    out << "delta:" << endl;
+    out << signal_to_string(delta) << endl;
+
+    return out.str();
+}
+
 // reset
+// Here we only need to reset aspects of state that are
+// *not* stored as signals. Consequently, most operators
+// won't need to do anything here. Resetting the signals
+// is handled by the chunk.
 
 void Synapse::reset(unsigned seed){
     for(int i = 0; i < input.size1(); i++){
@@ -829,6 +905,7 @@ void WhiteSignal::reset(unsigned seed){
     idx = 0;
 }
 
+// Miscellaneous
 string signal_to_string(const SignalView signal) {
 
     stringstream ss;

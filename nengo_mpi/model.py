@@ -1058,6 +1058,22 @@ class MpiModel(builder.Model):
                 raise NotImplementedError(
                     'Unrecognized process type: %s.' % str(process_type))
 
+        elif op_type == builder.learning_rules.SimBCM:
+            op_args = [
+                "BCM", signal_to_string(op.pre_filtered),
+                signal_to_string(op.post_filtered),
+                signal_to_string(op.theta),
+                signal_to_string(op.delta),
+                op.learning_rate, self.dt]
+
+        elif op_type == builder.learning_rules.SimOja:
+            op_args = [
+                "Oja", signal_to_string(op.pre_filtered),
+                signal_to_string(op.post_filtered),
+                signal_to_string(op.weights),
+                signal_to_string(op.delta),
+                op.learning_rate, self.dt, op.beta]
+
         elif op_type == builder.operator.PreserveValue:
             logger.debug(
                 "Skipping PreserveValue, operator: %s, signal: %s",

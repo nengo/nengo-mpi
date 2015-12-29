@@ -459,6 +459,47 @@ protected:
     ScalarSignal bias;
 };
 
+class BCM: public Operator{
+public:
+    BCM(
+        SignalView pre_filtered, SignalView post_filtered, SignalView weights,
+        SignalView delta, dtype learning_rate, dtype dt);
+    virtual string classname() const { return "BCM"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    dtype alpha;
+
+    SignalView pre_filtered;
+    SignalView post_filtered;
+    SignalView theta;
+    SignalView delta;
+};
+
+class Oja: public Operator{
+public:
+    Oja(
+        SignalView pre_filtered, SignalView post_filtered, SignalView theta,
+        SignalView delta, dtype learning_rate, dtype dt, dtype beta);
+    virtual string classname() const { return "Oja"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    dtype alpha;
+    dtype beta;
+
+    SignalView pre_filtered;
+    SignalView post_filtered;
+    SignalView weights;
+    SignalView delta;
+};
+
+
+
 string signal_to_string(const SignalView signal);
 string signal_to_string(const BaseSignal signal);
 

@@ -18,7 +18,6 @@ import pytest
 import nengo
 from nengo.utils.testing import find_modules
 
-import nengo_mpi
 from nengo_mpi.tests.utils import load_functions
 
 
@@ -26,19 +25,6 @@ def xfail(pattern, msg):
     for key in tests:
         if fnmatch.fnmatch(key, pattern):
             tests[key] = pytest.mark.xfail(True, reason=msg)(tests[key])
-
-
-@pytest.fixture(scope='function')
-def Simulator(request):
-    '''The Simulator class being tested.'''
-
-    request.addfinalizer(nengo_mpi.Simulator.close_simulators)
-    return nengo_mpi.Simulator
-
-
-def pytest_funcarg__RefSimulator(request):
-    '''the Simulator class being tested.'''
-    return nengo.Simulator
 
 
 nengo_dir = os.path.dirname(nengo.__file__)
@@ -52,8 +38,10 @@ xfail('test.nengo.tests.test_processes.test_brownnoise',
       'nengo_mpi does not support FilteredNoise')
 
 # learning rules
-xfail('test.nengo.tests.test_learning_rules.*',
-      'Learning rules not yet implemented')
+xfail('test.nengo.tests.test_learning_rules.*pes*',
+      'PES does not work yet')
+xfail('test.nengo.tests.test_learning_rules.*voja*',
+      'Voja does not work yet')
 
 # nodes
 xfail('test.nengo.tests.test_node.test_none',
@@ -71,13 +59,15 @@ xfail('test.nengo.tests.test_cache.test_cache_works',
 
 # opens multiple simulators
 xfail('test.nengo.tests.test_probe.test_dts',
-      'Opens multiple simulators.')
+      'Opens multiple simulators')
 xfail('test.nengo.tests.test_connection.test_shortfilter',
-      'Opens multiple simulators.')
+      'Opens multiple simulators')
 xfail('test.nengo.tests.test_connection.test_set_function',
-      'Opens multiple simulators.')
+      'Opens multiple simulators')
 xfail('test.nengo.tests.test_neurons.test_dt_dependence',
-      'Opens multiple simulators.')
+      'Opens multiple simulators')
+xfail('test.nengo.tests.test_learning_rules.test_dt_dependence',
+      'Opens multiple simulators')
 
 locals().update(tests)
 

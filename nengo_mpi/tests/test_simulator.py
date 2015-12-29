@@ -3,6 +3,7 @@ import nengo_mpi
 import nengo
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate  # , Izhikevich
+from nengo.tests.test_learning_rules import learning_net
 
 import numpy as np
 import pytest
@@ -294,3 +295,37 @@ def test_spaun_stim():
             sim.close()
         except:
             pass
+
+
+@pytest.mark.parametrize("learning_rule", [nengo.BCM, nengo.Oja])
+def test_unsupervised_exact_match(Simulator, learning_rule, seed, rng):
+    sim_time = 1.0
+
+    m, activity_p, trans_p = learning_net(
+        learning_rule, nengo.Network(seed=seed), rng)
+
+    refimpl_sim = nengo.Simulator(m)
+    refimpl_sim.run(sim_time)
+
+    mpi_sim = Simulator(m)
+    mpi_sim.run(sim_time)
+
+    assert np.allclose(
+        refimpl_sim.data[activity_p], mpi_sim.data[activity_p],
+        atol=0.00001, rtol=0.00)
+    assert np.allclose(
+        refimpl_sim.data[trans_p], mpi_sim.data[trans_p],
+        atol=0.00001, rtol=0.00)
+
+    refimpl_sim.reset()
+    mpi_sim.reset()
+
+    refimpl_sim.run(sim_time)
+    mpi_sim.run(sim_time)
+
+    assert np.allclose(
+        refimpl_sim.data[activity_p], mpi_sim.data[activity_p],
+        atol=0.00001, rtol=0.00)
+    assert np.allclose(
+        refimpl_sim.data[trans_p], mpi_sim.data[trans_p],
+        atol=0.00001, rtol=0.00)
