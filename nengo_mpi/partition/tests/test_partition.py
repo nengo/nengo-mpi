@@ -2,7 +2,7 @@ import pytest
 
 from nengo_mpi import Simulator
 
-from nengo_mpi import Partitioner
+from nengo_mpi import Partitioner, PartitionError
 from nengo_mpi.partition import work_balanced_partitioner
 from nengo_mpi.partition import metis_available, metis_partitioner
 
@@ -126,9 +126,9 @@ def test_bad_assignments():
         nengo.Connection(node, A)
         nengo.Connection(A, B, synapse=None)
 
-    # No filter between A and B, but we're assigning them to different
+    # No synapse between A and B, but we're assigning them to different
     # partitions, so an error should be raised.
-    with pytest.raises(RuntimeError):
+    with pytest.raises(PartitionError):
         Simulator(
             network, assignments={node: 0, A: 1, B: 2}, save_file=save_file)
 
@@ -203,3 +203,45 @@ def test_cluster_graph():
     component0, cluster_graph = network_to_cluster_graph(
         network, merge_nengo_nodes=False)
     assert len(cluster_graph) == 4
+
+
+def test_learning_rules(rng):
+    save_file = 'test.net'
+    network = nengo.Network()
+
+    with network:
+        node = nengo.Node(0.5, label='Node 0')
+        A = nengo.Ensemble(50, 1, label='A')
+        B = nengo.Ensemble(50, 1, label='B')
+
+        nengo.Connection(node, A)
+
+        initial_weights = rng.uniform(
+            high=1e-3, size=(A.n_neurons, B.n_neurons))
+        nengo.Connection(
+            A.neurons, B.neurons,
+            transform=initial_weights,
+            learning_rule_type=nengo.learning_rules.Oja())
+
+    with pytest.raises(PartitionError):
+        Simulator(
+            network, assignments={node: 0, A: 1, B: 2}, save_file=save_file)
+
+
+def test_probed_connection():
+    save_file = 'test.net'
+    network = nengo.Network()
+
+    with network:
+        node = nengo.Node(0.5, label='Node 0')
+        A = nengo.Ensemble(50, 1, label='A')
+        B = nengo.Ensemble(50, 1, label='B')
+
+        nengo.Connection(node, A)
+
+        C = nengo.Connection(A, B)
+        nengo.Probe(C)
+
+    with pytest.raises(PartitionError):
+        Simulator(
+            network, assignments={node: 0, A: 1, B: 2}, save_file=save_file)

@@ -35,6 +35,7 @@ from nengo.ensemble import Ensemble
 from nengo.node import Node
 from nengo.probe import Probe
 
+from nengo_mpi import PartitionError
 from nengo_mpi.spaun_mpi import SpaunStimulus, build_spaun_stimulus
 from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 
@@ -119,6 +120,8 @@ with warnings.catch_warnings():
         in some such cases, the refimpl nengo builder will implement the
         slicing using a python function, which we want to avoid in nengo_mpi.
 
+        Also records which Connections have probes attached to them.
+
         Parameters
         ----------
         model: MpiModel
@@ -155,6 +158,12 @@ with warnings.catch_warnings():
                 lambda c: c not in remove_conns, network.connections)
 
             network.connections = network.objects[Connection]
+
+        probed_connections = []
+        for probe in network.probes:
+            if isinstance(probe.target, Connection):
+                probed_connections.append(probe.target)
+        model.probed_connections |= set(probed_connections)
 
         return builder.build_network(model, network)
 
@@ -371,7 +380,7 @@ def ndarray_to_string(a):
 
 def store_string_list(
         h5_file, dset_name, strings, final_null=True, compression='gzip'):
-    """Store a list of strings in a dataset in an hdf5 file or group.
+    """ Store a list of strings as a dataset in an hdf5 file or group.
 
     In the created dataset, the strings in `strings` are separated by null
     characters. An additional null character can optionally being
@@ -399,7 +408,7 @@ def get_closures(f):
 class MpiModel(builder.Model):
     """Output of the MpiBuilder, used by nengo_mpi.Simulator.
 
-    MpiModel differs from the Model in the reference implementation in that
+    MpiModel differs from Model in the reference implementation in that
     as the model is built, MpiModel keeps track of the high-level nengo object
     (e.g. Ensemble) currently being built. This permits it to track which
     operators implement which high-level objects, so that those operators can
@@ -483,6 +492,7 @@ class MpiModel(builder.Model):
         self._mpi_tag = 0
 
         self.pyfunc_args = []
+        self.probed_connections = set()
 
         super(MpiModel, self).__init__(dt, label, decoder_cache)
 
@@ -533,8 +543,8 @@ class MpiModel(builder.Model):
         Once an object has been popped from the context stack, we know that
         it has finished building, and we can add the operators that implement
         the object to the MpiModel. We add the operators for the object to
-        the component that the object is assigned to (which is stored in the
-        self.assignments dictionary).
+        the component that the object is assigned to (which is stored in
+        self.assignments).
 
         The only exceptions are Connections; when we pop a Connection whose
         pre object and post object are on different components, then some of
@@ -546,55 +556,59 @@ class MpiModel(builder.Model):
 
         if not isinstance(obj, Connection):
             component = self.assignments[obj]
-
             self.assign_ops(component, self.object_ops[obj])
 
+            return
+
+        conn = obj
+        pre_component = self.assignments[conn.pre_obj]
+        post_component = self.assignments[conn.post_obj]
+
+        if pre_component == post_component:
+            self.assign_ops(pre_component, self.object_ops[conn])
+
         else:
-            conn = obj
-            pre_component = self.assignments[conn.pre_obj]
-            post_component = self.assignments[conn.post_obj]
+            if conn.learning_rule_type:
+                raise PartitionError(
+                    "A Connection crossing a component boundary "
+                    "must not contain a learning rule.")
 
-            if pre_component == post_component:
-                self.assign_ops(pre_component, self.object_ops[conn])
+            if conn in self.probed_connections:
+                raise PartitionError(
+                    "A Connection crossing a component boundary "
+                    "must not be probed.")
 
-            else:
-                if conn.learning_rule_type:
-                    raise Exception(
-                        "Connections crossing component boundaries "
-                        "must not have learning rules.")
+            try:
+                synapse_op = (
+                    op for op in self.object_ops[conn]
+                    if isinstance(op, builder.synapses.SimSynapse)).next()
+            except StopIteration:
+                raise PartitionError(
+                    "A Connection crossing a component boundary "
+                    "must have a synapse so that it contains an `update` "
+                    "operation.")
 
-                try:
-                    synapse_op = (
-                        op for op in self.object_ops[conn]
-                        if isinstance(op, builder.synapses.SimSynapse)).next()
-                except StopIteration:
-                    raise Exception(
-                        "Connections crossing component boundaries "
-                        "must be have synapses so that there is an update.")
+            signal = synapse_op.output
+            tag = self._next_mpi_tag()
 
-                signal = synapse_op.output
+            self.send_signals[pre_component].append(
+                (signal, tag, post_component))
+            self.recv_signals[post_component].append(
+                (signal, tag, pre_component))
 
-                tag = self._next_mpi_tag()
+            pre_ops, post_ops = split_connection(self.object_ops[conn], signal)
 
-                self.send_signals[pre_component].append(
-                    (signal, tag, post_component))
-                self.recv_signals[post_component].append(
-                    (signal, tag, pre_component))
-
-                pre_ops, post_ops = split_connection(
-                    self.object_ops[conn], signal)
-
-                self.assign_ops(pre_component, pre_ops)
-                self.assign_ops(post_component, post_ops)
+            self.assign_ops(pre_component, pre_ops)
+            self.assign_ops(post_component, post_ops)
 
     def assign_ops(self, component, ops):
-        """ Assign a sequence of operators to a component.
+        """ Assign a collection of operators to a component.
 
         Parameters
         ----------
         component: int
             Component to add the operators to.
-        ops: list of nengo.builder.operator.Operator instances
+        ops: collection of nengo.builder.operator.Operator instances
             Operators to add the model.
 
         """
@@ -833,7 +847,7 @@ class MpiModel(builder.Model):
         C++ code. See the MpiSimulatorChunk::add_op for details on how these
         strings are used by the C++ code.
 
-        We prepend the operator's index in the global ordering of
+        We also prepend the operator's index in the global ordering of
         operators, which allows the C++ code to put the operators in
         the appropriate order.
 

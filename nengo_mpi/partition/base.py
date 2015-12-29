@@ -1,15 +1,17 @@
 from collections import defaultdict
+from functools import partial
 import warnings
 
 import networkx as nx
 import numpy as np
 
-from nengo import Direct, Node, Ensemble, Connection
+from nengo import Direct, Node, Ensemble, Connection, Probe
+from nengo.connection import LearningRule
 from nengo.base import ObjView
 from nengo.ensemble import Neurons
 from nengo.utils.builder import find_all_io
 
-from nengo_mpi.spaun_mpi import SpaunStimulus
+from nengo_mpi import PartitionError
 from nengo_mpi.partition.work_balanced import work_balanced_partitioner
 from nengo_mpi.partition.metis import metis_available, metis_partitioner
 from nengo_mpi.partition.random import random_partitioner
@@ -27,28 +29,66 @@ def partitioners():
     return _partitioners[:]
 
 
+def get_probed_connections(network):
+    """ Return all connections that have probes in `network`. """
+    probed_connections = []
+    for probe in network.all_probes:
+        if isinstance(probe.target, Connection):
+            probed_connections.append(probe.target)
+
+    return probed_connections
+
+
+def _can_cross_boundary(conn, probed_connections, max_size=np.inf):
+    """ Return whether `conn` is allowed to cross component boundaries. """
+
+    can_cross = conn.synapse is not None
+    can_cross &= conn.size_mid <= max_size
+    can_cross &= conn not in probed_connections
+    can_cross &= not conn.learning_rule_type
+
+    return can_cross
+
+
+def make_boundary_predicate(network, max_size=np.inf):
+    probed_connections = set(get_probed_connections(network))
+    predicate = partial(
+        _can_cross_boundary,
+        probed_connections=probed_connections,
+        max_size=max_size)
+
+    return predicate
+
+
 def verify_assignments(network, assignments):
     """
-    Propagate the assignments given in ``assignments`` to form a complete
-    partition of the network, and verify that the resulting partition is
-    usable.
+    Propagate the assignments given in ``assignments``.
 
+    Goal is to form a complete partition of the network, and
+    verify that the resulting partition is usable.
+
+    Parameters
+    ----------
     network: nengo.Network
         The network whose assignments are to be verified.
-
     assignments: dict
         A mapping from each nengo object in the network to an integer
         specifying which component of the partition the object is assigned
         to. Component 0 is simulated by the master process.
 
     """
-    propogate_assignments(network, assignments)
     n_components = max(assignments.values()) + 1
 
+    can_cross_boundary = make_boundary_predicate(network)
+    propogate_assignments(network, assignments, can_cross_boundary)
+
     if n_components > 1:
-        component0, cluster_graph = network_to_cluster_graph(network)
+        component0, cluster_graph = network_to_cluster_graph(
+            network, can_cross_boundary)
+
         evaluate_partition(
-            network, n_components, assignments, cluster_graph)
+            network, n_components, assignments, cluster_graph,
+            can_cross_boundary)
 
     return n_components, assignments
 
@@ -159,36 +199,13 @@ class Partitioner(object):
         # A mapping from each nengo object to its component index
         object_assignments = {}
 
-        # Make copies of SpaunStimulus nodes to limit communication
-        with network:
-            for node in network.all_nodes:
-                if isinstance(node, SpaunStimulus):
-                    for conn in network.all_connections:
-                        if conn.pre_obj is node:
-                            stim = SpaunStimulus(
-                                dimension=node.dimension,
-                                stimulus_sequence=node.stimulus_sequence,
-                                present_interval=node.present_interval,
-                                present_blanks=node.present_blanks,
-                                identifier=node.identifier)
-
-                            if isinstance(conn.pre, ObjView):
-                                stim = ObjView(stim, conn.pre.slice)
-
-                            Connection(
-                                stim, conn.post,
-                                transform=conn.transform,
-                                function=conn.function,
-                                synapse=conn.synapse)
-
-                            assert remove_from_network(network, conn)
-
-                    assert remove_from_network(network, node)
+        can_cross_boundary = make_boundary_predicate(
+            network, self.straddle_conn_max_size)
 
         if self.n_components > 1:
             # component0 is also in the cluster graph
             component0, cluster_graph = network_to_cluster_graph(
-                network, self.straddle_conn_max_size)
+                network, can_cross_boundary)
 
             n_clusters = len(cluster_graph)
 
@@ -217,11 +234,12 @@ class Partitioner(object):
             for cluster, component in cluster_assignments.iteritems():
                 cluster.assign_to_component(object_assignments, component)
 
-        propogate_assignments(network, object_assignments)
+        propogate_assignments(network, object_assignments, can_cross_boundary)
 
         if self.n_components > 1:
             evaluate_partition(
-                network, self.n_components, object_assignments, cluster_graph)
+                network, self.n_components, object_assignments,
+                cluster_graph, can_cross_boundary)
 
         return self.n_components, object_assignments
 
@@ -235,8 +253,8 @@ class NengoObjectCluster(object):
     update operation (which effectively means that none of the
     Connections constituting the path have synapses).
 
-    NengoObjectClusters are used as the nodes in the cluster graph (which is
-    created as part of the partitioning process).
+    NengoObjectClusters are used as the nodes in the cluster graph
+    that is created as part of the partitioning process.
 
     Parameters
     ----------
@@ -324,7 +342,7 @@ class NengoObjectCluster(object):
 
 
 def network_to_cluster_graph(
-        network, straddle_conn_max_size=np.inf,
+        network, can_cross_boundary=None,
         use_weights=True, merge_nengo_nodes=True):
 
     """
@@ -343,11 +361,9 @@ def network_to_cluster_graph(
     network: nengo.Network
         The network whose cluster graph we want to construct.
 
-    straddle_conn_max_size: int/float
-        Connections of this size or greater (as measured by the attribute
-        ``size_mid``) are not permitted to straddle cluster boundaries.
-        Two nengo objects that are connected by a Connection that is bigger
-        than this size are assigned to the same cluster.
+    can_cross_boundary: function
+        A function which accepts a Connection, and returns a boolean specifying
+        whether the Connection is allowed to cross component boundaries.
 
     use_weights: boolean
         Whether edges in the cluster graph should be weighted by the
@@ -386,6 +402,9 @@ def network_to_cluster_graph(
 
         return a
 
+    if can_cross_boundary is None:
+        can_cross_boundary = make_boundary_predicate(network)
+
     # A mapping from each nengo object to the cluster it is a member of
     cluster_map = {
         obj: NengoObjectCluster(obj) for obj
@@ -398,7 +417,7 @@ def network_to_cluster_graph(
         post_obj = neurons2ensemble(conn.post_obj)
         post_cluster = cluster_map[post_obj]
 
-        if is_update(conn) and conn.size_mid < straddle_conn_max_size:
+        if can_cross_boundary(conn):
             pre_cluster.add_output(conn)
             post_cluster.add_input(conn)
         else:
@@ -419,8 +438,8 @@ def network_to_cluster_graph(
     else:
         component0 = None
 
-    some_neurons = any(cluster.n_neurons > 0 for cluster in all_clusters)
-    if merge_nengo_nodes and some_neurons:
+    any_neurons = any(cluster.n_neurons > 0 for cluster in all_clusters)
+    if merge_nengo_nodes and any_neurons:
         # For each cluster which does not contain any neurons, merge the
         # cluster with another cluster which *does* contain neurons,
         # and which the original cluster communicates strongly with.
@@ -455,9 +474,9 @@ def network_to_cluster_graph(
     G = nx.Graph()
     G.add_nodes_from(all_clusters)
 
-    update_connections = filter(is_update, network.all_connections)
+    boundary_connections = filter(can_cross_boundary, network.all_connections)
 
-    for conn in update_connections:
+    for conn in boundary_connections:
         pre_cluster = cluster_map[neurons2ensemble(conn.pre_obj)]
         post_cluster = cluster_map[neurons2ensemble(conn.post_obj)]
 
@@ -475,17 +494,12 @@ def network_to_cluster_graph(
     return component0, G
 
 
-def is_update(conn):
-    """ Return whether ``conn`` has an update operation. """
-    return conn.synapse is not None
-
-
 def neurons2ensemble(e):
     return e.ensemble if isinstance(e, Neurons) else e
 
 
 def for_component0(cluster, outputs):
-    """Returns whether the cluster must be simulated on process 0."""
+    """ Returns whether the cluster must be simulated on process 0."""
 
     for obj in cluster.objects:
         if isinstance(obj, Node) and callable(obj.output):
@@ -501,7 +515,7 @@ def for_component0(cluster, outputs):
     return False
 
 
-def propogate_assignments(network, assignments):
+def propogate_assignments(network, assignments, can_cross_boundary):
     """
     Propogates the component assignments stored in the dict ``assignments``
     (which only needs to contain assignments for top level Networks, Nodes and
@@ -513,7 +527,7 @@ def propogate_assignments(network, assignments):
 
     Also does a small amount of validation, making sure that certain types of
     objects are assigned to the master component (component 0), and making sure
-    that connections that straddle component boundaries have a synapse on them.
+    that connections that ross component boundaries have a synapse on them.
 
     These objects are:
         1. Nodes with callable outputs.
@@ -531,6 +545,10 @@ def propogate_assignments(network, assignments):
         in the network. If a network appears in assignments, then all objects
         in that network which do not also appear in assignments will be given
         the same assignment as the network.
+
+    can_cross_boundary: function
+        A function which accepts a Connection, and returns a boolean specifying
+        whether the Connection is allowed to cross component boundaries.
 
     Returns
     -------
@@ -587,12 +605,16 @@ def propogate_assignments(network, assignments):
             helper(n, assignments, outputs)
 
     def probe_helper(network, assignments):
-        # TODO: properly handle probes that target connections
-        # connections will not be in ``assignments`` at this point.
         for probe in network.probes:
             target = (
                 probe.target.obj
                 if isinstance(probe.target, ObjView) else probe.target)
+
+            if isinstance(target, LearningRule):
+                target = target.connection()
+
+            if isinstance(target, Connection):
+                target = target.pre_obj
 
             assignments[probe] = assignments[target]
 
@@ -610,6 +632,21 @@ def propogate_assignments(network, assignments):
         msg = "Invalid Partition. KeyError: %s" % e.message,
         raise ValueError(msg)
 
+    non_crossing = [
+        conn for conn in network.all_connections
+        if not can_cross_boundary(conn)]
+
+    for conn in non_crossing:
+        pre_component = assignments[conn.pre_obj]
+        post_component = assignments[conn.post_obj]
+
+        if pre_component != post_component:
+            raise PartitionError(
+                "Connection %s crosses a component "
+                "boundary, but it is not permitted to. "
+                "Pre-object assigned to %d, post-object "
+                "assigned to %d." % (conn, pre_component, post_component))
+
     try:
         probe_helper(network, assignments)
     except KeyError as e:
@@ -618,19 +655,6 @@ def propogate_assignments(network, assignments):
             "Invalid Partition. Something is wrong with "
             "the probes. KeyError: %s." % e.message)
         raise ValueError(msg)
-
-    non_updates = [
-        conn for conn in network.all_connections if not is_update(conn)]
-
-    for conn in non_updates:
-        pre_component = assignments[conn.pre_obj]
-        post_component = assignments[conn.post_obj]
-
-        if pre_component != post_component:
-            raise RuntimeError(
-                "Non-synapsed connection %s straddles component "
-                "boundaries. Pre-object assigned to %d, post-object "
-                "assigned to %d." % (conn, pre_component, post_component))
 
     nodes = network.all_nodes
     nodes_in = all([node in assignments for node in nodes])
@@ -657,8 +681,9 @@ def total_neurons(network):
     return n_neurons
 
 
-def evaluate_partition(network, n_components, assignments, cluster_graph):
-    """Prints a summary of the quality of a partition."""
+def evaluate_partition(
+        network, n_components, assignments, cluster_graph, can_cross_boundary):
+    """ Print a summary of the quality of a partition."""
 
     print "*" * 80
 
@@ -679,7 +704,6 @@ def evaluate_partition(network, n_components, assignments, cluster_graph):
 
     print "Mean neurons per cluster: ", np.mean(cluster_n_neurons)
     print "Std of neurons per cluster", np.std(cluster_n_neurons)
-
     print "Min number of neurons", np.min(cluster_n_neurons)
     print "Max number of neurons", np.max(cluster_n_neurons)
 
@@ -732,7 +756,7 @@ def evaluate_partition(network, n_components, assignments, cluster_graph):
     total_weight = 0
 
     for conn in network.all_connections:
-        if is_update(conn):
+        if can_cross_boundary(conn):
             pre_obj = neurons2ensemble(conn.pre_obj)
             post_obj = neurons2ensemble(conn.post_obj)
 
@@ -751,7 +775,7 @@ def evaluate_partition(network, n_components, assignments, cluster_graph):
     send_partners = [set() for i in range(n_components)]
     recv_partners = [set() for i in range(n_components)]
     for conn in network.all_connections:
-        if is_update(conn):
+        if can_cross_boundary(conn):
             pre_obj = neurons2ensemble(conn.pre_obj)
             post_obj = neurons2ensemble(conn.post_obj)
 
@@ -779,7 +803,7 @@ def evaluate_partition(network, n_components, assignments, cluster_graph):
 
 
 def remove_from_network(network, obj):
-    """Remove ``obj`` from network.
+    """ Remove ``obj`` from network.
 
     Returns True if ``obj`` was successfully found and removed.
 

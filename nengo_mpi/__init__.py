@@ -14,6 +14,15 @@ from .version import version as __version__
 
 import logging
 
+
+class NengoMpiException(Exception):
+    pass
+
+
+class PartitionError(NengoMpiException):
+    pass
+
+
 from nengo_mpi.simulator import Simulator
 from nengo_mpi.partition import Partitioner
 from nengo_mpi.spaun_mpi import SpaunStimulus
