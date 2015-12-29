@@ -1,4 +1,4 @@
-"""
+'''
 Black-box testing of the sim_ocl Simulator.
 
 TestCase classes are added automatically from
@@ -9,7 +9,7 @@ $ py.test test/test_sim_ocl.py -k test_ensemble.test_scalar
 
 See http://pytest.org/latest/usage.html for more invocations.
 
-"""
+'''
 import fnmatch
 import os
 import sys
@@ -28,16 +28,16 @@ def xfail(pattern, msg):
             tests[key] = pytest.mark.xfail(True, reason=msg)(tests[key])
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope='function')
 def Simulator(request):
-    """The Simulator class being tested."""
+    '''The Simulator class being tested.'''
 
     request.addfinalizer(nengo_mpi.Simulator.close_simulators)
     return nengo_mpi.Simulator
 
 
 def pytest_funcarg__RefSimulator(request):
-    """the Simulator class being tested."""
+    '''the Simulator class being tested.'''
     return nengo.Simulator
 
 
@@ -47,37 +47,29 @@ tests = load_functions(modules, arg_pattern='^(Ref)?Simulator$')
 
 # noise
 xfail('test.nengo.tests.test_ensemble.test_noise_copies_ok',
-      "nengo_mpi does not support FilteredNoise")
+      'nengo_mpi does not support FilteredNoise')
 xfail('test.nengo.tests.test_processes.test_brownnoise',
-      'Uses FilteredNoise')
+      'nengo_mpi does not support FilteredNoise')
 
 # learning rules
 xfail('test.nengo.tests.test_learning_rules.*',
-      "Learning rules not yet implemented")
+      'Learning rules not yet implemented')
 
 # nodes
 xfail('test.nengo.tests.test_node.test_none',
-      "No error if nodes output None")
+      'No error if nodes output None')
 xfail('test.nengo.tests.test_node.test_unconnected_node',
-      "Unconnected nodes not supported")
+      'Unconnected nodes not supported')
 xfail('test.nengo.tests.test_node.test_set_output',
-      "Unconnected nodes not supported")
+      'Unconnected nodes not supported')
 xfail('test.nengo.tests.test_node.test_args',
-      "This test fails for an unknown reason")
+      'This test fails for an unknown reason')
 
 # cache
 xfail('test.nengo.tests.test_cache.test_cache_works',
       'Not set up correctly.')
 
-# connection probes
-xfail('test.nengo.tests.test_connection.test_decoder_probe',
-      'Cannot probe connections in nengo_mpi')
-xfail('test.nengo.tests.test_connection.test_transform_probe',
-      'Cannot probe connections in nengo_mpi')
-xfail('test.nengo.tests.test_probe.test_defaults',
-      'Cannot probe connections in nengo_mpi')
-
-# Opens multiple simulators
+# opens multiple simulators
 xfail('test.nengo.tests.test_probe.test_dts',
       'Opens multiple simulators.')
 xfail('test.nengo.tests.test_connection.test_shortfilter',
