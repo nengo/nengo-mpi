@@ -20,7 +20,7 @@ from nengo_mpi.partition.base import find_all_io, remove_from_network
 def remove_all_connections(network, ea=False):
     """Remove all connections from a network.
 
-    ``ea'' controls whether to remove from EnsembleArrays"""
+    ``ea`` controls whether to remove from EnsembleArrays"""
 
     if isinstance(network, nengo.networks.EnsembleArray) and not ea:
         return
@@ -36,8 +36,8 @@ def remove_all_connections(network, ea=False):
 def objs_connections_ensemble_arrays(network):
     """Given a Network, returns (objs, conns, eas).
 
-    Where ``objs '' is a list of (almost) all ensembles and nodes in the
-    network, ``conns'' is a list of all (almost) all connections in the
+    Where ``objs`` is a list of (almost) all ensembles and nodes in the
+    network, ``conns`` is a list of all (almost) all connections in the
     network, and eas is a list of all ensemble arrays in the network. Note
     that objs and conns do not contain objects that are contained within
     ensemble arrays.
@@ -63,10 +63,10 @@ def objs_connections_ensemble_arrays(network):
 
 def find_object_location(network, obj):
     """
-    Returns a list of the the parent networks of ``obj'' in ``network'',
+    Returns a list of the the parent networks of ``obj`` in ``network``,
     sorted in order of increasing specificity.
 
-    Returns an empty list if ``obj'' not found in ``network'' at any level.
+    Returns an empty list if ``obj`` not found in ``network`` at any level.
     """
 
     cls = filter(
@@ -89,8 +89,10 @@ def label_or(o, f):
 
 
 def hierarchical_labelling(network, prefix="", delim="."):
-    """ Prepend the label of every object in the network with a string giving
-    all the objects parent networks. Intended for debugging purposes."""
+    """ Relabel nengo objects hierarchically.
+
+    Prepend the label of every object in the network with a string giving
+    all the objects' parent networks. """
 
     class_name = network.__class__.__name__
     prefix += "<%s: %s>%s" % (class_name, label_or(network, id), delim)
@@ -110,10 +112,14 @@ def hierarchical_labelling(network, prefix="", delim="."):
 
 
 class EnsembleArraySplitter(object):
-    """
+    """ Split the ensemble arrays in a network.
+
     After calling EnsembleArraySplitter.split(m, max_neurons), the nengo
-    network ``m'' will be modified so that none of its ensemble arrays contain
-    more than ``max_neurons' neurons.
+    network ``m`` will be modified so that none of its ensemble arrays contain
+    more than ``max_neurons`` neurons.
+
+    ``preserve_zero_conns`` controls whether or not to remove connections
+    in the post-split network that have transform equal to 0.
     """
 
     def __init__(self):
@@ -215,11 +221,11 @@ class EnsembleArraySplitter(object):
                 n_neurons = sum([e.n_neurons for e in net.all_ensembles])
                 n_parts = int(np.ceil(float(n_neurons) / self.max_neurons))
                 n_parts = min(n_parts, net.n_ensembles)
-                self.split_ensemble_array(net, network, n_parts)
+                self.split_ensemble_array(net, n_parts)
             else:
                 self.split_helper(net)
 
-    def split_ensemble_array(self, array, parent, n_parts):
+    def split_ensemble_array(self, array, n_parts):
         """
         Splits an ensemble array into multiple functionally equivalent ensemble
         arrays, removing old connections and probes and adding new ones. Currently
@@ -231,11 +237,8 @@ class EnsembleArraySplitter(object):
         array: nengo.EnsembleArray
             The array to split
 
-        parent: nengo.Network
-            The network that ``array'' is contained in
-
         n_parts: int
-            Number of arrays to split ``array'' into
+            Number of arrays to split ``array`` into
         """
 
         if array.neuron_input is not None or array.neuron_output is not None:
@@ -257,23 +260,65 @@ class EnsembleArraySplitter(object):
 
         if not isinstance(array, nengo.networks.EnsembleArray):
             raise ValueError("'array' must be an EnsembleArray")
-        if (not isinstance(parent, nengo.Network)
-                or array not in parent.networks):
-            raise ValueError("'parent' must be parent network")
 
         inputs, outputs = self.inputs, self.outputs
 
         n_ensembles = array.n_ensembles
         D = array.dimensions_per_ensemble
 
-        if array.n_ensembles != len(array.ea_ensembles):
+        if n_ensembles != len(array.ea_ensembles):
             raise ValueError("Number of ensembles does not match")
+
+        if len(array.all_connections) != n_ensembles * len(array.all_nodes):
+            raise ValueError("Number of connections incorrect.")
 
         # assert no extra connections
         ea_ensemble_set = set(array.ea_ensembles)
         if len(outputs[array.input]) != n_ensembles or (
                 set(c.post for c in outputs[array.input]) != ea_ensemble_set):
             raise ValueError("Extra connections from array input")
+
+        connection_set = set(array.all_connections)
+
+        extra_inputs = set()
+        extra_outputs = set()
+
+        for conn in self.top_level_network.all_connections:
+
+            if conn.pre_obj in ea_ensemble_set and conn not in array.all_connections:
+                extra_outputs.add(conn)
+
+            if conn.post_obj in ea_ensemble_set and conn not in array.all_connections:
+                extra_inputs.add(conn)
+
+        for conn in extra_inputs:
+            self.logger.info("\n" + "*" * 20)
+            self.logger.info("Extra input connector: %s", conn.pre_obj)
+            self.logger.info("Synapse: %s", conn.synapse)
+            self.logger.info("Inputs: ")
+
+            for c in inputs[conn.pre_obj]:
+                self.logger.info(c)
+
+            self.logger.info("Outputs: ")
+
+            for c in outputs[conn.pre_obj]:
+                self.logger.info(c)
+
+        for conn in extra_outputs:
+
+            self.logger.info("\n" + "*" * 20)
+            self.logger.info("Extra output connector: %s", conn.post_obj)
+            self.logger.info("Synapse: %s", conn.synapse)
+            self.logger.info("Inputs: ")
+
+            for c in inputs[conn.post_obj]:
+                self.logger.info(c)
+
+            self.logger.info("Outputs: ")
+
+            for c in outputs[conn.post_obj]:
+                self.logger.info(c)
 
         output_nodes = [n for n in array.nodes if n.label[-5:] != 'input']
         assert len(output_nodes) > 0
@@ -285,7 +330,6 @@ class EnsembleArraySplitter(object):
             if extra_connections:
                 raise ValueError("Extra connections to array output")
 
-        # equally distribute ensembles between partitions
         sizes = np.zeros(n_parts, dtype=int)
         j = 0
         for i in range(n_ensembles):
@@ -299,9 +343,10 @@ class EnsembleArraySplitter(object):
 
         # make new input nodes
         with array:
-            new_inputs = [nengo.Node(size_in=size * D,
-                                     label="%s%d" % (array.input.label, i))
-                          for i, size in enumerate(sizes)]
+            new_inputs = [
+                nengo.Node(size_in=size * D,
+                    label="%s%d" % (array.input.label, i))
+                for i, size in enumerate(sizes)]
 
         self.node_map[array.input] = new_inputs
 
@@ -454,11 +499,11 @@ class EnsembleArraySplitter(object):
 
     def unsplit_data(self, simulator):
         """
-        When ``split'' is called on a network, we sometimes have to split a
+        When ``split`` is called on a network, we sometimes have to split a
         Node up into multiple Nodes. If the original Node was probed, then
         each of the new Nodes are probed as well. This function returns an
-        object similar to ``sim.data'' (where ``sim'' is an instance of nengo
-        Simulator), but modified to contain the same keys as if ``split'' were
+        object similar to ``sim.data`` (where ``sim`` is an instance of nengo
+        Simulator), but modified to contain the same keys as if ``split`` were
         never called.
         """
 

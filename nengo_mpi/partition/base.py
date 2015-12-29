@@ -12,6 +12,7 @@ from nengo.ensemble import Neurons
 from nengo.utils.builder import find_all_io
 
 from nengo_mpi import PartitionError
+from nengo_mpi.spaun_mpi import SpaunStimulus
 from nengo_mpi.partition.work_balanced import work_balanced_partitioner
 from nengo_mpi.partition.metis import metis_available, metis_partitioner
 from nengo_mpi.partition.random import random_partitioner
@@ -198,6 +199,8 @@ class Partitioner(object):
         """
         # A mapping from each nengo object to its component index
         object_assignments = {}
+
+        duplicate_spaun_stim(network)
 
         can_cross_boundary = make_boundary_predicate(
             network, self.straddle_conn_max_size)
@@ -515,8 +518,62 @@ def for_component0(cluster, outputs):
     return False
 
 
+def duplicate_spaun_stim(network):
+    """ Make copies of SpaunStimulus nodes to limit communication. """
+
+    with network:
+        for node in network.all_nodes:
+            if isinstance(node, SpaunStimulus):
+                conns = [
+                    c for c in network.all_connections
+                    if c.pre_obj is node]
+
+                if len(conns) <= 1:
+                    # Don't bother if there's only one connection
+                    continue
+
+                removed_probes = []
+                for probe in network.all_probes:
+                    if probe.target is node:
+                        removed_probes.append(probe)
+                        assert remove_from_network(probe)
+
+                for conn in conns:
+                    if conn.pre_obj is node:
+                        stim = SpaunStimulus(
+                            dimension=node.dimension,
+                            stimulus_sequence=node.stimulus_sequence,
+                            present_interval=node.present_interval,
+                            present_blanks=node.present_blanks,
+                            identifier=node.identifier)
+
+                        if isinstance(conn.pre, ObjView):
+                            stim = ObjView(stim, conn.pre.slice)
+
+                        Connection(
+                            stim, conn.post,
+                            transform=conn.transform,
+                            function=conn.function,
+                            synapse=conn.synapse)
+
+                        assert remove_from_network(network, conn)
+
+                        for probe in removed_probes:
+                            Probe(
+                                node,
+                                attr=probe.attr,
+                                sample_every=probe.sample_every,
+                                synapse=probe.synapse,
+                                solver=probe.solver,
+                                seed=probe.seed,
+                                label=probe.label)
+
+                assert remove_from_network(network, node)
+
+
 def propogate_assignments(network, assignments, can_cross_boundary):
-    """
+    """ Assign every object in ``network`` to a component.
+
     Propogates the component assignments stored in the dict ``assignments``
     (which only needs to contain assignments for top level Networks, Nodes and
     Ensembles) down to objects that are contained in those top-level objects.
