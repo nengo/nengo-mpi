@@ -498,6 +498,30 @@ protected:
     SignalView delta;
 };
 
+class Voja: public Operator{
+public:
+    Voja(
+        SignalView pre_decoded, SignalView post_filtered, SignalView scaled_encoders,
+        SignalView delta, SignalView learning_signal, BaseSignal scale,
+        dtype learning_rate, dtype dt);
+    virtual string classname() const { return "Voja"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    dtype alpha;
+
+    SignalView pre_decoded;
+    SignalView post_filtered;
+    SignalView scaled_encoders;
+    SignalView delta;
+    SignalView learning_signal;
+
+    BaseSignal scale;
+};
+
+
 
 
 string signal_to_string(const SignalView signal);

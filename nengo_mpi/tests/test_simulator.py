@@ -4,6 +4,7 @@ import nengo
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate  # , Izhikevich
 from nengo.tests.test_learning_rules import learning_net
+from nengo.learning_rules import Voja
 
 import numpy as np
 import pytest
@@ -328,4 +329,50 @@ def test_unsupervised_exact_match(Simulator, learning_rule, seed, rng):
         atol=0.00001, rtol=0.00)
     assert np.allclose(
         refimpl_sim.data[trans_p], mpi_sim.data[trans_p],
+        atol=0.00001, rtol=0.00)
+
+
+def test_voja_exact_match(Simulator, nl_nodirect, seed, rng):
+    n = 200
+    learned_vector = np.asarray([0.5])
+
+    def control_signal(t):
+        """Modulates the learning on/off."""
+        return 0 if t < 0.5 else -1
+
+    m = nengo.Network(seed=seed)
+    with m:
+        m.config[nengo.Ensemble].neuron_type = nl_nodirect()
+        control = nengo.Node(output=control_signal)
+        u = nengo.Node(output=learned_vector)
+        x = nengo.Ensemble(n, dimensions=len(learned_vector))
+
+        conn = nengo.Connection(
+            u, x, synapse=None, learning_rule_type=Voja(None))
+        nengo.Connection(control, conn.learning_rule, synapse=None)
+
+        p_enc = nengo.Probe(conn.learning_rule, 'scaled_encoders')
+
+    sim_time = 1.0
+
+    refimpl_sim = nengo.Simulator(m)
+    refimpl_sim.run(sim_time/2)
+    refimpl_sim.run(sim_time/2)
+
+    mpi_sim = Simulator(m)
+    mpi_sim.run(sim_time/2)
+    mpi_sim.run(sim_time/2)
+
+    assert np.allclose(
+        refimpl_sim.data[p_enc], mpi_sim.data[p_enc],
+        atol=0.00001, rtol=0.00)
+
+    refimpl_sim.reset()
+    mpi_sim.reset()
+
+    refimpl_sim.run(sim_time)
+    mpi_sim.run(sim_time)
+
+    assert np.allclose(
+        refimpl_sim.data[p_enc], mpi_sim.data[p_enc],
         atol=0.00001, rtol=0.00)

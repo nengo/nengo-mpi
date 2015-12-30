@@ -179,15 +179,20 @@ BCM::BCM(
     SignalView pre_filtered, SignalView post_filtered, SignalView theta,
     SignalView delta, dtype learning_rate, dtype dt)
 :pre_filtered(pre_filtered), post_filtered(post_filtered), theta(theta), delta(delta),
-alpha(learning_rate * dt){
-}
+alpha(learning_rate * dt){}
 
 Oja::Oja(
     SignalView pre_filtered, SignalView post_filtered, SignalView weights,
     SignalView delta, dtype learning_rate, dtype dt, dtype beta)
 :pre_filtered(pre_filtered), post_filtered(post_filtered), weights(weights), delta(delta),
-alpha(learning_rate * dt), beta(beta){
-}
+alpha(learning_rate * dt), beta(beta){}
+
+Voja::Voja(
+    SignalView pre_decoded, SignalView post_filtered, SignalView scaled_encoders,
+    SignalView delta, SignalView learning_signal, BaseSignal scale,
+    dtype learning_rate, dtype dt)
+:pre_decoded(pre_decoded), post_filtered(post_filtered), scaled_encoders(scaled_encoders),
+delta(delta), learning_signal(learning_signal), scale(scale), alpha(learning_rate * dt){}
 
 // Function operator overloads
 void Reset::operator() (){
@@ -510,6 +515,24 @@ void Oja::operator() (){
     }
 
     opb_prod(alpha * post_filtered, trans(pre_filtered), delta, false);
+
+    run_dbg(*this);
+}
+
+void Voja::operator() (){
+    // For now, learning_signal is required to have size 1.
+    dtype coef = alpha * learning_signal(0, 0);
+
+    for(int i = 0; i < scaled_encoders.size1(); i++){
+        dtype s = scale(i, 0);
+        dtype pf = post_filtered(i, 0);
+
+        for(int j = 0; j < scaled_encoders.size2(); j++){
+            delta(i, j) =
+                coef * (s * post_filtered(i, 0) * pre_decoded(j, 0)
+                - pf * scaled_encoders(i, j));
+        }
+    }
 
     run_dbg(*this);
 }
@@ -871,6 +894,28 @@ string Oja::to_string() const{
 
     return out.str();
 }
+
+string Voja::to_string() const{
+    stringstream out;
+    out << Operator::to_string();
+    out << "alpha: " << alpha << endl;
+
+    out << "pre_decoded:" << endl;
+    out << signal_to_string(pre_decoded) << endl;
+    out << "post_filtered:" << endl;
+    out << signal_to_string(post_filtered) << endl;
+    out << "scaled_encoders:" << endl;
+    out << signal_to_string(scaled_encoders) << endl;
+    out << "delta:" << endl;
+    out << signal_to_string(delta) << endl;
+    out << "learning_signal:" << endl;
+    out << signal_to_string(learning_signal) << endl;
+    out << "scale:" << endl;
+    out << signal_to_string(scale) << endl;
+
+    return out.str();
+}
+
 
 // reset
 // Here we only need to reset aspects of state that are

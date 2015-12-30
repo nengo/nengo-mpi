@@ -57,8 +57,7 @@ void Simulator::add_pyfunc(unique_ptr<Operator> pyfunc){
     chunk->add_op(move(pyfunc));
 }
 
-void Simulator::run_n_steps(
-        int steps, bool progress, string log_filename){
+void Simulator::run_n_steps(int steps, bool progress, string log_filename){
 
     clock_t begin = clock();
 

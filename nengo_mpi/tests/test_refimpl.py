@@ -40,8 +40,6 @@ xfail('test.nengo.tests.test_processes.test_brownnoise',
 # learning rules
 xfail('test.nengo.tests.test_learning_rules.*pes*',
       'PES does not work yet')
-xfail('test.nengo.tests.test_learning_rules.*voja*',
-      'Voja does not work yet')
 
 # nodes
 xfail('test.nengo.tests.test_node.test_none',

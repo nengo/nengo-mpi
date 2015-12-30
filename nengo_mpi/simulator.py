@@ -7,6 +7,7 @@ from nengo_mpi.partition import Partitioner, verify_assignments
 
 import numpy as np
 import atexit
+from functools import partial
 import logging
 logger = logging.getLogger(__name__)
 
@@ -130,12 +131,17 @@ class Simulator(object):
     def run_steps(self, steps, progress_bar, log_filename):
         """Simulate for the given number of `dt` steps."""
 
-        print "Simulating MPI model for %d steps..." % steps
         self.mpi_sim.run_n_steps(steps, progress_bar, log_filename)
 
         if not log_filename:
             for probe, probe_key in self.model.probe_keys.items():
                 data = self.mpi_sim.get_probe_data(probe_key, np.empty)
+
+                # The C++ code doesn't always exactly preserve the shape
+                true_shape = self.model.sig[probe]['in'].shape
+                if data[0].shape != true_shape:
+                    data = map(
+                        partial(np.reshape, newshape=true_shape), data)
 
                 if probe not in self._probe_outputs:
                     self._probe_outputs[probe] = data

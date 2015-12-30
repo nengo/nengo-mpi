@@ -807,8 +807,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             SignalView input = get_signal_view(args[0]);
             SignalView output = get_signal_view(args[1]);
 
-            unique_ptr<BaseSignal> numerator = python_list_to_signal(args[2]);
-            unique_ptr<BaseSignal> denominator = python_list_to_signal(args[3]);
+            unique_ptr<BaseSignal> numerator = python_list_to_signal(args[2], false);
+            unique_ptr<BaseSignal> denominator = python_list_to_signal(args[3], false);
 
             add_op(unique_ptr<Operator>(new Synapse(input, output, *numerator, *denominator)));
 
@@ -841,6 +841,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
         }else if(type_string.compare("WhiteSignal") == 0){
 
             SignalView output = get_signal_view(args[0]);
+
+            // get_size must be true here because coefs is a matrix
             unique_ptr<BaseSignal> coefs = python_list_to_signal(args[1], true);
 
             add_op(unique_ptr<Operator>(new WhiteSignal(output, *coefs)));
@@ -873,6 +875,24 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             add_op(unique_ptr<Operator>(
                 new Oja(
                     pre_filtered, post_filtered, weights, delta, learning_rate, dt, beta)));
+
+        }else if(type_string.compare("Voja") == 0){
+
+            SignalView pre_decoded = get_signal_view(args[0]);
+            SignalView post_filtered = get_signal_view(args[1]);
+            SignalView scaled_encoders = get_signal_view(args[2]);
+            SignalView delta = get_signal_view(args[3]);
+            SignalView learning_signal = get_signal_view(args[4]);
+
+            unique_ptr<BaseSignal> scale = python_list_to_signal(args[5], false);
+
+            dtype learning_rate = boost::lexical_cast<dtype>(args[6]);
+            dtype dt = boost::lexical_cast<dtype>(args[7]);
+
+            add_op(unique_ptr<Operator>(
+                new Voja(
+                    pre_decoded, post_filtered, scaled_encoders, delta,
+                    learning_signal, *scale, learning_rate, dt)));
 
         }else if(type_string.compare("MpiSend") == 0){
 

@@ -988,7 +988,6 @@ class MpiModel(builder.Model):
         elif op_type == builder.synapses.SimSynapse:
 
             if isinstance(op.synapse, LinearFilter):
-
                 step = op.synapse.make_step(self.dt, [])
                 den = step.den
                 num = step.num
@@ -1074,6 +1073,16 @@ class MpiModel(builder.Model):
                 signal_to_string(op.delta),
                 op.learning_rate, self.dt, op.beta]
 
+        elif op_type == builder.learning_rules.SimVoja:
+            op_args = [
+                "Voja", signal_to_string(op.pre_decoded),
+                signal_to_string(op.post_filtered),
+                signal_to_string(op.scaled_encoders),
+                signal_to_string(op.delta),
+                signal_to_string(op.learning_signal),
+                ",".join(map(str, op.scale)),
+                op.learning_rate, self.dt]
+
         elif op_type == builder.operator.PreserveValue:
             logger.debug(
                 "Skipping PreserveValue, operator: %s, signal: %s",
@@ -1138,8 +1147,7 @@ class MpiModel(builder.Model):
                 signal_string, period)
 
             probe_string = PROBE_DELIM.join(
-                str(i)
-                for i
+                str(i) for i
                 in [component, probe_key, signal_string, period, str(probe)])
 
             self.probe_strings[component].append(probe_string)
