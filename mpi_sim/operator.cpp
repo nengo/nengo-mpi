@@ -69,7 +69,41 @@ seq_A(seq_A), seq_B(seq_B){
 }
 
 DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
-:A(A), X(X), Y(Y){}
+:A(A), X(X), Y(Y){
+    if(A.size2() != X.size1()){
+        // Scalar multiplication
+        scalar = true;
+
+        bool bad_shapes =
+            A.size1() != 1 || A.size2() != 1 || X.size1() != Y.size1() || X.size2() != Y.size2();
+
+        if(bad_shapes){
+            stringstream ss;
+            ss << "While creating DotInc, got mismatching shapes for A, X and Y. "
+               << "Shapes are: A - " << shape_string(A)
+               << ", X - " << shape_string(X)
+               << ", Y - " << shape_string(Y) << "." << endl;
+
+            throw runtime_error(ss.str());
+        }
+
+    }else{
+        // Full matrix multiplication
+        scalar = false;
+
+        bool bad_shapes = A.size1() != Y.size1() || X.size2() != Y.size2();
+
+        if(bad_shapes){
+            stringstream ss;
+            ss << "While creating DotInc, got mismatching shapes for A, X and Y. "
+               << "Shapes are: A - " << shape_string(A)
+               << ", X - " << shape_string(X)
+               << ", Y - " << shape_string(Y) << "." << endl;
+
+            throw runtime_error(ss.str());
+        }
+    }
+}
 
 ElementwiseInc::ElementwiseInc(SignalView A, SignalView X, SignalView Y)
 :A(A), X(X), Y(Y){
@@ -271,7 +305,18 @@ void SlicedCopy::operator() (){
 }
 
 void DotInc::operator() (){
-    axpy_prod(A, X, Y, false);
+    if(scalar){
+        dtype a = A(0, 0);
+
+        for(int i = 0; i < X.size1(); i++){
+            for(int j = 0; j < X.size2(); j++){
+                Y(i, j) += a * X(i, j);
+            }
+        }
+
+    }else{
+        axpy_prod(A, X, Y, false);
+    }
 
     run_dbg(*this);
 }
@@ -598,6 +643,8 @@ string DotInc::to_string() const{
 
     stringstream out;
     out << Operator::to_string();
+    out << "scalar: " << scalar << endl;
+
     out << "A:" << endl;
     out << signal_to_string(A) << endl;
     out << "X:" << endl;
@@ -951,7 +998,7 @@ void WhiteSignal::reset(unsigned seed){
 }
 
 // Miscellaneous
-string signal_to_string(const SignalView signal) {
+string signal_to_string(const SignalView signal){
 
     stringstream ss;
 
@@ -964,7 +1011,7 @@ string signal_to_string(const SignalView signal) {
     return ss.str();
 }
 
-string signal_to_string(const BaseSignal signal) {
+string signal_to_string(const BaseSignal signal){
 
     stringstream ss;
 
@@ -977,3 +1024,8 @@ string signal_to_string(const BaseSignal signal) {
     return ss.str();
 }
 
+string shape_string(const SignalView signal){
+    stringstream ss;
+    ss << "(" << signal.size1() << ", " << signal.size2() << ")";
+    return ss.str();
+}

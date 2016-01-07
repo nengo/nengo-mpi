@@ -148,6 +148,8 @@ public:
     virtual string to_string() const;
 
 protected:
+    bool scalar;
+
     SignalView A;
     SignalView X;
     SignalView Y;
@@ -526,5 +528,6 @@ protected:
 
 string signal_to_string(const SignalView signal);
 string signal_to_string(const BaseSignal signal);
+string shape_string(const SignalView signal);
 
 #endif

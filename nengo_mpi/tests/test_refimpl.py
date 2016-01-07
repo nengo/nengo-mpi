@@ -37,10 +37,6 @@ xfail('test.nengo.tests.test_ensemble.test_noise_copies_ok',
 xfail('test.nengo.tests.test_processes.test_brownnoise',
       'nengo_mpi does not support FilteredNoise')
 
-# learning rules
-xfail('test.nengo.tests.test_learning_rules.*pes*',
-      'PES does not work yet')
-
 # nodes
 xfail('test.nengo.tests.test_node.test_none',
       'No error if nodes output None')
