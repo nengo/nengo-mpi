@@ -1,8 +1,6 @@
-#ifndef NENGO_MPI_MPI_OPS_HPP
-#define NENGO_MPI_MPI_OPS_HPP
+#pragma once
 
 #include <mpi.h>
-
 #include "operator.hpp"
 
 using namespace std;
@@ -67,7 +65,7 @@ private:
 // Merged operators, used in MERGED mode.
 // MERGED makes an effort to reduce the number of messages that
 // are sent per time step. Each component should only be sending one large
-// message to each component that it has to communicate with it. That message
+// message to each component that it has to communicate with. That message
 // will contain all data from all signals that have to be sent. The default
 // (i.e. non-merged) mode instead sends one message per signal which can
 // introduce significant overhead.
@@ -107,5 +105,3 @@ private:
 
     int src;
 };
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_PYTHON_HPP
-#define NENGO_MPI_PYTHON_HPP
+#pragma once
 
 #include <boost/python.hpp>
 #include <string>
@@ -105,5 +104,3 @@ private:
 
 BaseSignal PyFunc::null_matrix = BaseSignal(0,0);
 ublas::slice PyFunc::null_slice = ublas::slice(0, 0, 0);
-
-#endif

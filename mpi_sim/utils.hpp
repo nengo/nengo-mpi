@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_UTILS_HPP
-#define NENGO_MPI_UTILS_HPP
+#pragma once
 
 #include <vector>
 #include <string>
@@ -20,5 +19,3 @@ unique_ptr<BaseSignal> python_list_to_signal(string s, bool get_size=false);
  * index_0, index_1, ..., index_(n-1)
  * The length of the returned vector is n */
 vector<int> python_list_to_index_vector(string s);
-
-#endif

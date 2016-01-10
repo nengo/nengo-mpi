@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_CHUNK_HPP
-#define NENGO_MPI_CHUNK_HPP
+#pragma once
 
 #include <map>
 #include <list>
@@ -193,5 +192,3 @@ inline bool compare_indices(const OpSpec &left, const OpSpec &right){
 inline bool compare_op_ptr(const Operator* left, const Operator* right){
     return (left->get_index() < right->get_index());
 }
-
-#endif

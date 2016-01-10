@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_DEBUG_HPP
-#define NENGO_MPI_DEBUG_HPP
+#pragma once
 
 /*
 Adapted by e2crawfo from stackoverflow:
@@ -54,22 +53,9 @@ inline void close_debug_file(){
     debug_stream = &(cerr);
 }
 
-//#define debug_print(fmt, ...) \
-//        do { if (DEBUG_TEST) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
-//                                __LINE__, __func__, __VA_ARGS__); } while (0)
-
-//#define debug_print(x) \
-//        do { if (DEBUG_TEST) std::cerr << __FILE__ << ":" << __LINE__ << ":" << __func__ << ": " << x << std::endl; } while (0)
-//
 #define dbgfile(x) do { if(BASIC_DEBUG_TEST) init_debug_file(x); } while (0)
 #define dbg(x) do { if (BASIC_DEBUG_TEST) (*get_debug_stream()) << x << endl; } while (0)
 #define build_dbg(x) do { if (BUILD_DEBUG_TEST) (*get_debug_stream()) << x << endl; } while (0)
 #define run_dbg(x) do { if (RUN_DEBUG_TEST) (*get_debug_stream()) << x << endl; } while (0)
 #define mpi_dbg(x) do { if (MPI_DEBUG_TEST) (*get_debug_stream()) << x << endl; } while (0)
 #define clsdbgfile(x) do { if(BASIC_DEBUG_TEST) close_debug_file(x); } while (0)
-
-// #define dbg(x) do { if (BASIC_DEBUG_TEST) std::cerr << "mpi_sim: " << x << std::endl; } while (0)
-// #define build_dbg(x) do { if (BUILD_DEBUG_TEST) std::cerr << "mpi_sim: " << x << std::endl; } while (0)
-// #define run_dbg(x) do { if (RUN_DEBUG_TEST) std::cerr << "mpi_sim: " << x << std::endl; } while (0)
-// #define mpi_dbg(x) do { if (MPI_DEBUG_TEST) std::cerr << "mpi_sim: " << x << std::endl; } while (0)
-#endif

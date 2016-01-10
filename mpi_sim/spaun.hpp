@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_CUSTOM_OPS_HPP
-#define NENGO_MPI_CUSTOM_OPS_HPP
+#pragma once
 
 #include <string>
 #include <vector>
@@ -77,5 +76,3 @@ protected:
 unique_ptr<BaseSignal> do_down_sample(unique_ptr<BaseSignal> image, int new_size);
 
 void print_image(BaseSignal* image);
-
-#endif

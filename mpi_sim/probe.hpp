@@ -1,6 +1,4 @@
-
-#ifndef NENGO_MPI_PROBE_HPP
-#define NENGO_MPI_PROBE_HPP
+#pragma once
 
 #include <vector>
 #include <memory>
@@ -55,5 +53,3 @@ protected:
 
     shared_ptr<dtype> buffer;
 };
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_MPI_SIMULATOR_HPP
-#define NENGO_MPI_MPI_SIMULATOR_HPP
+#pragma once
 
 #include <list>
 #include <vector>
@@ -81,5 +80,3 @@ void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm)
 
 int bcast_recv_int(MPI_Comm comm);
 void bcast_send_int(int i, MPI_Comm comm);
-
-#endif

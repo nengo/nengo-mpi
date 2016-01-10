@@ -1,15 +1,55 @@
 #include "operator.hpp"
 
-// Constructors
+// ********************************************************************************
 Reset::Reset(SignalView dst, dtype value)
 :dst(dst), value(value){
 
     dummy = ScalarSignal(dst.size1(), dst.size2(), value);
 }
 
-Copy::Copy(SignalView dst, SignalView src)
-:dst(dst), src(src){}
+void Reset::operator() (){
 
+    dst = dummy;
+
+    run_dbg(*this);
+}
+
+string Reset::to_string() const {
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "dst:" << endl;
+    out << signal_to_string(dst) << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+Copy::Copy(SignalView dst, SignalView src)
+:dst(dst), src(src){
+
+}
+
+void Copy::operator() (){
+
+    dst = src;
+
+    run_dbg(*this);
+}
+
+string Copy::to_string() const  {
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "dst:" << endl;
+    out << signal_to_string(dst) << endl;
+    out << "src:" << endl;
+    out << signal_to_string(src) << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
 SlicedCopy::SlicedCopy(
     SignalView B, SignalView A, bool inc,
     int start_A, int stop_A, int step_A,
@@ -66,181 +106,6 @@ seq_A(seq_A), seq_B(seq_B){
     }
 
     n_assignments = n_assignments_A;
-}
-
-DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
-:A(A), X(X), Y(Y){
-    if(A.size2() != X.size1()){
-        // Scalar multiplication
-        scalar = true;
-
-        bool bad_shapes =
-            A.size1() != 1 || A.size2() != 1 || X.size1() != Y.size1() || X.size2() != Y.size2();
-
-        if(bad_shapes){
-            stringstream ss;
-            ss << "While creating DotInc, got mismatching shapes for A, X and Y. "
-               << "Shapes are: A - " << shape_string(A)
-               << ", X - " << shape_string(X)
-               << ", Y - " << shape_string(Y) << "." << endl;
-
-            throw runtime_error(ss.str());
-        }
-
-    }else{
-        // Full matrix multiplication
-        scalar = false;
-
-        bool bad_shapes = A.size1() != Y.size1() || X.size2() != Y.size2();
-
-        if(bad_shapes){
-            stringstream ss;
-            ss << "While creating DotInc, got mismatching shapes for A, X and Y. "
-               << "Shapes are: A - " << shape_string(A)
-               << ", X - " << shape_string(X)
-               << ", Y - " << shape_string(Y) << "." << endl;
-
-            throw runtime_error(ss.str());
-        }
-    }
-}
-
-ElementwiseInc::ElementwiseInc(SignalView A, SignalView X, SignalView Y)
-:A(A), X(X), Y(Y){
-
-    if(A.size1() != Y.size1() || A.size2() != Y.size2() ||
-       X.size1() != Y.size1() || X.size2() != Y.size2()){
-        broadcast = true;
-        A_row_stride = A.size1() > 1 ? 1 : 0;
-        A_col_stride = A.size2() > 1 ? 1 : 0;
-
-        X_row_stride = X.size1() > 1 ? 1 : 0;
-        X_col_stride = X.size2() > 1 ? 1 : 0;
-    }else{
-        broadcast = false;
-        A_row_stride = 1;
-        A_col_stride = 1;
-
-        X_row_stride = 1;
-        X_col_stride = 1;
-
-    }
-}
-
-NoDenSynapse::NoDenSynapse(
-    SignalView input, SignalView output, dtype b)
-:input(input), output(output), b(b){}
-
-SimpleSynapse::SimpleSynapse(
-    SignalView input, SignalView output, dtype a, dtype b)
-:input(input), output(output), a(a), b(b){}
-
-Synapse::Synapse(
-    SignalView input, SignalView output, BaseSignal numer, BaseSignal denom)
-:input(input), output(output), numer(numer), denom(denom){
-
-    for(int i = 0; i < input.size1(); i++){
-        x.push_back(boost::circular_buffer<dtype>(numer.size1()));
-        y.push_back(boost::circular_buffer<dtype>(denom.size1()));
-    }
-}
-
-TriangleSynapse::TriangleSynapse(
-    SignalView input, SignalView output, dtype n0, dtype ndiff, int n_taps)
-:input(input), output(output), n0(n0), ndiff(ndiff), n_taps(n_taps){
-    for(int i = 0; i < input.size1(); i++){
-        x.push_back(boost::circular_buffer<dtype>(n_taps));
-    }
-}
-
-WhiteNoise::WhiteNoise(
-    SignalView output, dtype mean, dtype std, bool do_scale, bool inc, dtype dt)
-:output(output), mean(mean), std(std), dist(mean, std),
-do_scale(do_scale), inc(inc), dt(dt){
-    alpha = do_scale ? 1.0 / dt : 1.0;
-}
-
-WhiteSignal::WhiteSignal(SignalView output, BaseSignal coefs)
-:output(output), coefs(coefs), idx(0){}
-
-LIF::LIF(
-    int n_neurons, dtype tau_rc, dtype tau_ref, dtype min_voltage,
-    dtype dt, SignalView J, SignalView output, SignalView voltage,
-    SignalView ref_time)
-:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref),
-min_voltage(min_voltage), dt_inv(1.0 / dt), J(J), output(output),
-voltage(voltage), ref_time(ref_time){
-
-    one = ScalarSignal(n_neurons, 1, 1.0);
-    dt_vec = ScalarSignal(n_neurons, 1, dt);
-}
-
-LIFRate::LIFRate(
-    int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output)
-:n_neurons(n_neurons), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){}
-
-AdaptiveLIF::AdaptiveLIF(
-    int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
-    dtype min_voltage, dtype dt, SignalView J, SignalView output, SignalView voltage,
-    SignalView ref_time, SignalView adaptation)
-:LIF(n_neurons, tau_rc, tau_ref, min_voltage, dt, J, output, voltage, ref_time),
-tau_n(tau_n), inc_n(inc_n), adaptation(adaptation){}
-
-AdaptiveLIFRate::AdaptiveLIFRate(
-    int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref, dtype dt,
-    SignalView J, SignalView output, SignalView adaptation)
-:LIFRate(n_neurons, tau_rc, tau_ref, J, output),
-tau_n(tau_n), inc_n(inc_n), dt(dt), adaptation(adaptation){}
-
-RectifiedLinear::RectifiedLinear(int n_neurons, SignalView J, SignalView output)
-:n_neurons(n_neurons), J(J), output(output){}
-
-Sigmoid::Sigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output)
-:n_neurons(n_neurons), tau_ref(tau_ref), tau_ref_inv(1.0 / tau_ref), J(J), output(output){}
-
-Izhikevich::Izhikevich(
-    int n_neurons, dtype tau_recovery, dtype coupling, dtype reset_voltage,
-    dtype reset_recovery, dtype dt, SignalView J, SignalView output,
-    SignalView voltage, SignalView recovery)
-:n_neurons(n_neurons), tau_recovery(tau_recovery), coupling(coupling),
-reset_voltage(reset_voltage), reset_recovery(reset_recovery), dt(dt), dt_inv(1.0/dt),
-J(J), output(output), voltage(voltage), recovery(recovery){
-
-    bias = ScalarSignal(n_neurons, 1, 140);
-}
-
-BCM::BCM(
-    SignalView pre_filtered, SignalView post_filtered, SignalView theta,
-    SignalView delta, dtype learning_rate, dtype dt)
-:pre_filtered(pre_filtered), post_filtered(post_filtered), theta(theta), delta(delta),
-alpha(learning_rate * dt){}
-
-Oja::Oja(
-    SignalView pre_filtered, SignalView post_filtered, SignalView weights,
-    SignalView delta, dtype learning_rate, dtype dt, dtype beta)
-:pre_filtered(pre_filtered), post_filtered(post_filtered), weights(weights), delta(delta),
-alpha(learning_rate * dt), beta(beta){}
-
-Voja::Voja(
-    SignalView pre_decoded, SignalView post_filtered, SignalView scaled_encoders,
-    SignalView delta, SignalView learning_signal, BaseSignal scale,
-    dtype learning_rate, dtype dt)
-:pre_decoded(pre_decoded), post_filtered(post_filtered), scaled_encoders(scaled_encoders),
-delta(delta), learning_signal(learning_signal), scale(scale), alpha(learning_rate * dt){}
-
-// Function operator overloads
-void Reset::operator() (){
-
-    dst = dummy;
-
-    run_dbg(*this);
-}
-
-void Copy::operator() (){
-
-    dst = src;
-
-    run_dbg(*this);
 }
 
 void SlicedCopy::operator() (){
@@ -304,6 +169,78 @@ void SlicedCopy::operator() (){
     run_dbg(*this);
 }
 
+string SlicedCopy::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "B:" << endl;
+    out << signal_to_string(B) << endl;
+    out << "A:" << endl;
+    out << signal_to_string(A) << endl;
+
+    out << "inc: " << inc << endl;
+
+    out << "start_A: " << start_A << endl;
+    out << "stop_A:" << stop_A << endl;
+    out << "step_A:" << step_A << endl;
+
+    out << "start_B:" << start_B << endl;
+    out << "stop_B:" << stop_B << endl;
+    out << "step_B:" << step_B << endl;
+
+    out << "seq_A: " << endl;
+    for(int i: seq_A){
+        out << i << ", ";
+    }
+    out << endl;
+
+    out << "seq_B: " << endl;
+    for(int i: seq_B){
+        out << i << ", ";
+    }
+    out << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
+:A(A), X(X), Y(Y){
+    if(A.size2() != X.size1()){
+        // Scalar multiplication
+        scalar = true;
+
+        bool bad_shapes =
+            A.size1() != 1 || A.size2() != 1 || X.size1() != Y.size1() || X.size2() != Y.size2();
+
+        if(bad_shapes){
+            stringstream ss;
+            ss << "While creating DotInc, got mismatching shapes for A, X and Y. "
+               << "Shapes are: A - " << shape_string(A)
+               << ", X - " << shape_string(X)
+               << ", Y - " << shape_string(Y) << "." << endl;
+
+            throw runtime_error(ss.str());
+        }
+
+    }else{
+        // Full matrix multiplication
+        scalar = false;
+
+        bool bad_shapes = A.size1() != Y.size1() || X.size2() != Y.size2();
+
+        if(bad_shapes){
+            stringstream ss;
+            ss << "While creating DotInc, got mismatching shapes for A, X and Y. "
+               << "Shapes are: A - " << shape_string(A)
+               << ", X - " << shape_string(X)
+               << ", Y - " << shape_string(Y) << "." << endl;
+
+            throw runtime_error(ss.str());
+        }
+    }
+}
+
 void DotInc::operator() (){
     if(scalar){
         dtype a = A(0, 0);
@@ -319,6 +256,45 @@ void DotInc::operator() (){
     }
 
     run_dbg(*this);
+}
+
+string DotInc::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "scalar: " << scalar << endl;
+
+    out << "A:" << endl;
+    out << signal_to_string(A) << endl;
+    out << "X:" << endl;
+    out << signal_to_string(X) << endl;
+    out << "Y:" << endl;
+    out << signal_to_string(Y) << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+ElementwiseInc::ElementwiseInc(SignalView A, SignalView X, SignalView Y)
+:A(A), X(X), Y(Y){
+
+    if(A.size1() != Y.size1() || A.size2() != Y.size2() ||
+       X.size1() != Y.size1() || X.size2() != Y.size2()){
+        broadcast = true;
+        A_row_stride = A.size1() > 1 ? 1 : 0;
+        A_col_stride = A.size2() > 1 ? 1 : 0;
+
+        X_row_stride = X.size1() > 1 ? 1 : 0;
+        X_col_stride = X.size2() > 1 ? 1 : 0;
+    }else{
+        broadcast = false;
+        A_row_stride = 1;
+        A_col_stride = 1;
+
+        X_row_stride = 1;
+        X_col_stride = 1;
+
+    }
 }
 
 void ElementwiseInc::operator() (){
@@ -346,10 +322,58 @@ void ElementwiseInc::operator() (){
     run_dbg(*this);
 }
 
+string ElementwiseInc::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "A:" << endl;
+    out << signal_to_string(A) << endl;
+    out << "X:" << endl;
+    out << signal_to_string(X) << endl;
+    out << "Y:" << endl;
+    out << signal_to_string(Y) << endl;
+
+    out << "Broadcast: " << broadcast << endl;
+    out << "A_row_stride: " << A_row_stride << endl;
+    out << "A_col_stride: " << A_col_stride << endl;
+
+    out << "X_row_stride: " << X_row_stride << endl;
+    out << "X_col_stride: " << X_col_stride << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+NoDenSynapse::NoDenSynapse(
+    SignalView input, SignalView output, dtype b)
+:input(input), output(output), b(b){
+
+}
+
 void NoDenSynapse::operator() (){
     output = b * input;
 
     run_dbg(*this);
+}
+
+string NoDenSynapse::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "input:" << endl;
+    out << signal_to_string(input) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "b: " << b << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+SimpleSynapse::SimpleSynapse(
+    SignalView input, SignalView output, dtype a, dtype b)
+:input(input), output(output), a(a), b(b){
+
 }
 
 void SimpleSynapse::operator() (){
@@ -357,6 +381,31 @@ void SimpleSynapse::operator() (){
     output += b * input;
 
     run_dbg(*this);
+}
+
+string SimpleSynapse::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "input:" << endl;
+    out << signal_to_string(input) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "a: " << a << endl;
+    out << "b: " << b << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+Synapse::Synapse(
+    SignalView input, SignalView output, BaseSignal numer, BaseSignal denom)
+:input(input), output(output), numer(numer), denom(denom){
+
+    for(int i = 0; i < input.size1(); i++){
+        x.push_back(boost::circular_buffer<dtype>(numer.size1()));
+        y.push_back(boost::circular_buffer<dtype>(denom.size1()));
+    }
 }
 
 void Synapse::operator() (){
@@ -380,6 +429,63 @@ void Synapse::operator() (){
     run_dbg(*this);
 }
 
+string Synapse::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "input:" << endl;
+    out << signal_to_string(input) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "numer:" << endl;
+    out << numer << endl;
+    out << "denom:" << endl;
+    out << denom << endl;
+
+    /*
+    out << "x & y:" << endl;
+    for(int i = 0; i < input.size(); i++){
+        out << "i: " << i << endl;
+
+        out << "x.size " << x[i].size() << endl;
+        for(int j = 0; j < x[i].size(); j++){
+            out << "x[ "<< j << "] = "<< x[i][j] << ", ";
+        }
+        out << endl;
+
+        out << "y.size " << y[i].size() << endl;
+        for(int j = 0; j < y[i].size(); j++){
+            out << "y[ "<< j << "] = "<< y[i][j] << ", ";
+        }
+        out << endl;
+    }
+    */
+
+    return out.str();
+}
+
+void Synapse::reset(unsigned seed){
+    for(int i = 0; i < input.size1(); i++){
+        for(int j = 0; j < x[i].size(); j++){
+            x[i][j] = 0.0;
+        }
+
+        for(int j = 0; j < y[i].size(); j++){
+            y[i][j] = 0.0;
+        }
+    }
+}
+
+// ********************************************************************************
+TriangleSynapse::TriangleSynapse(
+    SignalView input, SignalView output, dtype n0, dtype ndiff, int n_taps)
+:input(input), output(output), n0(n0), ndiff(ndiff), n_taps(n_taps){
+
+    for(int i = 0; i < input.size1(); i++){
+        x.push_back(boost::circular_buffer<dtype>(n_taps));
+    }
+}
+
 void TriangleSynapse::operator() (){
     for(int i = 0; i < input.size1(); i++){
         output(i, 0) += n0 * input(i, 0);
@@ -392,6 +498,50 @@ void TriangleSynapse::operator() (){
     }
 
     run_dbg(*this);
+}
+
+string TriangleSynapse::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "input:" << endl;
+    out << signal_to_string(input) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "n0:" << n0 << endl;
+    out << "ndiff:" << ndiff << endl;
+    out << "n_taps: " << n_taps << endl;
+
+    /*
+    out << "x :" << endl;
+    for(int i = 0; i < input.size(); i++){
+        out << "i: " << i << endl;
+
+        out << "x.size " << x[i].size() << endl;
+        for(int j = 0; j < x[i].size(); j++){
+            out << "x[ "<< j << "] = "<< x[i][j] << ", ";
+        }
+        out << endl;
+    }
+    */
+
+    return out.str();
+}
+
+void TriangleSynapse::reset(unsigned seed){
+    for(int i = 0; i < input.size1(); i++){
+        for(int j = 0; j < x[i].size(); j++){
+            x[i][j] = 0.0;
+        }
+    }
+}
+
+// ********************************************************************************
+WhiteNoise::WhiteNoise(
+    SignalView output, dtype mean, dtype std, bool do_scale, bool inc, dtype dt)
+:output(output), mean(mean), std(std), dist(mean, std), do_scale(do_scale), inc(inc), dt(dt){
+
+    alpha = do_scale ? 1.0 / dt : 1.0;
 }
 
 void WhiteNoise::operator() (){
@@ -408,6 +558,31 @@ void WhiteNoise::operator() (){
     run_dbg(*this);
 }
 
+string WhiteNoise::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "mean: " << mean << endl;
+    out << "std: " << std << endl;
+    out << "do_scale: " << do_scale << endl;
+    out << "inc: " << inc << endl;
+    out << "dt: " << dt << endl;
+
+    return out.str();
+}
+
+void WhiteNoise::reset(unsigned seed){
+    rng.seed(seed);
+}
+
+// ********************************************************************************
+WhiteSignal::WhiteSignal(SignalView output, BaseSignal coefs)
+:output(output), coefs(coefs), idx(0){
+
+}
+
 void WhiteSignal::operator() (){
     for(int i = 0; i < output.size1(); i++){
         output(i, 0) = coefs(idx % coefs.size1(), i);
@@ -416,6 +591,36 @@ void WhiteSignal::operator() (){
     idx++;
 
     run_dbg(*this);
+}
+
+string WhiteSignal::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "coefs:" << endl;
+    out << signal_to_string(coefs) << endl;
+    out << "idx: " << idx << endl;
+
+    return out.str();
+}
+
+void WhiteSignal::reset(unsigned seed){
+    idx = 0;
+}
+
+// ********************************************************************************
+LIF::LIF(
+    int n_neurons, dtype tau_rc, dtype tau_ref, dtype min_voltage,
+    dtype dt, SignalView J, SignalView output, SignalView voltage,
+    SignalView ref_time)
+:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref),
+min_voltage(min_voltage), dt_inv(1.0 / dt), J(J), output(output),
+voltage(voltage), ref_time(ref_time){
+
+    one = ScalarSignal(n_neurons, 1, 1.0);
+    dt_vec = ScalarSignal(n_neurons, 1, dt);
 }
 
 void LIF::operator() (){
@@ -454,6 +659,34 @@ void LIF::operator() (){
     run_dbg(*this);
 }
 
+string LIF::to_string() const{
+
+    stringstream out;
+
+    out << Operator::to_string();
+    out << "J:" << endl;
+    out << signal_to_string(J) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "voltage:" << endl;
+    out << signal_to_string(voltage) << endl;
+    out << "refractory_time:" << endl;
+    out << signal_to_string(ref_time) << endl;
+    out << "n_neurons: " << n_neurons << endl;;
+    out << "tau_rc: " << tau_rc << endl;
+    out << "tau_ref: " << tau_ref << endl;
+    out << "min_voltage: " << min_voltage << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+LIFRate::LIFRate(
+    int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output)
+:n_neurons(n_neurons), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
+
+}
+
 void LIFRate::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         if(J(i, 0) > 1.0){
@@ -464,6 +697,31 @@ void LIFRate::operator() (){
     }
 
     run_dbg(*this);
+}
+
+string LIFRate::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "J:" << endl;
+    out << signal_to_string(J) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "n_neurons: " << n_neurons << endl;
+    out << "tau_rc: " << tau_rc << endl;
+    out << "tau_ref: " << tau_ref << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+AdaptiveLIF::AdaptiveLIF(
+    int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
+    dtype min_voltage, dtype dt, SignalView J, SignalView output, SignalView voltage,
+    SignalView ref_time, SignalView adaptation)
+:LIF(n_neurons, tau_rc, tau_ref, min_voltage, dt, J, output, voltage, ref_time),
+tau_n(tau_n), inc_n(inc_n), adaptation(adaptation){
+
 }
 
 void AdaptiveLIF::operator() (){
@@ -477,6 +735,27 @@ void AdaptiveLIF::operator() (){
     run_dbg(*this);
 }
 
+string AdaptiveLIF::to_string() const{
+
+    stringstream out;
+    out << LIF::to_string();
+    out << "tau_n: " << tau_n << endl;
+    out << "inc_n: " << inc_n << endl;
+    out << "adaptation: " << endl;
+    out << signal_to_string(adaptation) << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+AdaptiveLIFRate::AdaptiveLIFRate(
+    int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref, dtype dt,
+    SignalView J, SignalView output, SignalView adaptation)
+:LIFRate(n_neurons, tau_rc, tau_ref, J, output),
+tau_n(tau_n), inc_n(inc_n), dt(dt), adaptation(adaptation){
+
+}
+
 void AdaptiveLIFRate::operator() (){
     temp = J;
     J -= adaptation;
@@ -486,6 +765,25 @@ void AdaptiveLIFRate::operator() (){
     adaptation += (dt / tau_n) * (inc_n * output - adaptation);
 
     run_dbg(*this);
+}
+
+string AdaptiveLIFRate::to_string() const{
+
+    stringstream out;
+    out << LIFRate::to_string();
+    out << "tau_n: " << tau_n << endl;
+    out << "inc_n: " << inc_n << endl;
+    out << "dt: " << dt << endl;
+    out << "adaptation: " << endl;
+    out << signal_to_string(adaptation) << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+RectifiedLinear::RectifiedLinear(int n_neurons, SignalView J, SignalView output)
+:n_neurons(n_neurons), J(J), output(output){
+
 }
 
 void RectifiedLinear::operator() (){
@@ -498,12 +796,57 @@ void RectifiedLinear::operator() (){
     run_dbg(*this);
 }
 
+string RectifiedLinear::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "n_neurons: " << n_neurons << endl;
+    out << "J:" << endl;
+    out << signal_to_string(J) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+Sigmoid::Sigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output)
+:n_neurons(n_neurons), tau_ref(tau_ref), tau_ref_inv(1.0 / tau_ref), J(J), output(output){
+
+}
+
 void Sigmoid::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
         output(i, 0) = tau_ref_inv / (1.0 + exp(-J(i, 0)));
     }
 
     run_dbg(*this);
+}
+
+string Sigmoid::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "n_neurons: " << n_neurons << endl;
+    out << "tau_ref: " << tau_ref << endl;
+    out << "J:" << endl;
+    out << signal_to_string(J) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+
+    return out.str();
+}
+
+// ********************************************************************************
+Izhikevich::Izhikevich(
+    int n_neurons, dtype tau_recovery, dtype coupling, dtype reset_voltage,
+    dtype reset_recovery, dtype dt, SignalView J, SignalView output,
+    SignalView voltage, SignalView recovery)
+:n_neurons(n_neurons), tau_recovery(tau_recovery), coupling(coupling),
+reset_voltage(reset_voltage), reset_recovery(reset_recovery), dt(dt), dt_inv(1.0/dt),
+J(J), output(output), voltage(voltage), recovery(recovery){
+
+    bias = ScalarSignal(n_neurons, 1, 140);
 }
 
 void Izhikevich::operator() (){
@@ -541,349 +884,6 @@ void Izhikevich::operator() (){
     run_dbg(*this);
 }
 
-void BCM::operator() (){
-    opb_prod(
-        alpha * element_prod(post_filtered, post_filtered - theta),
-        trans(pre_filtered), delta, true);
-
-    run_dbg(*this);
-}
-
-void Oja::operator() (){
-    for(int i = 0; i < weights.size1(); i++){
-        dtype post_squared = post_filtered(i, 0);
-        post_squared *= alpha * post_squared;
-
-        for(int j = 0; j < weights.size2(); j++){
-            delta(i, j) = -beta * weights(i, j) * post_squared;
-        }
-    }
-
-    opb_prod(alpha * post_filtered, trans(pre_filtered), delta, false);
-
-    run_dbg(*this);
-}
-
-void Voja::operator() (){
-    // For now, learning_signal is required to have size 1.
-    dtype coef = alpha * learning_signal(0, 0);
-
-    for(int i = 0; i < scaled_encoders.size1(); i++){
-        dtype s = scale(i, 0);
-        dtype pf = post_filtered(i, 0);
-
-        for(int j = 0; j < scaled_encoders.size2(); j++){
-            delta(i, j) =
-                coef * (s * post_filtered(i, 0) * pre_decoded(j, 0)
-                - pf * scaled_encoders(i, j));
-        }
-    }
-
-    run_dbg(*this);
-}
-
-// to_string
-string Reset::to_string() const {
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "dst:" << endl;
-    out << signal_to_string(dst) << endl;
-
-    return out.str();
-}
-
-string Copy::to_string() const  {
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "dst:" << endl;
-    out << signal_to_string(dst) << endl;
-    out << "src:" << endl;
-    out << signal_to_string(src) << endl;
-
-    return out.str();
-}
-
-string SlicedCopy::to_string() const  {
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "B:" << endl;
-    out << signal_to_string(B) << endl;
-    out << "A:" << endl;
-    out << signal_to_string(A) << endl;
-
-    out << "inc: " << inc << endl;
-
-    out << "start_A: " << start_A << endl;
-    out << "stop_A:" << stop_A << endl;
-    out << "step_A:" << step_A << endl;
-
-    out << "start_B:" << start_B << endl;
-    out << "stop_B:" << stop_B << endl;
-    out << "step_B:" << step_B << endl;
-
-    out << "seq_A: " << endl;
-    for(int i: seq_A){
-        out << i << ", ";
-    }
-    out << endl;
-
-    out << "seq_B: " << endl;
-    for(int i: seq_B){
-        out << i << ", ";
-    }
-    out << endl;
-
-    return out.str();
-}
-
-string DotInc::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "scalar: " << scalar << endl;
-
-    out << "A:" << endl;
-    out << signal_to_string(A) << endl;
-    out << "X:" << endl;
-    out << signal_to_string(X) << endl;
-    out << "Y:" << endl;
-    out << signal_to_string(Y) << endl;
-
-    return out.str();
-}
-
-string ElementwiseInc::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "A:" << endl;
-    out << signal_to_string(A) << endl;
-    out << "X:" << endl;
-    out << signal_to_string(X) << endl;
-    out << "Y:" << endl;
-    out << signal_to_string(Y) << endl;
-
-    out << "Broadcast: " << broadcast << endl;
-    out << "A_row_stride: " << A_row_stride << endl;
-    out << "A_col_stride: " << A_col_stride << endl;
-
-    out << "X_row_stride: " << X_row_stride << endl;
-    out << "X_col_stride: " << X_col_stride << endl;
-
-    return out.str();
-}
-
-string NoDenSynapse::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "input:" << endl;
-    out << signal_to_string(input) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "b: " << b << endl;
-
-    return out.str();
-}
-
-
-string SimpleSynapse::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "input:" << endl;
-    out << signal_to_string(input) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "a: " << a << endl;
-    out << "b: " << b << endl;
-
-    return out.str();
-}
-
-string Synapse::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "input:" << endl;
-    out << signal_to_string(input) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "numer:" << endl;
-    out << numer << endl;
-    out << "denom:" << endl;
-    out << denom << endl;
-
-    /*
-    out << "x & y:" << endl;
-    for(int i = 0; i < input.size(); i++){
-        out << "i: " << i << endl;
-
-        out << "x.size " << x[i].size() << endl;
-        for(int j = 0; j < x[i].size(); j++){
-            out << "x[ "<< j << "] = "<< x[i][j] << ", ";
-        }
-        out << endl;
-
-        out << "y.size " << y[i].size() << endl;
-        for(int j = 0; j < y[i].size(); j++){
-            out << "y[ "<< j << "] = "<< y[i][j] << ", ";
-        }
-        out << endl;
-    }
-    */
-
-    return out.str();
-}
-
-string TriangleSynapse::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "input:" << endl;
-    out << signal_to_string(input) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "n0:" << n0 << endl;
-    out << "ndiff:" << ndiff << endl;
-    out << "n_taps: " << n_taps << endl;
-
-    /*
-    out << "x :" << endl;
-    for(int i = 0; i < input.size(); i++){
-        out << "i: " << i << endl;
-
-        out << "x.size " << x[i].size() << endl;
-        for(int j = 0; j < x[i].size(); j++){
-            out << "x[ "<< j << "] = "<< x[i][j] << ", ";
-        }
-        out << endl;
-    }
-    */
-
-    return out.str();
-}
-
-string WhiteNoise::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "mean: " << mean << endl;
-    out << "std: " << std << endl;
-    out << "do_scale: " << do_scale << endl;
-    out << "inc: " << inc << endl;
-    out << "dt: " << dt << endl;
-
-    return out.str();
-}
-
-string WhiteSignal::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "coefs:" << endl;
-    out << signal_to_string(coefs) << endl;
-    out << "idx: " << idx << endl;
-
-    return out.str();
-}
-
-
-string LIF::to_string() const{
-
-    stringstream out;
-
-    out << Operator::to_string();
-    out << "J:" << endl;
-    out << signal_to_string(J) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "voltage:" << endl;
-    out << signal_to_string(voltage) << endl;
-    out << "refractory_time:" << endl;
-    out << signal_to_string(ref_time) << endl;
-    out << "n_neurons: " << n_neurons << endl;;
-    out << "tau_rc: " << tau_rc << endl;
-    out << "tau_ref: " << tau_ref << endl;
-    out << "min_voltage: " << min_voltage << endl;
-
-    return out.str();
-}
-
-string LIFRate::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "J:" << endl;
-    out << signal_to_string(J) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "n_neurons: " << n_neurons << endl;
-    out << "tau_rc: " << tau_rc << endl;
-    out << "tau_ref: " << tau_ref << endl;
-
-    return out.str();
-}
-
-string AdaptiveLIF::to_string() const{
-
-    stringstream out;
-    out << LIF::to_string();
-    out << "tau_n: " << tau_n << endl;
-    out << "inc_n: " << inc_n << endl;
-    out << "adaptation: " << endl;
-    out << signal_to_string(adaptation) << endl;
-
-    return out.str();
-}
-
-string AdaptiveLIFRate::to_string() const{
-
-    stringstream out;
-    out << LIFRate::to_string();
-    out << "tau_n: " << tau_n << endl;
-    out << "inc_n: " << inc_n << endl;
-    out << "dt: " << dt << endl;
-    out << "adaptation: " << endl;
-    out << signal_to_string(adaptation) << endl;
-
-    return out.str();
-}
-
-string RectifiedLinear::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "n_neurons: " << n_neurons << endl;
-    out << "J:" << endl;
-    out << signal_to_string(J) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-
-    return out.str();
-}
-
-string Sigmoid::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "n_neurons: " << n_neurons << endl;
-    out << "tau_ref: " << tau_ref << endl;
-    out << "J:" << endl;
-    out << signal_to_string(J) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-
-    return out.str();
-}
-
 string Izhikevich::to_string() const{
 
     stringstream out;
@@ -907,6 +907,21 @@ string Izhikevich::to_string() const{
     return out.str();
 }
 
+// ********************************************************************************
+BCM::BCM(
+    SignalView pre_filtered, SignalView post_filtered, SignalView theta,
+    SignalView delta, dtype learning_rate, dtype dt)
+:pre_filtered(pre_filtered), post_filtered(post_filtered), theta(theta), delta(delta),
+alpha(learning_rate * dt){}
+
+void BCM::operator() (){
+    opb_prod(
+        alpha * element_prod(post_filtered, post_filtered - theta),
+        trans(pre_filtered), delta, true);
+
+    run_dbg(*this);
+}
+
 string BCM::to_string() const{
     stringstream out;
     out << Operator::to_string();
@@ -922,6 +937,28 @@ string BCM::to_string() const{
     out << signal_to_string(delta) << endl;
 
     return out.str();
+}
+
+// ********************************************************************************
+Oja::Oja(
+    SignalView pre_filtered, SignalView post_filtered, SignalView weights,
+    SignalView delta, dtype learning_rate, dtype dt, dtype beta)
+:pre_filtered(pre_filtered), post_filtered(post_filtered), weights(weights), delta(delta),
+alpha(learning_rate * dt), beta(beta){}
+
+void Oja::operator() (){
+    for(int i = 0; i < weights.size1(); i++){
+        dtype post_squared = post_filtered(i, 0);
+        post_squared *= alpha * post_squared;
+
+        for(int j = 0; j < weights.size2(); j++){
+            delta(i, j) = -beta * weights(i, j) * post_squared;
+        }
+    }
+
+    opb_prod(alpha * post_filtered, trans(pre_filtered), delta, false);
+
+    run_dbg(*this);
 }
 
 string Oja::to_string() const{
@@ -940,6 +977,34 @@ string Oja::to_string() const{
     out << signal_to_string(delta) << endl;
 
     return out.str();
+}
+
+// ********************************************************************************
+Voja::Voja(
+    SignalView pre_decoded, SignalView post_filtered, SignalView scaled_encoders,
+    SignalView delta, SignalView learning_signal, BaseSignal scale,
+    dtype learning_rate, dtype dt)
+:pre_decoded(pre_decoded), post_filtered(post_filtered), scaled_encoders(scaled_encoders),
+delta(delta), learning_signal(learning_signal), scale(scale), alpha(learning_rate * dt){
+
+}
+
+void Voja::operator() (){
+    // For now, learning_signal is required to have size 1.
+    dtype coef = alpha * learning_signal(0, 0);
+
+    for(int i = 0; i < scaled_encoders.size1(); i++){
+        dtype s = scale(i, 0);
+        dtype pf = post_filtered(i, 0);
+
+        for(int j = 0; j < scaled_encoders.size2(); j++){
+            delta(i, j) =
+                coef * (s * post_filtered(i, 0) * pre_decoded(j, 0)
+                - pf * scaled_encoders(i, j));
+        }
+    }
+
+    run_dbg(*this);
 }
 
 string Voja::to_string() const{
@@ -963,41 +1028,7 @@ string Voja::to_string() const{
     return out.str();
 }
 
-
-// reset
-// Here we only need to reset aspects of state that are
-// *not* stored as signals. Consequently, most operators
-// won't need to do anything here. Resetting the signals
-// is handled by the chunk.
-
-void Synapse::reset(unsigned seed){
-    for(int i = 0; i < input.size1(); i++){
-        for(int j = 0; j < x[i].size(); j++){
-            x[i][j] = 0.0;
-        }
-        for(int j = 0; j < y[i].size(); j++){
-            y[i][j] = 0.0;
-        }
-    }
-}
-
-void TriangleSynapse::reset(unsigned seed){
-    for(int i = 0; i < input.size1(); i++){
-        for(int j = 0; j < x[i].size(); j++){
-            x[i][j] = 0.0;
-        }
-    }
-}
-
-void WhiteNoise::reset(unsigned seed){
-    rng.seed(seed);
-}
-
-void WhiteSignal::reset(unsigned seed){
-    idx = 0;
-}
-
-// Miscellaneous
+// ********************************************************************************
 string signal_to_string(const SignalView signal){
 
     stringstream ss;

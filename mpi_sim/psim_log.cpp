@@ -1,11 +1,11 @@
 #include "psim_log.hpp"
 
 ParallelSimulationLog::ParallelSimulationLog(
-    int n_processors, int processor, vector<ProbeSpec> probe_info, dtype dt, MPI_Comm comm)
+    unsigned n_processors, unsigned processor, vector<ProbeSpec> probe_info, dtype dt, MPI_Comm comm)
 :SimulationLog(probe_info, dt), n_processors(n_processors), processor(processor), comm(comm){}
 
 // Master version
-void ParallelSimulationLog::prep_for_simulation(string fn, int n_steps){
+void ParallelSimulationLog::prep_for_simulation(string fn, unsigned n_steps){
     filename = fn;
 
     // Send filename size
@@ -56,7 +56,7 @@ void ParallelSimulationLog::prep_for_simulation(){
     ready_for_simulation = true;
 }
 
-void ParallelSimulationLog::setup_hdf5(int n_steps){
+void ParallelSimulationLog::setup_hdf5(unsigned n_steps){
     hid_t dset_id, dataspace_id, plist_id, att_id, att_dataspace_id;
 
     // Set up file access property list with parallel I/O access
@@ -109,7 +109,7 @@ void ParallelSimulationLog::setup_hdf5(int n_steps){
 }
 
 void ParallelSimulationLog::write_file(
-        string filename_suffix, int rank, int max_buffer_size, string data){
+        string filename_suffix, unsigned rank, unsigned max_buffer_size, string data){
 
     string fn = filename.substr(0, filename.find_last_of('.')) + filename_suffix;
 

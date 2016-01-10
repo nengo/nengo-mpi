@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_PARALLEL_SIMULATION_LOG_HPP
-#define NENGO_MPI_PARALLEL_SIMULATION_LOG_HPP
+#pragma once
 
 #include <map>
 #include <vector>
@@ -22,11 +21,11 @@ public:
     ParallelSimulationLog(){};
 
     ParallelSimulationLog(
-        int n_processors, int processor, vector<ProbeSpec> probe_info,
-        dtype dt, MPI_Comm comm);
+        unsigned n_processors, unsigned processor,
+        vector<ProbeSpec> probe_info, dtype dt, MPI_Comm comm);
 
     // Called by master
-    void prep_for_simulation(string fn, int n_steps);
+    void prep_for_simulation(string fn, unsigned n_steps);
 
     // Called by workers
     void prep_for_simulation();
@@ -34,17 +33,15 @@ public:
     // Use the `probe_info` (which is read from the HDF5 file that specifies the
     // network), to collectively construct a shared parallel HDF5 which all
     // processors can write simulation results to.
-    void setup_hdf5(int n_steps);
+    void setup_hdf5(unsigned n_steps);
 
-    virtual void write_file(string filename_suffix, int rank, int max_buffer_size, string data);
+    virtual void write_file(string filename_suffix, unsigned rank, unsigned max_buffer_size, string data);
 
 protected:
-    int n_processors;
-    int processor;
+    unsigned n_processors;
+    unsigned processor;
     MPI_Comm comm;
 
-    int mpi_rank;
-    int mpi_size;
+    unsigned mpi_rank;
+    unsigned mpi_size;
 };
-
-#endif

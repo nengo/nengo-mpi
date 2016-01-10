@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_OPERATOR_HPP
-#define NENGO_MPI_OPERATOR_HPP
+#pragma once
 
 #include <vector>
 #include <string>
@@ -7,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <random>
+#include <cstdint>
 
 #include <boost/numeric/ublas/matrix.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
@@ -35,7 +35,7 @@ typedef ublas::scalar_matrix<dtype> ScalarSignal;
 
 /* Type of keys for various maps in the MpiSimulatorChunk. Keys are typically
  * addresses of python objects, so we need to use long long ints (64 bits). */
-typedef long long int key_type;
+typedef uintmax_t key_type;
 
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures are stored in a list, and we call
@@ -58,6 +58,9 @@ public:
         return classname() + '\n';
     }
 
+    // Here we only need to reset aspects of operator's state that are *not* stored as signals
+    // because resetting signals is handled by the chunk. Consequently, most operators won't
+    // need to override this.
     virtual void reset(unsigned seed){}
 
     friend ostream& operator << (ostream &out, const Operator &op){
@@ -523,11 +526,6 @@ protected:
     BaseSignal scale;
 };
 
-
-
-
 string signal_to_string(const SignalView signal);
 string signal_to_string(const BaseSignal signal);
 string shape_string(const SignalView signal);
-
-#endif

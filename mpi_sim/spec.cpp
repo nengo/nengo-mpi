@@ -16,7 +16,7 @@ OpSpec::OpSpec(string op_string){
     }catch(const boost::bad_lexical_cast& e){
         stringstream msg;
         msg << "Caught bad lexical cast while extracting OpSpec from string "
-                "with error: " << e.what() << endl;
+               "with error: " << e.what() << endl;
         msg << "The op string was: " << op_string << endl;
         throw logic_error(msg.str());
     }
@@ -35,7 +35,6 @@ string OpSpec::to_string() const{
 
     return out.str();
 }
-
 
 SignalSpec::SignalSpec(string signal_string){
     try{

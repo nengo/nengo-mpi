@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_SIMULATION_LOG_HPP
-#define NENGO_MPI_SIMULATION_LOG_HPP
+#pragma once
 
 #include <map>
 #include <vector>
@@ -19,11 +18,11 @@ using namespace std;
 struct HDF5Dataset{
     HDF5Dataset(){};
 
-    HDF5Dataset(string n, int n_cols, hid_t d, hid_t dspace)
+    HDF5Dataset(string n, unsigned n_cols, hid_t d, hid_t dspace)
     :parallel(false), name(n), n_cols(n_cols), dset_id(d),
     dataspace_id(dspace), plist_id(H5P_DEFAULT), row_offset(0){};
 
-    HDF5Dataset(string n, int n_cols, hid_t d, hid_t dspace, hid_t p)
+    HDF5Dataset(string n, unsigned n_cols, hid_t d, hid_t dspace, hid_t p)
     :parallel(true), name(n), n_cols(n_cols), dset_id(d),
     dataspace_id(dspace), plist_id(p), row_offset(0){};
 
@@ -40,19 +39,19 @@ struct HDF5Dataset{
 
     string name;
 
-    int n_cols;
+    unsigned n_cols;
 
     hid_t dset_id;
     hid_t dataspace_id;
     hid_t plist_id;
 
-    int row_offset;
+    unsigned row_offset;
 };
 
-const int MAX_PROBE_NAME_LENGTH = 512;
+const unsigned MAX_PROBE_NAME_LENGTH = 512;
 
 // Represents an HDF5 file to which we write data collected throughout the simulation.
-// If filename given to prep_for_simulation is empty string, no logging is done.
+// If filename given to prep_for_simulation is the empty string, no logging is done.
 class SimulationLog{
 public:
     SimulationLog(){};
@@ -60,7 +59,7 @@ public:
     SimulationLog(vector<ProbeSpec> probe_info, dtype dt);
     SimulationLog(dtype dt);
 
-    virtual void prep_for_simulation(string fn, int n_steps);
+    virtual void prep_for_simulation(string fn, unsigned n_steps);
     virtual void prep_for_simulation();
 
     bool is_ready(){return ready_for_simulation;};
@@ -68,14 +67,14 @@ public:
     // Use the `probe_info` (which is read from the HDF5 file that specifies the
     // network), to construct an HDF5 which simulation results are written to.
     // Called at the beginning of a simulation.
-    virtual void setup_hdf5(int n_steps);
+    virtual void setup_hdf5(unsigned n_steps);
 
     // Write some data recorded by a probe in the simulator to the dataset in the
     // HDF5 that was reserved for that probe at the beginning of the simulation
     // (by calling the method `setup_hdf5`).
-    void write(key_type probe_key, shared_ptr<dtype> buffer, int n_rows);
+    void write(key_type probe_key, shared_ptr<dtype> buffer, unsigned n_rows);
 
-    virtual void write_file(string filename_suffix, int rank, int max_buffer_size, string data);
+    virtual void write_file(string filename_suffix, unsigned rank, unsigned max_buffer_size, string data);
 
     // Close the HDF5 file.
     void close();
@@ -96,5 +95,3 @@ protected:
     vector<HDF5Dataset> datasets;
     bool closed;
 };
-
-#endif

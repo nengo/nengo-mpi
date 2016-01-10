@@ -1,5 +1,4 @@
-#ifndef NENGO_SIMULATOR_HPP
-#define NENGO_SIMULATOR_HPP
+#pragma once
 
 #include <list>
 #include <map>
@@ -79,5 +78,3 @@ protected:
     // build the HDF5 output file correctly.
     vector<ProbeSpec> probe_info;
 };
-
-#endif

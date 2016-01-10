@@ -1,5 +1,4 @@
-#ifndef NENGO_MPI_SPECS_HPP
-#define NENGO_MPI_SPECS_HPP
+#pragma once
 
 #include <string>
 #include <vector>
@@ -68,5 +67,3 @@ public:
 
     string to_string() const override;
 };
-
-#endif
