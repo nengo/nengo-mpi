@@ -6,7 +6,6 @@ User Guide
    :maxdepth: 2
 
    modules
-   use_cases
+   workflows
    user_api
    benchmarks
-   changelog
