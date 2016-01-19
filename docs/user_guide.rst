@@ -5,7 +5,8 @@ User Guide
 .. toctree::
    :maxdepth: 2
 
+   how_it_works
    modules
    workflows
-   user_api
    benchmarks
+   user_api

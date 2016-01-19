@@ -4,12 +4,13 @@ nengo_mpi
 
 nengo_mpi is an MPI backend for
 `nengo <https://pythonhosted.org/nengo/index.html>`_, a python library
-for building and simulating neural networks. nengo_mpi makes it possible
-to run nengo simulations in parallel on thousands of processors, and existing
-nengo scripts can be adapted to take advantage of nengo_mpi with minimal effort.
+for building and simulating biologically realistic neural networks.
+nengo_mpi makes it possible to run nengo simulations in parallel on
+thousands of processors, and existing nengo scripts can be adapted to
+make use of nengo_mpi with minimal effort.
 
 With an MPI implementation installed on the system, nengo_mpi can be used
-to run neural simulations in parallel using just a few lines of code::
+to run neural simulations in parallel using just a few lines of code: ::
 
     import nengo
     import nengo_mpi
