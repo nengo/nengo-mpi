@@ -6,10 +6,9 @@
 import sys
 
 try:
-    import nengo_mpi
     import sphinx_rtd_theme
 except ImportError:
-    print ("To build the documentation, nengo_mpi and the sphinx_rtd_theme "
+    print ("To build the documentation, the sphinx_rtd_theme "
            "must be installed in the current environment. Please install these "
            "and their requirements first. A virtualenv is recommended!")
     sys.exit(1)
@@ -40,9 +39,17 @@ mathjax_path = ("https://cdn.mathjax.org/mathjax/latest/MathJax.js"
 
 project = u'nengo_mpi'
 authors = u'Applied Brain Research'
-copyright = nengo_mpi.__copyright__
-version = '.'.join(nengo_mpi.__version__.split('.')[:2])  # Short X.Y version
-release = nengo_mpi.__version__  # Full version, with tags
+copyright = "2013-2014, Applied Brain Research"
+
+name = "nengo_mpi"
+version_info = (0, 1, 0)  # (major, minor, patch)
+dev = True
+
+release = "{v}{dev}".format(v='.'.join(str(v) for v in version_info),
+                            dev='-dev' if dev else '')
+
+version = '.'.join(release.split('.')[:2])  # Short X.Y version
+
 pygments_style = 'default'
 
 # -- Options for HTML output --------------------------------------------------

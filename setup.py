@@ -44,15 +44,9 @@ setup(
     long_description=long_description,
     # Without this, `setup.py install` fails to install NumPy.
     # See https://github.com/nengo/nengo/issues/508 for details.
-    setup_requires=[
-        "numpy>=1.6",
-        "h5py"
-    ],
-    install_requires=[
-        "numpy>=1.6",
-        "h5py"
-    ],
+    setup_requires=[],
+    install_requires=[],
     extras_require={},
-    tests_require=['pytest>=2.3'],
+    tests_require=[],
     zip_safe=False,
 )
