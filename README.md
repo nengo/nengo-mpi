@@ -1,4 +1,4 @@
 nengo_mpi
 =========
 
-MPI backend for the nengo neural simulator.
+An MPI backend for the nengo neural simulation library. Docs are located [here](https://nengo-mpi.readthedocs.org/).
