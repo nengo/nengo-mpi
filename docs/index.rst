@@ -64,10 +64,3 @@ nengo_mpi is fully featured, supporting all aspects of Nengo Release 2.0.2.
    getting_started
    user_guide
    dev_guide
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
