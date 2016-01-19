@@ -9,4 +9,3 @@ User Guide
    modules
    workflows
    benchmarks
-   user_api

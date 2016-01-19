@@ -10,4 +10,3 @@ simulations in parallel.
    :maxdepth: 2
 
    dev_introduction
-   dev_api
