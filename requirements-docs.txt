@@ -1,4 +1,3 @@
-nengo
 sphinx
 -e git://github.com/numpy/numpydoc.git#egg=numpydoc
 sphinx_rtd_theme
