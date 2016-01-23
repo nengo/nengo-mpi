@@ -129,7 +129,7 @@ class Simulator(object):
         return self.mpi_sim.to_string()
 
     def run_steps(self, steps, progress_bar, log_filename):
-        """Simulate for the given number of `dt` steps."""
+        """ Simulate for the given number of `dt` steps. """
 
         self.mpi_sim.run_n_steps(steps, progress_bar, log_filename)
 
@@ -153,11 +153,11 @@ class Simulator(object):
         print "MPI Simulation complete."
 
     def step(self):
-        """Advance the simulator by `self.dt` seconds."""
+        """ Advance the simulator by `self.dt` seconds. """
         self.run_steps(1)
 
     def run(self, time_in_seconds, progress_bar=True, log_filename=""):
-        """Simulate for the given length of time."""
+        """ Simulate for the given length of time. """
 
         steps = int(np.round(float(time_in_seconds) / self.dt))
         self.run_steps(steps, progress_bar, log_filename)

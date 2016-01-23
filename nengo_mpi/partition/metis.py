@@ -71,7 +71,8 @@ def read_metis_output_file(filename):
 
     Returns
     -------
-    A list L s.t. L[i] gives the component of the (i+1)-th node.
+    A list L where the i-th element is the component index of the i-th node.
+
     """
     print "Reading metis output file: %s" % filename
 
@@ -104,8 +105,8 @@ def metis_partitioner(cluster_graph, n_components, delete_file=True):
     -------
     assignments: dict
         A mapping from nodes in the cluster graph to components.
-    """
 
+    """
     if not metis_available():
         raise Exception(
             "Cannot use metis_partitioner. "

@@ -19,6 +19,7 @@ def work_balanced_partitioner(cluster_graph, n_components):
     -------
     assignments: dict
         A mapping from nodes in the cluster graph to components.
+
     """
     assert n_components > 1
 
@@ -51,8 +52,8 @@ class PriorityDict(dict):
     priority, and 'pop_smallest' also removes it.
 
     The 'sorted_iter' method provides a destructive sorted iterator.
-    """
 
+    """
     def __init__(self, *args, **kwargs):
         super(PriorityDict, self).__init__(*args, **kwargs)
         self._rebuild_heap()
@@ -65,8 +66,8 @@ class PriorityDict(dict):
         """Return the item with the lowest priority.
 
         Raises IndexError if the object is empty.
-        """
 
+        """
         heap = self._heap
         v, k = heap[0]
         while k not in self or self[k] != v:
@@ -78,8 +79,8 @@ class PriorityDict(dict):
         """Return the item with the lowest priority and remove it.
 
         Raises IndexError if the object is empty.
-        """
 
+        """
         heap = self._heap
         v, k = heappop(heap)
         while k not in self or self[k] != v:
@@ -117,14 +118,15 @@ class PriorityDict(dict):
         """Sorted iterator of the priority dictionary items.
 
         Beware: this will destroy elements as they are returned.
+
         """
         while self:
             yield self.pop_smallest()
 
 
 def greedy_balanced_partition(S, k, key=None):
-    """
-    Greedy algorithm for the k-part balanced partition problem.
+    """ Greedy algorithm for the k-part balanced partition problem.
+
     The problem is: Given a list of integers, and an integer k,
     group the integers into k sets such the sums of the groups are
     as close to one another as possible.
@@ -150,8 +152,8 @@ def greedy_balanced_partition(S, k, key=None):
 
     sizes: list
         A list of numbers, the ith item giving the size of the ith component.
-    """
 
+    """
     if key is None:
         key = lambda x: x
 

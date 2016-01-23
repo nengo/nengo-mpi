@@ -31,7 +31,7 @@ def partitioners():
 
 
 def get_probed_connections(network):
-    """ Return all connections that have probes in `network`. """
+    """ Return all connections that have probes in ``network``. """
     probed_connections = []
     for probe in network.all_probes:
         if isinstance(probe.target, Connection):
@@ -41,7 +41,7 @@ def get_probed_connections(network):
 
 
 def _can_cross_boundary(conn, probed_connections, max_size=np.inf):
-    """ Return whether `conn` is allowed to cross component boundaries. """
+    """ Return whether ``conn`` is allowed to cross component boundaries. """
 
     can_cross = conn.synapse is not None
     can_cross &= conn.size_mid <= max_size
@@ -62,11 +62,11 @@ def make_boundary_predicate(network, max_size=np.inf):
 
 
 def verify_assignments(network, assignments):
-    """
-    Propagate the assignments given in ``assignments``.
+    """ Propagate the assignments given in ``assignments``.
 
-    Goal is to form a complete partition of the network, and
-    verify that the resulting partition is usable.
+    This is used when an assignment of objects to components is supplied
+    directly to ``nengo_mpi.Simulator`` in lieu of a ``Partitioner`` object.
+    It does not scale well and is mainly useful for demonstration purposes.
 
     Parameters
     ----------
@@ -95,17 +95,14 @@ def verify_assignments(network, assignments):
 
 
 class Partitioner(object):
-    """
-    A class for dividing a nengo network into components. Any connections
-    that straddles a component boundaries must have a synapse.
+    """ Divide a nengo network into components that can be simulated independently.
 
     Parameters
     ----------
-    n_components: int
-        The number of components to divide the nengo network into. If None,
-        defaults to 1.
+    n_components: int (optional)
+        The number of components to divide the nengo network into.
 
-    func: function
+    func: function (optional)
         A function to partition the nengo graph, assigning nengo objects
         to component indices. Ignored if ``n_components == 1``.
 
@@ -113,12 +110,12 @@ class Partitioner(object):
             cluster_graph
             n_components
 
-    use_weights: boolean
+    use_weights: boolean (optional)
         Whether to use the size_mid attribute of connections to weight the
         edges in the graph that we partition. If False, then all edges have
         the same weight.
 
-    straddle_conn_max_size: int/float
+    straddle_conn_max_size: int/float (optional)
         Connections of this size or greater are not permitted to straddle
         component boundaries. Two nengo objects that are connected by a
         Connection that is bigger than this size are forced to be in the
@@ -130,27 +127,14 @@ class Partitioner(object):
 
     """
     def __init__(
-            self, n_components=None, func=None,
-            use_weights=True, straddle_conn_max_size=np.inf,
-            *args, **kwargs):
+            self, n_components=1, func=None, use_weights=True,
+            straddle_conn_max_size=np.inf, *args, **kwargs):
 
-        if n_components is None:
-            self.n_components = 1
+        self.n_components = n_components
 
-            if func is not None:
-                warnings.warn(
-                    "Number of components not specified. Defaulting to "
-                    "1 and ignoring supplied partitioner function.")
-
-            self.func = self.default_partition_func
-
-        else:
-            self.n_components = n_components
-
-            if func is None:
-                func = self.default_partition_func
-
-            self.func = func
+        if func is None:
+            func = self.default_partition_func
+        self.func = func
 
         self.straddle_conn_max_size = straddle_conn_max_size
         self.args = args
@@ -175,8 +159,8 @@ class Partitioner(object):
         go on component 0, and in the latter case, we arbitrarily assign each
         independently simulatable chunk to its own component.
 
-        Implementation:
-            1. Construct a "cluster graph" from the nengo network.
+        Steps:
+            1. Construct a cluster graph from the nengo network.
             2. Partition the cluster graph using ``self.func``.
 
         Parameters
@@ -192,7 +176,7 @@ class Partitioner(object):
             cases where it is deemed impossible to split the network into the
             desired number of components.
         assignments: dict
-            A mapping from each nengo object in the network to an integer
+            A mapping from each nengo object in the network to an index
             specifying which component of the partition the object is assigned
             to. Component 0 is simulated by the master process.
 
@@ -212,8 +196,7 @@ class Partitioner(object):
 
             n_clusters = len(cluster_graph)
 
-            # cluster_assignments is a mapping from
-            # each cluster to its component index
+            # ``cluster_assignments`` maps each cluster to its component idx
             if n_clusters <= self.n_components:
                 self.n_components = n_clusters
                 cluster_assignments = {
@@ -248,13 +231,12 @@ class Partitioner(object):
 
 
 class NengoObjectCluster(object):
-    """
-    A collection of nengo objects that must be simulated together.
+    """ A collection of nengo objects that must be simulated together.
 
-    Two nengo objects must be simulated together if there exists a
-    path of nengo Connections between them that does not contain an
-    update operation (which effectively means that none of the
-    Connections constituting the path have synapses).
+    Two nengo objects must be simulated together iff there exists a
+    path between them in the *undirected* graph of nengo objects which
+    contains a Connection that is *not* permitted to cross component
+    boundaries (as defined by the function ``can_cross_boundary``).
 
     NengoObjectClusters are used as the nodes in the cluster graph
     that is created as part of the partitioning process.
@@ -347,17 +329,11 @@ class NengoObjectCluster(object):
 def network_to_cluster_graph(
         network, can_cross_boundary=None,
         use_weights=True, merge_nengo_nodes=True):
+    """ Create a cluster graph from a nengo Network.
 
-    """
-    Creates a graph from a nengo Network, where the nodes are clusters
-    of nengo objects that are connected by connections without synapses, and
-    edges are synapsed connections between objects in those clusters. More
-    precisely, two nengo objects are in the same cluster iff there exists
-    a path between them in the undirected graph of nengo objects which does
-    not contain a synapse. This is required for partitioning a nengo Network
-    for use by nengo_mpi, since nengo_mpi can only send data across nengo
-    Connections that contain an update operation, which means they must
-    contain a synapse.
+    A cluster graph is a graph wherein the nodes are maximally large
+    NengoObjectClusters, and edges are nengo Connections that are permitted to
+    cross component boundaries.
 
     Parameters
     ----------
@@ -377,20 +353,19 @@ def network_to_cluster_graph(
         If True, then clusters which would consist entirely of nengo Nodes are
         merged with a neighboring cluster. This is done because it is typically
         not useful to have a processor simulating only Nodes, as it will only
-        add extra communication without significantly easing the computational
-        burden.
+        add extra communication without easing the computational burden.
 
     Returns
     -------
     component0: NengoObjectCluster
         A NengoObjectCluster containing all nengo objects which must be
-        simulatedon the master process in the nengo_mpi simulator. If there are
-        no such objects, then this has value None.
+        simulated on the master process in the nengo_mpi simulator. If there
+        are no such objects, then this has value None.
 
     cluster_graph: networkx.Graph
         A graph wherein the nodes are instances of NengoObjectCluster.
-        Importantly, the cluster graph graph contains `component0``
-        if ``component0`` is not None.
+        Importantly, if ``component0`` is not None, then it is included
+        in ``cluster_graph``.
 
     """
     def merge_clusters(cluster_map, a, b, conn=None):
@@ -502,7 +477,7 @@ def neurons2ensemble(e):
 
 
 def for_component0(cluster, outputs):
-    """ Returns whether the cluster must be simulated on process 0."""
+    """ Returns whether the cluster must be simulated on process 0. """
 
     for obj in cluster.objects:
         if isinstance(obj, Node) and callable(obj.output):
@@ -580,16 +555,16 @@ def propogate_assignments(network, assignments, can_cross_boundary):
     If assignments is empty, then all objects will be assigned to the 1st
     component, which has index 0. The intent is to have some partitioning
     algorithm determine some of the assignments before this function is called,
-    and then this function propogates those assignments.
+    and then have this function propogate those assignments.
 
-    Also does a small amount of validation, making sure that certain types of
-    objects are assigned to the master component (component 0), and making sure
-    that connections that ross component boundaries have a synapse on them.
+    Also does validation, making sure that connections that cross component
+    boundaries have certain properties (see ``can_cross_boundary``) and making
+    sure that certain types of objects are assigned to component 0.
 
-    These objects are:
+    Objects that must be simulated on component 0 are:
         1. Nodes with callable outputs.
         2. Ensembles of Direct neurons.
-        3. Any Node that is the source of a Connection that has a function.
+        3. Any Node that is the source for a Connection that has a function.
 
     Parameters
     ----------
@@ -613,9 +588,6 @@ def propogate_assignments(network, assignments, can_cross_boundary):
 
     """
     def helper(network, assignments, outputs):
-        """
-        outputs: a dict mapping each nengo object to its output connections.
-        """
         for node in network.nodes:
             if callable(node.output):
                 if node in assignments and assignments[node] != 0:
@@ -673,7 +645,8 @@ def propogate_assignments(network, assignments, can_cross_boundary):
             if conn.learning_rule is not None:
                 rule = conn.learning_rule
                 if is_iterable(rule):
-                    for r in itervalues(rule) if isinstance(rule, dict) else rule:
+                    rule = itervalues(rule) if isinstance(rule, dict) else rule
+                    for r in rule:
                         assignments[r] = assignments[conn.pre_obj]
                 elif rule is not None:
                     assignments[rule] = assignments[conn.pre_obj]
@@ -713,11 +686,11 @@ def propogate_assignments(network, assignments, can_cross_boundary):
 
     nodes = network.all_nodes
     nodes_in = all([node in assignments for node in nodes])
-    assert nodes_in, "Assignments incomplete, missing nodes."
+    assert nodes_in, "Assignments incomplete, missing some nodes."
 
     ensembles = network.all_ensembles
     ensembles_in = all([ensemble in assignments for ensemble in ensembles])
-    assert ensembles_in, "Assignments incomplete, missing ensembles."
+    assert ensembles_in, "Assignments incomplete, missing some ensembles."
 
 
 def total_neurons(network):
@@ -734,7 +707,7 @@ def total_neurons(network):
 
 def evaluate_partition(
         network, n_components, assignments, cluster_graph, can_cross_boundary):
-    """ Print a summary of the quality of a partition."""
+    """ Print a summary of the quality of a partition. """
 
     print "*" * 80
 
