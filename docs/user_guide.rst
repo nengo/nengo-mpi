@@ -9,3 +9,4 @@ User Guide
    modules
    workflows
    benchmarks
+   faq

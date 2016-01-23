@@ -7,9 +7,9 @@ Getting Started
 Installation
 ============
 
-At the present time, ``nengo_mpi`` is only known to be usable on Linux.
-Obtaining all ``nengo_mpi`` functionality requires a working
-installation of MPI, and the most recent version of ``nengo``
+At the present time, nengo_mpi is only known to be usable on Linux.
+Obtaining all nengo_mpi functionality requires a working
+installation of MPI, and the most recent version of nengo
 and all associated dependencies.
 
 Basic installation
@@ -35,7 +35,7 @@ Adapting Existing Nengo Scripts
 Existing nengo scripts can be adapted to make use of nengo_mpi by making
 just a few small modifications. The most basic change that needs to be made
 is importing nengo_mpi in addition to nengo, and then using the
-nengo_mpi.Simulator class in place of the Simulator class provided by nengo ::
+``nengo_mpi.Simulator`` class in place of the ``Simulator`` class provided by nengo ::
 
      import nengo_mpi
      import nengo
@@ -50,10 +50,11 @@ nengo_mpi.Simulator class in place of the Simulator class provided by nengo ::
 This will run a simulation using the nengo_mpi backend, but does not yet take
 advantage of parallelization. However, even without parallelization, the
 nengo_mpi backend can often be quite a bit faster than the reference
-implementation (see our :ref:`benchmarks`) since it is essentially a C++ library
-accompanied by a python wrapper, whereas the reference implementation is pure python.
+implementation (see our :ref:`benchmarks`) since it is a C++ library
+wrapped by a thin python layer, whereas the reference implementation is pure
+python.
 
-Partitioners
+Partitioning
 ------------
 In order to have simulations run in parallel, we need a way of specifying
 which nengo objects are going to be simulated on which processors. A
@@ -78,14 +79,29 @@ is used which simply assigns each component a roughly equal number of neurons.
 A more sophisticated partitioning function (which has additional dependencies)
 uses the `metis <http://glaros.dtc.umn.edu/gkhome/metis/metis/overview>`_
 package to assign objects to components in a way that minimizes
-the number of nengo Connections that straddle component boundaries. For example ::
+the number of nengo Connections that straddle component boundaries. For example: ::
 
     partitioner = nengo_mpi.Partitioner(n_components=8, func=nengo_mpi.metis_partitioner)
     sim = nengo_mpi.Simulator(network, partitioner=partitioner)
     sim.run(1.0)
 
+For small networks, we can also supply a dict mapping from nengo objects to component indices: ::
+
+    model = nengo.Network()
+    with model:
+        A = nengo.Ensemble(n_neurons=50, dimensions=1)
+        B = nengo.Ensemble(n_neurons=50, dimensions=1)
+        nengo.Connection(A, B)
+
+    assignments = {A: 0, B: 1}
+    sim = nengo_mpi.Simulator(model, assignments=assignments)
+    sim.run(1.0)
+
+Note, though, that this does not scale well and should be reserved for toy networks/demos.
+
 Running scripts
---------------------------
+===============
+
 To use the nengo_mpi backend without parallelization, scripts modified
 as above can be run in the usual way ::
 

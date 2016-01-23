@@ -72,8 +72,21 @@ functional model of the human brain developed at the CNRG. It is composed
 entirely of spiking neurons, and can perform eight separate cognitive tasks
 without modification. The original paper can be found `here
 <http://compneuro.uwaterloo.ca/files/publications/eliasmith.2012.pdf>`_. SPAUN
-is a large-scale neural network with a complex connectivity, and represents a
-somewhat more realistic test than the more contrived examples used above.
+is an extremely large-scale spiking neural network (currently approaching 4 million neurons
+when using 512-dimensional semantic pointers) with very complex connectivity,
+and represents a somewhat more realistic test than the more contrived examples used above.
+In the plots below we vary the dimensionality of the semantic pointers, the internal
+representations used by SPAUN.
 
 .. image :: images/pc_spaun_run.svg
 .. image :: images/gpc_spaun_run.svg
+.. image :: images/bgq_spaun_run.svg
+
+Clearly the larger clusters are providing less of a benefit here. The hypothesized reason
+is that thus far we have been unable to split SPAUN up into sufficiently small
+components than can be simulated independently. There are some components with many thousands
+of neurons on them. Thus the limiting factor for the speed of simulation is how
+quickly an individual processor is able to simulate one of these large components.
+We can likely remedy this by playing around with the connectivity of SPAUN and finding
+ways to reduce the maximum component size.
+

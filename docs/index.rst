@@ -2,7 +2,7 @@
 nengo_mpi
 *********
 
-nengo_mpi is an MPI backend for
+`nengo_mpi <https://github.com/e2crawfo/nengo_mpi>`_ is a C++/MPI backend for
 `nengo <https://pythonhosted.org/nengo/index.html>`_, a python library
 for building and simulating biologically realistic neural networks.
 nengo_mpi makes it possible to run nengo simulations in parallel on
@@ -42,7 +42,7 @@ There are 3 differences between this script and a script using the
 reference implementation of nengo. First, we need to ``import nengo_mpi``.
 Then we need to create a ``Partitioner`` object, which specifies how many
 components the nengo network should be split up into (this corresponds
-to the maximum number of distinct processors that can be used to execute
+to the maximum number of distinct processors that can be used to run
 the simulation). Finally, when creating the simulator we need to use
 nengo_mpi's Simulator class, and we need to pass in the Partitioner instance.
 

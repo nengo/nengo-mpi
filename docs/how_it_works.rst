@@ -1,3 +1,5 @@
+.. _how_it_works:
+
 How It Works
 ============
 
@@ -14,11 +16,11 @@ Here we attempt to give a rough idea of how nengo_mpi works under the hood, and,
     sim = nengo.Simulator(model)
     sim.run(time_in_seconds=1.0)
 
-The conversion from the high-level specification (e.g. the nengo Network stored in the variable ``model``)  to computation graph takes place in the line ``sim = nengo.Simulator(model)``. The generated computation graph looks something like this:
+The conversion from the high-level specification (e.g. the nengo Network stored in the variable ``model``)  to computation graph is called the **build** step, and takes place in the line ``sim = nengo.Simulator(model)``. The generated computation graph looks something like this:
 
 .. image :: images/nengo_signals.svg
 
-A few signals and operators whose purposes are somewhat opaque have been omitted here for clarity. Now suppose that we're really impatient, and find that the call to ``sim.run`` in our script is just too darn slow. We can easily parallelize the simulation step by making use of nengo_mpi. Making the few necessary changes, we end up with the following script: ::
+A few signals and operators whose purposes are somewhat opaque have been omitted here for clarity. Now suppose that we're impatient and find that the call to ``sim.run`` is too slow. We can easily parallelize the simulation step by making use of nengo_mpi. Making the few necessary changes, we end up with the following script: ::
 
     import nengo
     import nengo_mpi
@@ -42,24 +44,26 @@ Now ensembles A and B will be simulated on different processors, and we should g
 The ``MPISend`` operator stores the index of the processor to send its data to,
 and likewise the ``MPIRecv`` operator stores the index of the processor to receive data from.
 Moreover, they both share a "tag", a unique identifier which bonds the two
-operators together, and ensures that the data from the ``MPISend`` operator gets
+operators together and ensures that the data from the ``MPISend`` operator gets
 sent to the correct ``MPIRecv`` operator. This basic pattern can be scaled up to
-simulate much larger networks on much larger numbers of processors.
+simulate very large networks on thousands of processors.
 
 Some readers may have noticed something odd by now: it may seem like it would
 be impossible to achieve accelerated performance from the set-up depicted in
 the above diagrams. In particular, it seems as if the operators on processor
 1 will need to wait for the results from processor 0, so the computation is
-still ultimately a serial one, just that now there is inter-process communication
-in the pipeline to slow things down.
+still ultimately a serial one, just that now we have added inter-process
+communication in the pipeline to slow things down.
 
-This turns out not to be the case, because the ``Synapse`` operator is a special
-kind of operator called an "update" operator. Update operators break the computation
+This turns out not to be the case, because the ``Synapse`` operator is special
+in that it is what we call an "update" operator. Update operators break the computation
 graph up into independently-simulatable components. In the first diagram, the
 ``DotInc`` operator in ensemble B performs computation on the value of the ``Input``
-signal *from the previous time-step*. Thus, the operators in ensemble B do not need to
+signal *from the previous time-step* [#]_. Thus, the operators in ensemble B do not need to
 wait for the operators in ensemble A and the connection, since the values from the
 previous time-step should already be available. Likewise, in the second diagram,
 the ``MPIRecv`` operator actually receives data from the previous time-step.
 Thanks to this mechanism, we are in fact able to achieve large-scale parallelization,
-which is demonstrated empirically by our :ref:`benchmarks`.
+demonstrated empirically by our :ref:`benchmarks`.
+
+.. [#] "Delays" like this are necessary from a biological-plausibility standpoint as well. Otherwise, neural activity elicited by a stimulus could be propogated throughout the entire network in a single time step, regardless of the network's size.
