@@ -345,10 +345,7 @@ def make_key(obj):
     the same object multiple times).
 
     """
-    if isinstance(obj, builder.signal.SignalView):
-        return id(obj.base)
-    else:
-        return id(obj)
+    return id(obj)
 
 
 def signal_to_string(signal, delim=SIGNAL_DELIM):
@@ -362,7 +359,7 @@ def signal_to_string(signal, delim=SIGNAL_DELIM):
     strides = signal.elemstrides if signal.elemstrides else 1
 
     signal_args = [
-        make_key(signal), shape, strides, signal.offset]
+        make_key(signal.base), shape, strides, signal.offset]
 
     signal_string = delim.join(map(str, signal_args))
     signal_string = signal_string.replace(" ", "")
@@ -382,9 +379,8 @@ def store_string_list(
         h5_file, dset_name, strings, final_null=True, compression='gzip'):
     """ Store a list of strings as a dataset in an hdf5 file or group.
 
-    In the created dataset, the strings in `strings` are separated by null
-    characters. An additional null character can optionally being
-    added at the end.
+    In the created dataset, the strings in ``strings`` are separated by null
+    characters. An null character can optionally be added at the end.
 
     """
     big_string = '\0'.join(strings)
@@ -614,16 +610,16 @@ class MpiModel(builder.Model):
         """
         for op in ops:
             for signal in op.all_signals:
-                key = make_key(signal)
+                key = make_key(signal.base)
 
                 if key not in self.signal_key_set[component]:
                     logger.debug(
                         "Component %d: Adding signal %s with key: %s",
-                        component, signal, make_key(signal))
+                        component, signal, key)
 
                     self.signal_key_set[component].add(key)
-                    self.signals[component].append((key, signal))
-                    self.total_signal_size[component] += signal.size
+                    self.signals[component].append((key, signal.base))
+                    self.total_signal_size[component] += signal.base.size
 
         self.component_ops[component].extend(ops)
 
@@ -675,7 +671,7 @@ class MpiModel(builder.Model):
 
                 offset = 0
                 for key, sig in signals:
-                    A = sig.base._value
+                    A = sig.base._initial_value
 
                     if A.ndim == 0:
                         A = np.reshape(A, (1, 1))
@@ -742,7 +738,7 @@ class MpiModel(builder.Model):
     def _finalize_ops(self):
         """ Finalize operators.
 
-        Main jobs are to create MpiSend and MpiRecv opreators based on
+        Main jobs are to create MpiSend and MpiRecv operators based on
         send_signals and recv_signals, and to turn all ops belonging to
         the `component` into strings, which are then stored in self.op_strings.
         PyFunc ops are the only exception, as it is not generally possible to
@@ -815,7 +811,7 @@ class MpiModel(builder.Model):
                                 t_in, signal_to_string(op.output)]
 
                     else:
-                        input_array = x.value
+                        input_array = x.initial_value
 
                         if op.output is None:
                             pyfunc_args = [
@@ -862,29 +858,34 @@ class MpiModel(builder.Model):
                 "Copy", signal_to_string(op.dst), signal_to_string(op.src)]
 
         elif op_type == builder.operator.SlicedCopy:
+            a = op.a.base
+            a_slice = op.a_base_slice
+
+            b = op.b.base
+            b_slice = op.b_base_slice
 
             try:
-                seq_A = list(iter(op.a_slice))
+                seq_A = list(iter(a_slice))
                 start_A, stop_A, step_A = 0, 0, 0
             except:
                 seq_A = []
-                if op.a_slice == Ellipsis:
-                    start_A, stop_A, step_A = 0, op.a.size, 1
+                if a_slice == Ellipsis:
+                    start_A, stop_A, step_A = 0, a.size, 1
                 else:
-                    start_A, stop_A, step_A = op.a_slice.indices(op.a.size)
+                    start_A, stop_A, step_A = a_slice.indices(a.size)
 
             try:
-                seq_B = list(iter(op.b_slice))
+                seq_B = list(iter(b_slice))
                 start_B, stop_B, step_B = 0, 0, 0
             except:
                 seq_B = []
-                if op.b_slice == Ellipsis:
-                    start_B, stop_B, step_B = 0, op.b.size, 1
+                if b_slice == Ellipsis:
+                    start_B, stop_B, step_B = 0, b.size, 1
                 else:
-                    start_B, stop_B, step_B = op.b_slice.indices(op.b.size)
+                    start_B, stop_B, step_B = b_slice.indices(b.size)
 
             op_args = [
-                "SlicedCopy", signal_to_string(op.b), signal_to_string(op.a),
+                "SlicedCopy", signal_to_string(b), signal_to_string(a),
                 int(op.inc), start_A, stop_A, step_A, start_B, stop_B, step_B,
                 str(seq_A), str(seq_B)]
 
@@ -1091,11 +1092,11 @@ class MpiModel(builder.Model):
             op_args = []
 
         elif op_type == MpiSend:
-            signal_key = make_key(op.signal)
+            signal_key = make_key(op.signal.base)
             op_args = ["MpiSend", op.dst, op.tag, signal_key]
 
         elif op_type == MpiRecv:
-            signal_key = make_key(op.signal)
+            signal_key = make_key(op.signal.base)
             op_args = ["MpiRecv", op.src, op.tag, signal_key]
 
         elif op_type == SpaunStimulusOperator:

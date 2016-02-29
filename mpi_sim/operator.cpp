@@ -100,7 +100,7 @@ seq_A(seq_A), seq_B(seq_B){
     if(n_assignments_A != n_assignments_B){
         stringstream ss;
         ss << "While creating SlicedCopy, got mismatching slice sizes for A and B. "
-           << "Size of A slice was " << n_assignments_A << ", while sice of B slice was "
+           << "Size of A slice was " << n_assignments_A << ", while size of B slice was "
            << n_assignments_B << "." << endl;
         throw runtime_error(ss.str());
     }

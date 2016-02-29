@@ -119,7 +119,8 @@ def test_dot_inc():
 
     sim.run(1)
 
-    assert np.allclose(A.value.dot(X.value), sim.data[signal_probes[0]])
+    assert np.allclose(
+        A.initial_value.dot(X.initial_value), sim.data[signal_probes[0]])
 
 
 def test_random_dot_inc():
@@ -142,7 +143,8 @@ def test_random_dot_inc():
 
         sim.run(1)
 
-        assert np.allclose(A.value.dot(X.value), sim.data[probes[0]])
+        assert np.allclose(
+            A.initial_value.dot(X.initial_value), sim.data[probes[0]])
 
 
 def test_reset():
@@ -184,7 +186,58 @@ def test_copy():
         D + copy_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
 
 
-def test_sliced_copy():
+def test_sliced_copy_converge():
+    D = 2 * 20
+
+    data1 = np.random.random(D)
+    S1 = Signal(data1, 'S1')
+
+    data2 = np.random.random(D)
+    S2 = Signal(data2, 'S2')
+
+    out = Signal(np.zeros(2 * D), 'out')
+
+    ops = [
+        Reset(out, 0),
+        SlicedCopy(S1, out, b_slice=slice(0, D), inc=True),
+        SlicedCopy(S2, out, b_slice=slice(D, 2 * D), inc=True)]
+
+    probes = [SignalProbe(out)]
+    sim = TestSimulator(ops, probes)
+
+    sim.run(0.05)
+
+    ground_truth = np.hstack((data1, data2))
+    assert np.allclose(
+        ground_truth, sim.data[probes[0]], atol=0.000001, rtol=0.0)
+
+
+def test_sliced_copy_diverge():
+    D = 2 * 20
+
+    data = np.random.random(2 * D)
+    input = Signal(data, 'input')
+
+    S1 = Signal(np.zeros(D), 'S1')
+    S2 = Signal(np.zeros(D), 'S2')
+
+    ops = [
+        Reset(S1, 0), Reset(S2, 0),
+        SlicedCopy(input, S1, a_slice=slice(0, D), inc=True),
+        SlicedCopy(input, S2, a_slice=slice(D, 2 * D), inc=True)]
+
+    probes = [SignalProbe(S1), SignalProbe(S2)]
+    sim = TestSimulator(ops, probes)
+
+    sim.run(0.05)
+
+    assert np.allclose(
+        data[:D], sim.data[probes[0]], atol=0.000001, rtol=0.0)
+    assert np.allclose(
+        data[D:], sim.data[probes[1]], atol=0.000001, rtol=0.0)
+
+
+def test_sliced_copy_complex():
     D = 2 * 20
 
     data1 = np.random.random(D)
