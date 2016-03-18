@@ -400,22 +400,19 @@ string ElementwiseInc::to_string() const{
 NoDenSynapse::NoDenSynapse(
     Signal input, Signal output, dtype b)
 :input(input), output(output), b(b){
-    if(input.shape2 > 1 || output.shape2 > 1){
-        throw runtime_error(
-            "While creating NoDenSynapse, expected vectors but received matrices.");
-    }
 
-    if(input.shape1 != output.shape1){
+    if(input.shape1 != output.shape1 || input.shape2 != output.shape2){
         throw runtime_error(
-            "While creating NoDenSynapse, input and output had incompatible dimensions.");
+            "While creating NoDenSynapse, input and output had incompatible shapes.");
     }
 }
 
 void NoDenSynapse::operator() (){
-    cblas_dscal(output.shape1, 0.0, output.raw_data, output.stride1);
-    cblas_daxpy(
-        output.shape1, b, input.raw_data, input.stride1,
-        output.raw_data, output.stride1);
+    for(unsigned i = 0; i < output.shape1; i++){
+        for(unsigned j = 0; j < output.shape2; j++){
+            output(i, j) = b * input(i, j);
+        }
+    }
 
     run_dbg(*this);
 }
@@ -434,31 +431,21 @@ string NoDenSynapse::to_string() const{
 }
 
 // ********************************************************************************
-SimpleSynapse::SimpleSynapse(
-    Signal input, Signal output, dtype a, dtype b)
+SimpleSynapse::SimpleSynapse(Signal input, Signal output, dtype a, dtype b)
 :input(input), output(output), a(a), b(b){
-    if(input.shape2 > 1 || output.shape2 > 1){
-        stringstream ss;
-        ss << "While creating SimpleSynapse, expected vectors but received matrices." << endl;
-        ss << input << endl;
-        ss << output << endl;
-
-        throw runtime_error(ss.str());
-        // throw runtime_error(
-        //     "While creating SimpleSynapse, expected vectors but received matrices.");
-    }
-
-    if(input.shape1 != output.shape1){
+    if(input.shape1 != output.shape1 || input.shape2 != output.shape2){
         throw runtime_error(
             "While creating SimpleSynapse, input and output had incompatible dimensions.");
     }
 }
 
 void SimpleSynapse::operator() (){
-    cblas_dscal(output.shape1, -a, output.raw_data, output.stride1);
-    cblas_daxpy(
-        output.shape1, b, input.raw_data, input.stride1,
-        output.raw_data, output.stride1);
+    for(unsigned i = 0; i < output.shape1; i++){
+        for(unsigned j = 0; j < output.shape2; j++){
+            output(i, j) *= -a;
+            output(i, j) += b * input(i, j);
+        }
+    }
 
     run_dbg(*this);
 }
@@ -481,38 +468,39 @@ string SimpleSynapse::to_string() const{
 Synapse::Synapse(
     Signal input, Signal output, Signal numer, Signal denom)
 :input(input), output(output), numer(numer), denom(denom){
-    if(input.shape2 > 1 || output.shape2 > 1 || numer.shape2 > 1 || denom.shape2 > 1){
-        throw runtime_error(
-            "While creating Synapse, expected vectors but received matrices.");
-    }
-
-    if(input.shape1 != output.shape1){
+    if(input.shape1 != output.shape1 || input.shape2 != output.shape2){
         throw runtime_error(
             "While creating Synapse, input and output had incompatible dimensions.");
     }
 
-    for(unsigned i = 0; i < input.shape1; i++){
-        x.push_back(boost::circular_buffer<dtype>(numer.shape1));
-        y.push_back(boost::circular_buffer<dtype>(denom.shape1));
+    for(unsigned i = 0; i < output.shape1; i++){
+        for(unsigned j = 0; j < output.shape2; j++){
+            x.push_back(boost::circular_buffer<dtype>(numer.shape1));
+            y.push_back(boost::circular_buffer<dtype>(denom.shape1));
+        }
     }
 }
 
 void Synapse::operator() (){
-    for(unsigned i = 0; i < input.shape1; i++){
+    unsigned idx = 0;
+    for(unsigned i = 0; i < output.shape1; i++){
+        for(unsigned j = 0; j < output.shape2; j++){
+            x[idx].push_front(input(i, j));
 
-        x[i].push_front(input(i));
+            output(i, j) = 0.0;
 
-        output(i) = 0.0;
+            for(unsigned k = 0; k < x[idx].size(); k++){
+                output(i, j) += numer(k) * x[idx][k];
+            }
 
-        for(unsigned j = 0; j < x[i].size(); j++){
-            output(i) += numer(j) * x[i][j];
+            for(unsigned k = 0; k < y[idx].size(); k++){
+                output(i, j) -= denom(k) * y[idx][k];
+            }
+
+            y[idx].push_front(output(i, j));
+
+            idx++;
         }
-
-        for(unsigned j = 0; j < y[i].size(); j++){
-            output(i) -= denom(j) * y[i][j];
-        }
-
-        y[i].push_front(output(i));
     }
 
     run_dbg(*this);
@@ -554,13 +542,17 @@ string Synapse::to_string() const{
 }
 
 void Synapse::reset(unsigned seed){
-    for(unsigned i = 0; i < input.shape1; i++){
-        for(unsigned j = 0; j < x[i].size(); j++){
-            x[i][j] = 0.0;
-        }
+    unsigned idx = 0;
+    for(unsigned i = 0; i < output.shape1; i++){
+        for(unsigned j = 0; j < output.shape2; j++){
+            for(unsigned k = 0; k < x[idx].size(); k++){
+                x[idx][k] = 0.0;
+            }
 
-        for(unsigned j = 0; j < y[i].size(); j++){
-            y[i][j] = 0.0;
+            for(unsigned k = 0; k < y[idx].size(); k++){
+                y[idx][k] = 0.0;
+            }
+            idx++;
         }
     }
 }
@@ -569,30 +561,32 @@ void Synapse::reset(unsigned seed){
 TriangleSynapse::TriangleSynapse(
     Signal input, Signal output, dtype n0, dtype ndiff, unsigned n_taps)
 :input(input), output(output), n0(n0), ndiff(ndiff), n_taps(n_taps){
-    if(input.shape2 > 1 || output.shape2 > 1){
-        throw runtime_error(
-            "While creating TriangleSynapse, expected vectors but received matrices.");
-    }
 
-    if(input.shape1 != output.shape1){
+    if(input.shape1 != output.shape1 || input.shape2 != output.shape2){
         throw runtime_error(
             "While creating TriangleSynapse, input and output had incompatible dimensions.");
     }
 
-    for(unsigned i = 0; i < input.shape1; i++){
-        x.push_back(boost::circular_buffer<dtype>(n_taps));
+    for(unsigned i = 0; i < output.shape1; i++){
+        for(unsigned j = 0; j < output.shape2; j++){
+            x.push_back(boost::circular_buffer<dtype>(n_taps));
+        }
     }
 }
 
 void TriangleSynapse::operator() (){
-    for(unsigned i = 0; i < input.shape1; i++){
-        output(i) += n0 * input(i);
+    unsigned idx = 0;
+    for(unsigned i = 0; i < output.shape1; i++){
+        for(unsigned j = 0; j < output.shape2; j++){
+            output(i, j) += n0 * input(i, j);
 
-        for(unsigned j = 0; j < x[i].size(); j++){
-            output(i) -= x[i][j];
+            for(unsigned k = 0; k < x[idx].size(); k++){
+                output(i, j) -= x[idx][k];
+            }
+
+            x[idx].push_front(ndiff * input(i, j));
+            idx++;
         }
-
-        x[i].push_front(ndiff * input(i));
     }
 
     run_dbg(*this);
@@ -627,9 +621,14 @@ string TriangleSynapse::to_string() const{
 }
 
 void TriangleSynapse::reset(unsigned seed){
-    for(unsigned i = 0; i < input.shape1; i++){
-        for(unsigned j = 0; j < x[i].size(); j++){
-            x[i][j] = 0.0;
+    unsigned idx = 0;
+    for(unsigned i = 0; i < output.shape1; i++){
+        for(unsigned j = 0; j < output.shape2; j++){
+            for(unsigned k = 0; k < x[idx].size(); k++){
+                x[idx][k] = 0.0;
+            }
+
+            idx++;
         }
     }
 }

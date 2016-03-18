@@ -47,6 +47,10 @@ xfail('test.nengo.tests.test_node.test_set_output',
 xfail('test.nengo.tests.test_node.test_args',
       'This test fails for an unknown reason')
 
+# izhikevich neurons not implemented.
+xfail('test.nengo.tests.test_neurons.test_izhikevich',
+      'This test fails for an unknown reason')
+
 # cache
 xfail('test.nengo.tests.test_cache.test_cache_works',
       'Not set up correctly.')
