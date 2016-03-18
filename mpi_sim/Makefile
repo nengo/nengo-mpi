@@ -41,10 +41,11 @@ else
 	DO_PYTHON=TRUE
 endif
 
-OBJS=simulator.o operator.o spec.o spaun.o probe.o chunk.o sim_log.o debug.o utils.o
+OBJS=signal.o operator.o simulator.o spec.o spaun.o probe.o chunk.o sim_log.o debug.o utils.o
 MPI_OBJS=${OBJS} mpi_simulator.o mpi_operator.o psim_log.o
 BIN=${HOME}/nengo_mpi/bin
 
+# If building on a cluster we don't need to build mpi_sim.so, which is only used for python.
 ifeq (${DO_PYTHON}, TRUE)
 	MPI_SIM_SO=mpi_sim.so
 else
@@ -52,8 +53,9 @@ else
 endif
 
 DEFS=
+#DEFS=-Wconversion -Wall
 
-all: DEFS += -DBOOST_UBLAS_NDEBUG -DNDEBUG -O3
+all: DEFS += -DNDEBUG -O3
 all: build
 
 run_dbg: DEFS+= -DRUN_DEBUG
@@ -77,42 +79,42 @@ clean:
 # ********* nengo_cpp *************
 
 nengo_cpp: nengo_cpp.o ${MPI_OBJS} | ${BIN}
-	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
+	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS} -lopenblas
 
-nengo_cpp.o: nengo_mpi.cpp simulator.hpp operator.hpp probe.hpp debug.hpp
+nengo_cpp.o: nengo_mpi.cpp simulator.hpp operator.hpp probe.hpp
 
 
 # ********* nengo_mpi *************
 
 nengo_mpi: nengo_mpi.o ${MPI_OBJS} | ${BIN}
-	${MPICXX} -o ${BIN}/nengo_mpi nengo_mpi.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS}
+	${MPICXX} -o ${BIN}/nengo_mpi nengo_mpi.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS} -lopenblas
 
-nengo_mpi.o: nengo_mpi.cpp simulator.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
+nengo_mpi.o: nengo_mpi.cpp mpi_operator.hpp probe.hpp
 
 
 # ********* mpi_sim.so *************
 
 mpi_sim.so: ${MPI_OBJS} python.o | ${BIN}
-	${MPICXX} -o ${BIN}/mpi_sim.so ${MPI_OBJS} python.o -shared ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${PYTHON_LIB} -lboost_python ${HDF5_LIB} -lhdf5 -ldl ${COMPRESSION_LIBS}
+	${MPICXX} -o ${BIN}/mpi_sim.so ${MPI_OBJS} python.o -shared ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${PYTHON_LIB} -lboost_python ${HDF5_LIB} -lhdf5 -ldl ${COMPRESSION_LIBS} -lopenblas
 
-python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp debug.hpp
+python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp
 
 
 # ********* common to all *************
 
-mpi_operator.o: mpi_operator.cpp mpi_operator.hpp operator.hpp debug.hpp
+mpi_operator.o: mpi_operator.cpp mpi_operator.hpp signal.hpp operator.hpp
+mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp spec.hpp chunk.hpp psim_log.hpp
+psim_log.o: psim_log.cpp psim_log.hpp sim_log.hpp spec.hpp
 
-mpi_simulator.o: mpi_simulator.cpp mpi_simulator.hpp simulator.hpp
-
-psim_log.o: psim_log.cpp psim_log.hpp sim_log.hpp operator.hpp debug.hpp
-probe.o: probe.cpp probe.hpp operator.hpp debug.hpp
-operator.o: operator.cpp operator.hpp debug.hpp
-chunk.o: chunk.cpp chunk.hpp operator.hpp mpi_operator.hpp spaun.hpp probe.hpp debug.hpp sim_log.hpp utils.hpp
-simulator.o: simulator.cpp simulator.hpp chunk.hpp mpi_simulator.hpp debug.hpp
+probe.o: probe.cpp probe.hpp signal.hpp
+operator.o: operator.cpp operator.hpp signal.hpp
+signal.o: signal.cpp signal.hpp
+chunk.o: chunk.cpp chunk.hpp signal.hpp operator.hpp utils.hpp spec.hpp mpi_operator.hpp spaun.hpp probe.hpp sim_log.hpp psim_log.hpp
+simulator.o: simulator.cpp simulator.hpp signal.hpp operator.hpp chunk.hpp spec.hpp
 spec.o: spec.cpp spec.hpp
-spaun.o: spaun.cpp spaun.hpp operator.hpp debug.hpp utils.hpp
-sim_log.o: sim_log.cpp sim_log.hpp operator.hpp debug.hpp
-utils.o: utils.cpp utils.hpp operator.hpp
+spaun.o: spaun.cpp spaun.hpp signal.hpp operator.hpp utils.hpp
+sim_log.o: sim_log.cpp sim_log.hpp spec.hpp
+utils.o: utils.cpp utils.hpp signal.hpp
 debug.o: debug.cpp debug.hpp
 
 ${BIN}:

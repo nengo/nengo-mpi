@@ -1,7 +1,13 @@
 #pragma once
 
 #include <mpi.h>
+
+#include "signal.hpp"
 #include "operator.hpp"
+
+#include "typedef.hpp"
+#include "debug.hpp"
+
 
 using namespace std;
 
@@ -9,7 +15,8 @@ class MPIOperator: public Operator{
 
 public:
     MPIOperator():first_call(true){}
-    MPIOperator(int tag):tag(tag), first_call(true){}
+    MPIOperator(int tag):first_call(true), tag(tag){}
+
     string classname() const { return "MPIOperator"; }
 
     virtual void operator() () = 0;
@@ -32,14 +39,14 @@ protected:
 class MPISend: public MPIOperator{
 
 public:
-    MPISend(int dst, int tag, SignalView content);
+    MPISend(int dst, int tag, Signal content);
     string classname() const { return "MPISend"; }
 
     void operator()();
     virtual string to_string() const;
 
 private:
-    SignalView content;
+    Signal content;
     dtype* content_data;
 
     int dst;
@@ -48,14 +55,14 @@ private:
 class MPIRecv: public MPIOperator{
 
 public:
-    MPIRecv(int src, int tag, SignalView content);
+    MPIRecv(int src, int tag, Signal content);
     string classname() const { return "MPIRecv"; }
 
     void operator()();
     virtual string to_string() const;
 
 private:
-    SignalView content;
+    Signal content;
     dtype* content_data;
 
     int src;
@@ -73,7 +80,7 @@ class MergedMPISend: public MPIOperator{
 
 public:
     // `buffer` will be a pointer into a buffer mainted by the chunk
-    MergedMPISend(int dst, int tag, vector<SignalView> content);
+    MergedMPISend(int dst, int tag, vector<Signal> content);
 
     string classname() const { return "MergedMPISend"; }
 
@@ -81,7 +88,7 @@ public:
     virtual string to_string() const;
 
 private:
-    vector<SignalView> content;
+    vector<Signal> content;
     vector<int> sizes;
     vector<dtype*> content_data;
 
@@ -91,7 +98,7 @@ private:
 class MergedMPIRecv: public MPIOperator{
 
 public:
-    MergedMPIRecv(int src, int tag, vector<SignalView> content);
+    MergedMPIRecv(int src, int tag, vector<Signal> content);
 
     string classname() const { return "MergedMPIRecv"; }
 
@@ -99,7 +106,7 @@ public:
     virtual string to_string() const;
 
 private:
-    vector<SignalView> content;
+    vector<Signal> content;
     vector<int> sizes;
     vector<dtype*> content_data;
 

@@ -1,23 +1,30 @@
 #include "mpi_operator.hpp"
 
-MPISend::MPISend(int dst, int tag, SignalView content)
+MPISend::MPISend(int dst, int tag, Signal content)
 :MPIOperator(tag), dst(dst), content(content){
 
-    content_data = &(content.data().expression().data()[0]);
-    size = content.size1() * content.size2();
+    if(!content.is_contiguous){
+        throw runtime_error("MPISend got a non-contiguous signal.");
+    }
+
+    content_data = content.raw_data;
+    size = content.size;
     buffer = unique_ptr<dtype>(new dtype[size]);
 }
 
-MPIRecv::MPIRecv(int src, int tag, SignalView content)
+MPIRecv::MPIRecv(int src, int tag, Signal content)
 :MPIOperator(tag), src(src), content(content){
 
-    content_data = &(content.data().expression().data()[0]);
-    size = content.size1() * content.size2();
+    if(!content.is_contiguous){
+        throw runtime_error("MPIRecv got a non-contiguous signal.");
+    }
+
+    content_data = content.raw_data;
+    size = content.size;
     buffer = unique_ptr<dtype>(new dtype[size]);
 }
 
 void MPISend::operator() (){
-
     if(first_call){
         first_call = false;
     }else{
@@ -87,9 +94,9 @@ string MPIRecv::to_string() const{
 }
 
 // *************************************
-// Merged operators, used in MERGED mode.
+// Merged communication operators, used in MERGED mode.
 
-MergedMPISend::MergedMPISend(int dst, int tag, vector<SignalView> content)
+MergedMPISend::MergedMPISend(int dst, int tag, vector<Signal> content)
 :MPIOperator(tag), dst(dst), content(content){
 
     sizes = vector<int>();
@@ -97,19 +104,23 @@ MergedMPISend::MergedMPISend(int dst, int tag, vector<SignalView> content)
 
     size = 0;
 
-    for(SignalView& c : content){
-        int s = c.size1() * c.size2();
+    for(Signal& c : content){
+        if(!c.is_contiguous){
+            throw runtime_error("MergedMPISend got a non-contiguous signal.");
+        }
+
+        int s = c.size;
         sizes.push_back(s);
 
         size += s;
 
-        content_data.push_back(&(c.data().expression().data()[0]));
+        content_data.push_back(c.raw_data);
     }
 
     buffer = unique_ptr<dtype>(new dtype[size]);
 }
 
-MergedMPIRecv::MergedMPIRecv(int src, int tag, vector<SignalView> content)
+MergedMPIRecv::MergedMPIRecv(int src, int tag, vector<Signal> content)
 :MPIOperator(tag), src(src), content(content){
 
     sizes = vector<int>();
@@ -117,13 +128,17 @@ MergedMPIRecv::MergedMPIRecv(int src, int tag, vector<SignalView> content)
 
     size = 0;
 
-    for(SignalView& c : content){
-        int s = c.size1() * c.size2();
+    for(Signal& c : content){
+        if(!c.is_contiguous){
+            throw runtime_error("MergedMPIRecv got a non-contiguous signal.");
+        }
+
+        int s = c.size;
         sizes.push_back(s);
 
         size += s;
 
-        content_data.push_back(&(c.data().expression().data()[0]));
+        content_data.push_back(c.raw_data);
     }
 
     buffer = unique_ptr<dtype>(new dtype[size]);

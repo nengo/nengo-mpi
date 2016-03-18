@@ -43,7 +43,6 @@ import numpy as np
 from collections import defaultdict, OrderedDict
 import warnings
 from itertools import chain
-import re
 import os
 import tempfile
 
@@ -341,34 +340,54 @@ def split_connection(conn_ops, signal):
 def make_key(obj):
     """ Create a unique key for an object.
 
-    Must reproducable (i.e. produce the same key if called with
+    Must be reproducable (i.e. produce the same key if called with
     the same object multiple times).
 
     """
-    if isinstance(obj, builder.signal.SignalView):
-        return id(obj.base)
-    else:
-        return id(obj)
+    return id(obj)
 
 
-def signal_to_string(signal, delim=SIGNAL_DELIM):
+def pad(x):
+    return (
+        (1, 1) if len(x) == 0 else (
+            (x[0], 1) if len(x) == 1 else x))
+
+
+STAND_IN = "-"
+assert (
+    STAND_IN != SIGNAL_DELIM
+    and STAND_IN != OP_DELIM
+    and STAND_IN != PROBE_DELIM)
+
+
+def sanitize_label(s):
+    s = s.replace(SIGNAL_DELIM, STAND_IN)
+    s = s.replace(OP_DELIM, STAND_IN)
+    s = s.replace(PROBE_DELIM, STAND_IN)
+
+    return s
+
+
+def signal_to_string(signal):
     """ Convert a signal to a string.
 
     The format of the returned string is:
-        signal_key:shape:elemstrides:offset
+        signal_key:label:ndim:shape0,shape1:stride0,stride1:offset
 
     """
-    shape = signal.shape if signal.shape else 1
-    strides = signal.elemstrides if signal.elemstrides else 1
+    shape = pad(signal.shape)
+    stride = pad(signal.elemstrides)
 
     signal_args = [
-        make_key(signal), shape, strides, signal.offset]
+        make_key(signal.base),
+        sanitize_label(signal.name),
+        signal.ndim,
+        "%d,%d" % (shape[0], shape[1]),
+        "%d,%d" % (stride[0], stride[1]),
+        signal.offset
+    ]
 
-    signal_string = delim.join(map(str, signal_args))
-    signal_string = signal_string.replace(" ", "")
-    signal_string = signal_string.replace("(", "")
-    signal_string = signal_string.replace(")", "")
-
+    signal_string = SIGNAL_DELIM.join(map(str, signal_args))
     return signal_string
 
 
@@ -469,11 +488,8 @@ class MpiModel(builder.Model):
         self.send_signals = defaultdict(list)
         self.recv_signals = defaultdict(list)
 
-        # for each component, stores the signals that have
-        # already been added to that component.
-        self.signals = defaultdict(list)
-        self.signal_key_set = defaultdict(set)
-        self.total_signal_size = defaultdict(int)
+        self.base_signals = defaultdict(OrderedDict)
+        self.total_base_signal_size = defaultdict(int)
 
         # component index (int) -> list of operators
         # stores the operators for each component
@@ -509,10 +525,6 @@ class MpiModel(builder.Model):
 
     def __str__(self):
         return "MpiModel: %s" % self.label
-
-    def sanitize(self, s):
-        s = re.sub('([0-9])L', lambda x: x.groups()[0], s)
-        return s
 
     def build(self, obj, *args, **kwargs):
         """ Overrides Model.build """
@@ -612,18 +624,19 @@ class MpiModel(builder.Model):
             Operators to add the model.
 
         """
+        # Add all base signals needed by the ops
         for op in ops:
             for signal in op.all_signals:
-                key = make_key(signal)
+                base = signal.base
+                key = make_key(base)
 
-                if key not in self.signal_key_set[component]:
+                if key not in self.base_signals[component]:
                     logger.debug(
                         "Component %d: Adding signal %s with key: %s",
-                        component, signal, make_key(signal))
+                        component, signal, key)
 
-                    self.signal_key_set[component].add(key)
-                    self.signals[component].append((key, signal))
-                    self.total_signal_size[component] += signal.size
+                    self.base_signals[component][key] = base
+                    self.total_base_signal_size[component] += base.size
 
         self.component_ops[component].extend(ops)
 
@@ -667,43 +680,68 @@ class MpiModel(builder.Model):
             for component in range(self.n_components):
                 component_group = save_file.create_group(str(component))
 
-                # signals
-                signals = self.signals[component]
+                # base signals
+                base_signals = self.base_signals[component]
                 signal_dset = component_group.create_dataset(
-                    'signals', (self.total_signal_size[component],),
+                    'signals', (self.total_base_signal_size[component],),
                     dtype='float64', compression=self.h5_compression)
 
                 offset = 0
-                for key, sig in signals:
-                    A = sig.base._value
+                for base in base_signals.values():
+                    shape = base.shape
+                    stride = base.elemstrides
 
-                    if A.ndim == 0:
-                        A = np.reshape(A, (1, 1))
+                    if base.ndim == 2:
+                        # assert that the signal is contiguous
+                        assert ((stride[1] == 1 and shape[1] == stride[0]) or
+                                (stride[0] == 1 and shape[0] == stride[1]))
 
-                    if A.dtype != np.float64:
-                        A = A.astype(np.float64)
+                        if base.elemstrides[1] == 1:
+                            values = base.initial_value.flatten()
+                        elif base.elemstrides[0] == 1:
+                            values = base.initial_value.T.flatten()
+                        else:
+                            raise ValueError(
+                                "Received a signal with strides that "
+                                "nengo_mpi cannot handle. Signal "
+                                "was %s, stride is %s." % (
+                                    base, base.elemstrides))
 
-                    signal_dset[offset:offset+A.size] = A.flatten()
-                    offset += A.size
+                        signal_dset[offset:offset+base.size] = values
+                    else:
+                        # assert that the signal is contiguous
+                        assert base.ndim == 0 or stride[0] == 1
+                        signal_dset[
+                            offset:offset+base.size] = base.initial_value
 
-                # signal keys
+                    offset += base.size
+
+                # base signal keys
+                base_signal_keys = np.array([
+                    long(key) for key in base_signals.keys()])
+
                 component_group.create_dataset(
-                    'signal_keys', data=[long(key) for key, sig in signals],
+                    'signal_keys', data=base_signal_keys,
                     dtype='int64', compression=self.h5_compression)
 
-                # signal shapes
-                def pad(x):
-                    return (
-                        (1, 1) if len(x) == 0 else (
-                            (x[0], 1) if len(x) == 1 else x))
+                # base signal shapes
+                base_signal_shapes = np.array([
+                    pad(sig.shape) for sig in base_signals.values()])
 
                 component_group.create_dataset(
-                    'signal_shapes',
-                    data=np.array([pad(sig.shape) for key, sig in signals]),
-                    dtype='u2', compression=self.h5_compression)
+                    'signal_shapes', data=base_signal_shapes,
+                    dtype='int64', compression=self.h5_compression)
 
-                # signal_labels
-                signal_labels = [str(p[1]) for p in signals]
+                # base signal strides
+                base_signal_strides = np.array([
+                    pad(sig.elemstrides) for sig in base_signals.values()])
+
+                component_group.create_dataset(
+                    'signal_strides', data=base_signal_strides,
+                    dtype='int64', compression=self.h5_compression)
+
+                # base signal labels
+                signal_labels = [sig.name for sig in base_signals.values()]
                 store_string_list(
                     component_group, 'signal_labels', signal_labels,
                     compression=self.h5_compression)
@@ -742,11 +780,12 @@ class MpiModel(builder.Model):
     def _finalize_ops(self):
         """ Finalize operators.
 
-        Main jobs are to create MpiSend and MpiRecv opreators based on
+        Main jobs are to create MpiSend and MpiRecv operators based on
         send_signals and recv_signals, and to turn all ops belonging to
-        the `component` into strings, which are then stored in self.op_strings.
-        PyFunc ops are the only exception, as it is not generally possible to
-        encode an arbitrary python function as a string.
+        the each component into strings, which are then stored in
+        self.op_strings. PyFunc ops are the only exception, as it is
+        not generally possible to encode an arbitrary python function
+        as a string.
 
         """
         for component in range(self.n_components):
@@ -815,7 +854,7 @@ class MpiModel(builder.Model):
                                 t_in, signal_to_string(op.output)]
 
                     else:
-                        input_array = x.value
+                        input_array = x.initial_value
 
                         if op.output is None:
                             pyfunc_args = [
@@ -1091,11 +1130,11 @@ class MpiModel(builder.Model):
             op_args = []
 
         elif op_type == MpiSend:
-            signal_key = make_key(op.signal)
+            signal_key = make_key(op.signal.base)
             op_args = ["MpiSend", op.dst, op.tag, signal_key]
 
         elif op_type == MpiRecv:
-            signal_key = make_key(op.signal)
+            signal_key = make_key(op.signal.base)
             op_args = ["MpiRecv", op.src, op.tag, signal_key]
 
         elif op_type == SpaunStimulusOperator:
@@ -1114,10 +1153,6 @@ class MpiModel(builder.Model):
             op_args = [self.global_ordering[op]] + op_args
 
         op_string = OP_DELIM.join(map(str, op_args))
-        op_string = op_string.replace(" ", "")
-        op_string = op_string.replace("(", "")
-        op_string = op_string.replace(")", "")
-
         return op_string
 
     def _finalize_probes(self):

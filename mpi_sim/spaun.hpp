@@ -10,8 +10,13 @@
 #include <cmath>
 #include <time.h>
 
+#include "signal.hpp"
 #include "operator.hpp"
 #include "utils.hpp"
+
+#include "typedef.hpp"
+#include "debug.hpp"
+
 
 using namespace std;
 
@@ -20,7 +25,7 @@ class ImageStore;
 class SpaunStimulus: public Operator{
 public:
     SpaunStimulus(
-        SignalView output, dtype* time_pointer, vector<string> stim_sequence,
+        Signal output, dtype* time_pointer, vector<string> stim_sequence,
         dtype present_interval, dtype present_blanks, int identifier);
 
     string classname() const {return "SpaunStimulus"; }
@@ -42,8 +47,8 @@ protected:
     dtype present_blanks;
 
     int image_size;
-    vector<unique_ptr<BaseSignal>> images;
-    SignalView output;
+    vector<Signal> images;
+    Signal output;
     int previous_index;
 
     int identifier;
@@ -58,8 +63,8 @@ public:
     void load_image_counts(string filename);
 
     // Get a random image with the given label
-    unique_ptr<BaseSignal> get_image_with_label(
-        string label, int desired_img_size, default_random_engine rng);
+    Signal get_image_with_label(
+        string label, unsigned desired_img_size, default_random_engine rng);
 
 protected:
     string dir_name;
@@ -73,6 +78,6 @@ protected:
  * Down-sample the given image, returning an image whose size is new_size.
  * new_size should be < the size of the given image. Currently downsamples
  * by randomly choosing indices without replacement and then sorting. */
-unique_ptr<BaseSignal> do_down_sample(unique_ptr<BaseSignal> image, int new_size);
+Signal do_down_sample(Signal image, unsigned new_size);
 
-void print_image(BaseSignal* image);
+void print_image(Signal image);

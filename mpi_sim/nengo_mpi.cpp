@@ -7,8 +7,8 @@
 
 #include "optionparser.h"
 
-#include "chunk.hpp"
 #include "mpi_simulator.hpp"
+
 
 using namespace std;
 

@@ -6,6 +6,7 @@
 MpiSimulatorChunk::MpiSimulatorChunk(bool collect_timings)
 :time(0.0), dt(0.001), n_steps(0), rank(0), n_processors(1),
 mpi_merged(false), collect_timings(collect_timings){
+
 }
 
 MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged, bool collect_timings)
@@ -18,9 +19,10 @@ mpi_merged(mpi_merged), collect_timings(collect_timings){
 
 void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_plist){
     herr_t err;
-    hsize_t shape[2];
     hid_t dspace, attr;
-    int ndim;
+
+    unsigned ndim;
+    hsize_t dset_shape[2];
     char* str_ptr;
 
     hid_t str_type = H5Tcopy(H5T_C_S1);
@@ -57,12 +59,12 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         hid_t signal_keys = H5Dopen(component_group, "signal_keys", H5P_DEFAULT);
 
         dspace = H5Dget_space(signal_keys);
-        ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        ndim = H5Sget_simple_extent_dims(dspace, dset_shape, NULL);
         H5Sclose(dspace);
 
         assert(ndim == 1);
 
-        hsize_t n_signals = shape[0];
+        hsize_t n_signals = dset_shape[0];
 
         auto signal_keys_buffer = unique_ptr<key_type[]>(new key_type[n_signals]);
         err = H5Dread(
@@ -75,30 +77,48 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         hid_t signal_shapes = H5Dopen(component_group, "signal_shapes", H5P_DEFAULT);
 
         dspace = H5Dget_space(signal_shapes);
-        ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        ndim = H5Sget_simple_extent_dims(dspace, dset_shape, NULL);
         H5Sclose(dspace);
 
-        assert(shape[0] == n_signals);
-        assert(n_signals == 0 || shape[1] == 2);
+        assert(dset_shape[0] == n_signals);
+        assert(n_signals == 0 || dset_shape[1] == 2);
         assert(n_signals == 0 || ndim == 2);
 
-        auto signal_shapes_buffer = unique_ptr<short[]>(new short [2 * n_signals]);
+        auto signal_shapes_buffer = unique_ptr<short[]>(new short[2 * n_signals]);
         err = H5Dread(
             signal_shapes, H5T_NATIVE_SHORT, H5S_ALL, H5S_ALL,
             read_plist, signal_shapes_buffer.get());
 
         H5Dclose(signal_shapes);
 
+        // signal strides
+        hid_t signal_strides = H5Dopen(component_group, "signal_strides", H5P_DEFAULT);
+
+        dspace = H5Dget_space(signal_strides);
+        ndim = H5Sget_simple_extent_dims(dspace, dset_shape, NULL);
+        H5Sclose(dspace);
+
+        assert(dset_shape[0] == n_signals);
+        assert(n_signals == 0 || dset_shape[1] == 2);
+        assert(n_signals == 0 || ndim == 2);
+
+        auto signal_strides_buffer = unique_ptr<short[]>(new short[2 * n_signals]);
+        err = H5Dread(
+            signal_strides, H5T_NATIVE_SHORT, H5S_ALL, H5S_ALL,
+            read_plist, signal_strides_buffer.get());
+
+        H5Dclose(signal_strides);
+
         // signal labels
         hid_t labels = H5Dopen(component_group, "signal_labels", H5P_DEFAULT);
 
         dspace = H5Dget_space(labels);
-        ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        ndim = H5Sget_simple_extent_dims(dspace, dset_shape, NULL);
         H5Sclose(dspace);
 
         assert(ndim == 1);
 
-        auto label_buffer = unique_ptr<char>(new char[shape[0]]);
+        auto label_buffer = unique_ptr<char>(new char[dset_shape[0]]);
         err = H5Dread(labels, str_type, H5S_ALL, H5S_ALL, read_plist, label_buffer.get());
         H5Dclose(labels);
 
@@ -106,12 +126,12 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         hid_t signals = H5Dopen(component_group, "signals", H5P_DEFAULT);
 
         dspace = H5Dget_space(signals);
-        ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        ndim = H5Sget_simple_extent_dims(dspace, dset_shape, NULL);
         H5Sclose(dspace);
 
         assert(ndim == 1);
 
-        auto signal_buffer = unique_ptr<dtype[]>(new dtype[shape[0]]);
+        auto signal_buffer = unique_ptr<dtype>(new dtype[dset_shape[0]]);
 
         err = H5Dread(
             signals, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL,
@@ -122,24 +142,28 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         long long signal_offset = 0;
         str_ptr = label_buffer.get();
 
-        // Read signals for component one at a time
+        int shape[2];
+        short stride[2];
+
+        // Read signals for component, one at a time
         // Name of the dataset containing a signal is equal to the signal key
         for(int i = 0; i < n_signals; i++){
             shape[0] = signal_shapes_buffer[2*i];
             shape[1] = signal_shapes_buffer[2*i + 1];
 
+            stride[0] = signal_strides_buffer[2*i];
+            stride[1] = signal_strides_buffer[2*i + 1];
+
             // Get the signal data
-            auto data = unique_ptr<BaseSignal>(new BaseSignal(shape[0], shape[1]));
+            Signal signal = Signal(shape[0], shape[1], 0.0, string(str_ptr));
+            memcpy(signal.raw_data, signal_buffer.get() + signal_offset,
+                   signal.size * sizeof(dtype));
 
-            for(int j = 0; j < shape[0]; j++){
-                for(int k = 0; k < shape[1]; k++){
-                    (*data)(j, k) = signal_buffer[signal_offset + j * shape[1] + k];
-                }
-            }
+            signal.stride1 = stride[0];
+            signal.stride2 =  stride[1];
 
-            signal_offset += shape[0] * shape[1];
+            signal_offset += signal.size;
 
-            string label = string(str_ptr);
             while(*str_ptr != '\0'){
                 str_ptr++;
             }
@@ -148,7 +172,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
                 str_ptr++;
             }
 
-            add_base_signal(signal_keys_buffer[i], label, move(data));
+            add_base_signal(signal_keys_buffer[i], signal);
         }
 
         // Read operators for component
@@ -164,11 +188,11 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
         // Get its dimensions
         dspace = H5Dget_space(operators);
-        ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        ndim = H5Sget_simple_extent_dims(dspace, dset_shape, NULL);
         H5Sclose(dspace);
 
         // Read the data set
-        auto op_buffer = unique_ptr<char>(new char[shape[0]]);
+        auto op_buffer = unique_ptr<char>(new char[dset_shape[0]]);
         err = H5Dread(operators, str_type, H5S_ALL, H5S_ALL, read_plist, op_buffer.get());
         H5Dclose(operators);
 
@@ -202,11 +226,11 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
         // Get its dimensions
         dspace = H5Dget_space(probes);
-        ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+        ndim = H5Sget_simple_extent_dims(dspace, dset_shape, NULL);
         H5Sclose(dspace);
 
         // Read the data set
-        auto probe_buffer = unique_ptr<char>(new char[shape[0]]);
+        auto probe_buffer = unique_ptr<char>(new char[dset_shape[0]]);
         err = H5Dread(probes, str_type, H5S_ALL, H5S_ALL, read_plist, probe_buffer.get());
         H5Dclose(probes);
 
@@ -244,11 +268,11 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
 
     // Get its dimensions
     dspace = H5Dget_space(probe_info_dset);
-    ndim = H5Sget_simple_extent_dims(dspace, shape, NULL);
+    ndim = H5Sget_simple_extent_dims(dspace, dset_shape, NULL);
     H5Sclose(dspace);
 
     // Read the data set
-    auto probe_buffer = unique_ptr<char>(new char[shape[0]]);
+    auto probe_buffer = unique_ptr<char>(new char[dset_shape[0]]);
     err = H5Dread(probe_info_dset, str_type, H5S_ALL, H5S_ALL, read_plist, probe_buffer.get());
     H5Dclose(probe_info_dset);
 
@@ -286,18 +310,15 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
         for(auto& kv : merged_sends){
 
             int dst = kv.first;
-            vector<pair<int, SignalView>> content = kv.second;
-            vector<pair<int, SignalView*>> content_prime;
-            for(auto& p : content){
-                content_prime.push_back({p.first, &(p.second)});
-            }
+            vector<pair<int, Signal>> content = kv.second;
 
             stable_sort(
-                content_prime.begin(), content_prime.end(), compare_first_lt<int, SignalView*>);
-            vector<SignalView> signals_only;
+                content.begin(), content.end(),
+                compare_first_lt<int, Signal>);
 
-            for(auto& p : content_prime){
-                signals_only.push_back(*(p.second));
+            vector<Signal> signals_only;
+            for(auto& p : content){
+                signals_only.push_back(p.second);
             }
 
             int tag = send_tags[dst];
@@ -313,17 +334,15 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
         for(auto& kv : merged_recvs){
 
             int src = kv.first;
-            vector<pair<int, SignalView>> content = kv.second;
-            vector<pair<int, SignalView*>> content_prime;
-            for(auto& p : content){
-                content_prime.push_back({p.first, &(p.second)});
-            }
-            stable_sort(
-                content_prime.begin(), content_prime.end(), compare_first_lt<int, SignalView*>);
+            vector<pair<int, Signal>> content = kv.second;
 
-            vector<SignalView> signals_only;
-            for(auto& p : content_prime){
-                signals_only.push_back(*(p.second));
+            stable_sort(
+                content.begin(), content.end(),
+                compare_first_lt<int, Signal>);
+
+            vector<Signal> signals_only;
+            for(auto& p : content){
+                signals_only.push_back(p.second);
             }
 
             int tag = recv_tags[src];
@@ -537,84 +556,65 @@ void MpiSimulatorChunk::reset(unsigned seed){
     // TODO: store whether signals are read-only, only reset if they are not.
     for(auto& kv: signal_map){
         key_type key = kv.first;
-        shared_ptr<BaseSignal> sig = signal_map.at(key);
-        shared_ptr<BaseSignal> init_value = signal_init_value.at(key);
-
-        for(int i = 0; i < sig->size1(); i++){
-            for(int j = 0; j < sig->size2(); j++){
-                (*sig)(i, j) = (*init_value)(i, j);
-            }
-        }
+        Signal sig = signal_map.at(key);
+        Signal init_value = signal_init_value.at(key);
+        sig.fill_with(init_value);
     }
 }
 
-void MpiSimulatorChunk::add_base_signal(
-        key_type key, string l, unique_ptr<BaseSignal> data){
+void MpiSimulatorChunk::add_base_signal(key_type key, Signal signal){
 
     auto key_location = signal_map.find(key);
 
     if(key_location != signal_map.end()){
-        shared_ptr<BaseSignal> existing_data = key_location->second;
-
-        bool identical = true;
-        identical &= existing_data->size1() == data->size1();
-        identical &= existing_data->size2() == data->size2();
-
-        if(identical){
-            for(int i = 0; i < data->size1(); i++){
-                for(int j = 0; j < data->size2(); j++){
-                    identical &= (*data)(i, j) == (*existing_data)(i, j);
-                }
-            }
-        }
-
-        if(!identical){
+        if(signal != signal_map[key]){
             stringstream msg;
             msg << "Adding signal with duplicate key to chunk with rank " << rank
-                << ", but the data is not identical." << endl;
+                << ", but the data is not identical. Key is: " << key << "." << endl;
 
             throw logic_error(msg.str());
         }
     }else{
-        signal_labels[key] = l;
-        signal_init_value[key] = shared_ptr<BaseSignal>(new BaseSignal(*data));
-        signal_map[key] = shared_ptr<BaseSignal>(move(data));
+        signal_init_value[key] = signal.deep_copy();
+        signal_map[key] = signal;
     }
 }
 
-SignalView MpiSimulatorChunk::get_signal_view(
-        key_type key, int shape1, int shape2, int stride1, int stride2, int offset){
+Signal MpiSimulatorChunk::get_signal_view(
+        key_type key, string label, unsigned ndim,
+        unsigned shape1, unsigned shape2, int stride1, int stride2,
+        unsigned offset){
 
     if(signal_map.find(key) == signal_map.end()){
         stringstream msg;
-        msg << "Could not find instance of MpiSimulatorChunk::signal with key " << key;
+        msg << "In MpiSimulatorChunk, could not find a signal "
+            << "with key " << key << "." << endl;
         throw out_of_range(msg.str());
     }
 
-    // TODO: This only handles cases that could just as easily be handled with ranges
-    // rather than slices. So either make it more general, or make it use ranges.
-    int start1 = offset / stride1;
-    int start2 = offset % stride1;
-
-    return SignalView(
-        *signal_map.at(key), ublas::slice(start1, 1, shape1),
-        ublas::slice(start2, 1, shape2));
+    return signal_map.at(key).get_view(
+        label, ndim, shape1, shape2, stride1, stride2, offset);
 }
 
-SignalView MpiSimulatorChunk::get_signal_view(SignalSpec ss){
+Signal MpiSimulatorChunk::get_signal_view(SignalSpec ss){
     return get_signal_view(
-        ss.key, ss.shape1, ss.shape2, ss.stride1, ss.stride2, ss.offset);
+        ss.key, ss.label, ss.ndim, ss.shape1, ss.shape2,
+        ss.stride1, ss.stride2, ss.offset);
 }
 
-SignalView MpiSimulatorChunk::get_signal_view(string ss){
+Signal MpiSimulatorChunk::get_signal_view(string ss){
     return get_signal_view(SignalSpec(ss));
 }
 
-SignalView MpiSimulatorChunk::get_signal_view(key_type key){
-    shared_ptr<BaseSignal> base_signal = signal_map.at(key);
-    return SignalView(
-        *base_signal, ublas::slice(0, 1, base_signal->size1()),
-        ublas::slice(0, 1, base_signal->size2()));
+Signal MpiSimulatorChunk::get_signal(key_type key){
+    if(signal_map.find(key) == signal_map.end()){
+        stringstream msg;
+        msg << "In MpiSimulatorChunk, could not find a signal "
+            << "with key " << key << "." << endl;
+        throw out_of_range(msg.str());
+    }
+
+    return signal_map.at(key);
 }
 
 void MpiSimulatorChunk::add_op(unique_ptr<Operator> op){
@@ -629,22 +629,23 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
     try{
         if(type_string.compare("Reset") == 0){
-            SignalView dst = get_signal_view(args[0]);
+            Signal dst = get_signal_view(args[0]);
             dtype value = boost::lexical_cast<dtype>(args[1]);
 
             add_op(unique_ptr<Operator>(new Reset(dst, value)));
 
         }else if(type_string.compare("Copy") == 0){
 
-            SignalView dst = get_signal_view(args[0]);
-            SignalView src = get_signal_view(args[1]);
+            Signal dst = get_signal_view(args[0]);
+            Signal src = get_signal_view(args[1]);
 
-            add_op(unique_ptr<Operator>(new Copy(dst, src)));
+            Operator* op = new Copy(dst, src);
+            add_op(unique_ptr<Operator>(op));
 
         }else if(type_string.compare("SlicedCopy") == 0){
 
-            SignalView dst = get_signal_view(args[0]);
-            SignalView src = get_signal_view(args[1]);
+            Signal dst = get_signal_view(args[0]);
+            Signal src = get_signal_view(args[1]);
 
             bool inc = bool(boost::lexical_cast<int>(args[2]));
 
@@ -665,16 +666,16 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
                     start_B, stop_B, step_B, seq_A, seq_B)));
 
         }else if(type_string.compare("DotInc") == 0){
-            SignalView A = get_signal_view(args[0]);
-            SignalView X = get_signal_view(args[1]);
-            SignalView Y = get_signal_view(args[2]);
+            Signal A = get_signal_view(args[0]);
+            Signal X = get_signal_view(args[1]);
+            Signal Y = get_signal_view(args[2]);
 
             add_op(unique_ptr<Operator>(new DotInc(A, X, Y)));
 
         }else if(type_string.compare("ElementwiseInc") == 0){
-            SignalView A = get_signal_view(args[0]);
-            SignalView X = get_signal_view(args[1]);
-            SignalView Y = get_signal_view(args[2]);
+            Signal A = get_signal_view(args[0]);
+            Signal X = get_signal_view(args[1]);
+            Signal Y = get_signal_view(args[2]);
 
             add_op(unique_ptr<Operator>(new ElementwiseInc(A, X, Y)));
 
@@ -685,10 +686,10 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype min_voltage = boost::lexical_cast<dtype>(args[3]);
             dtype dt = boost::lexical_cast<dtype>(args[4]);
 
-            SignalView J = get_signal_view(args[5]);
-            SignalView output = get_signal_view(args[6]);
-            SignalView voltage = get_signal_view(args[7]);
-            SignalView ref_time = get_signal_view(args[8]);
+            Signal J = get_signal_view(args[5]);
+            Signal output = get_signal_view(args[6]);
+            Signal voltage = get_signal_view(args[7]);
+            Signal ref_time = get_signal_view(args[8]);
 
             add_op(unique_ptr<Operator>(
                 new LIF(
@@ -700,8 +701,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype tau_rc = boost::lexical_cast<dtype>(args[1]);
             dtype tau_ref = boost::lexical_cast<dtype>(args[2]);
 
-            SignalView J = get_signal_view(args[3]);
-            SignalView output = get_signal_view(args[4]);
+            Signal J = get_signal_view(args[3]);
+            Signal output = get_signal_view(args[4]);
 
             add_op(unique_ptr<Operator>(
                 new LIFRate(n_neurons, tau_rc, tau_ref, J, output)));
@@ -717,11 +718,11 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype min_voltage = boost::lexical_cast<dtype>(args[5]);
             dtype dt = boost::lexical_cast<dtype>(args[6]);
 
-            SignalView J = get_signal_view(args[7]);
-            SignalView output = get_signal_view(args[8]);
-            SignalView voltage = get_signal_view(args[9]);
-            SignalView ref_time = get_signal_view(args[10]);
-            SignalView adaptation = get_signal_view(args[11]);
+            Signal J = get_signal_view(args[7]);
+            Signal output = get_signal_view(args[8]);
+            Signal voltage = get_signal_view(args[9]);
+            Signal ref_time = get_signal_view(args[10]);
+            Signal adaptation = get_signal_view(args[11]);
 
             add_op(unique_ptr<Operator>(
                 new AdaptiveLIF(
@@ -740,9 +741,9 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
             dtype dt = boost::lexical_cast<dtype>(args[5]);
 
-            SignalView J = get_signal_view(args[6]);
-            SignalView output = get_signal_view(args[7]);
-            SignalView adaptation = get_signal_view(args[8]);
+            Signal J = get_signal_view(args[6]);
+            Signal output = get_signal_view(args[7]);
+            Signal adaptation = get_signal_view(args[8]);
 
             add_op(unique_ptr<Operator>(
                 new AdaptiveLIFRate(
@@ -752,8 +753,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
         }else if(type_string.compare("RectifiedLinear") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);
 
-            SignalView J = get_signal_view(args[1]);
-            SignalView output = get_signal_view(args[2]);
+            Signal J = get_signal_view(args[1]);
+            Signal output = get_signal_view(args[2]);
 
             add_op(unique_ptr<Operator>(new RectifiedLinear(n_neurons, J, output)));
 
@@ -761,42 +762,23 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             int n_neurons = boost::lexical_cast<int>(args[0]);
             dtype tau_ref = boost::lexical_cast<dtype>(args[1]);
 
-            SignalView J = get_signal_view(args[2]);
-            SignalView output = get_signal_view(args[3]);
+            Signal J = get_signal_view(args[2]);
+            Signal output = get_signal_view(args[3]);
 
             add_op(unique_ptr<Operator>(new Sigmoid(n_neurons, tau_ref, J, output)));
 
-        }else if(type_string.compare("Izhikevich") == 0){
-            int n_neurons = boost::lexical_cast<int>(args[0]);
-
-            dtype tau_recovery = boost::lexical_cast<dtype>(args[1]);
-            dtype coupling = boost::lexical_cast<dtype>(args[2]);
-            dtype reset_voltage = boost::lexical_cast<dtype>(args[3]);
-            dtype reset_recovery = boost::lexical_cast<dtype>(args[4]);
-            dtype dt = boost::lexical_cast<dtype>(args[5]);
-
-            SignalView J = get_signal_view(args[6]);
-            SignalView output = get_signal_view(args[7]);
-            SignalView voltage = get_signal_view(args[8]);
-            SignalView recovery = get_signal_view(args[9]);
-
-            add_op(unique_ptr<Operator>(
-                new Izhikevich(
-                    n_neurons, tau_recovery, coupling, reset_voltage,
-                    reset_recovery, dt, J, output, voltage, recovery)));
-
         }else if(type_string.compare("NoDenSynapse") == 0){
 
-            SignalView input = get_signal_view(args[0]);
-            SignalView output = get_signal_view(args[1]);
+            Signal input = get_signal_view(args[0]);
+            Signal output = get_signal_view(args[1]);
             dtype b = boost::lexical_cast<dtype>(args[2]);
 
             add_op(unique_ptr<Operator>(new NoDenSynapse(input, output, b)));
 
         }else if(type_string.compare("SimpleSynapse") == 0){
 
-            SignalView input = get_signal_view(args[0]);
-            SignalView output = get_signal_view(args[1]);
+            Signal input = get_signal_view(args[0]);
+            Signal output = get_signal_view(args[1]);
             dtype a = boost::lexical_cast<dtype>(args[2]);
             dtype b = boost::lexical_cast<dtype>(args[3]);
 
@@ -804,18 +786,18 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
         }else if(type_string.compare("Synapse") == 0){
 
-            SignalView input = get_signal_view(args[0]);
-            SignalView output = get_signal_view(args[1]);
+            Signal input = get_signal_view(args[0]);
+            Signal output = get_signal_view(args[1]);
 
-            unique_ptr<BaseSignal> numerator = python_list_to_signal(args[2], false);
-            unique_ptr<BaseSignal> denominator = python_list_to_signal(args[3], false);
+            Signal numerator = python_list_to_signal(args[2], false);
+            Signal denominator = python_list_to_signal(args[3], false);
 
-            add_op(unique_ptr<Operator>(new Synapse(input, output, *numerator, *denominator)));
+            add_op(unique_ptr<Operator>(new Synapse(input, output, numerator, denominator)));
 
         }else if(type_string.compare("TriangleSynapse") == 0){
 
-            SignalView input = get_signal_view(args[0]);
-            SignalView output = get_signal_view(args[1]);
+            Signal input = get_signal_view(args[0]);
+            Signal output = get_signal_view(args[1]);
 
             dtype n0 = boost::lexical_cast<dtype>(args[2]);
             dtype ndiff = boost::lexical_cast<dtype>(args[3]);
@@ -825,7 +807,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
         }else if(type_string.compare("WhiteNoise") == 0){
 
-            SignalView output = get_signal_view(args[0]);
+            Signal output = get_signal_view(args[0]);
 
             dtype mean = boost::lexical_cast<dtype>(args[1]);
             dtype std = boost::lexical_cast<dtype>(args[2]);
@@ -840,19 +822,19 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
         }else if(type_string.compare("WhiteSignal") == 0){
 
-            SignalView output = get_signal_view(args[0]);
+            Signal output = get_signal_view(args[0]);
 
-            // get_size must be true here because coefs is a matrix
-            unique_ptr<BaseSignal> coefs = python_list_to_signal(args[1], true);
+            bool get_size = true;
+            Signal coefs = python_list_to_signal(args[1], get_size);
 
-            add_op(unique_ptr<Operator>(new WhiteSignal(output, *coefs)));
+            add_op(unique_ptr<Operator>(new WhiteSignal(output, coefs)));
 
         }else if(type_string.compare("BCM") == 0){
 
-            SignalView pre_filtered = get_signal_view(args[0]);
-            SignalView post_filtered = get_signal_view(args[1]);
-            SignalView theta = get_signal_view(args[2]);
-            SignalView delta = get_signal_view(args[3]);
+            Signal pre_filtered = get_signal_view(args[0]);
+            Signal post_filtered = get_signal_view(args[1]);
+            Signal theta = get_signal_view(args[2]);
+            Signal delta = get_signal_view(args[3]);
 
             dtype learning_rate = boost::lexical_cast<dtype>(args[4]);
             dtype dt = boost::lexical_cast<dtype>(args[5]);
@@ -863,10 +845,10 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
         }else if(type_string.compare("Oja") == 0){
 
-            SignalView pre_filtered = get_signal_view(args[0]);
-            SignalView post_filtered = get_signal_view(args[1]);
-            SignalView weights = get_signal_view(args[2]);
-            SignalView delta = get_signal_view(args[3]);
+            Signal pre_filtered = get_signal_view(args[0]);
+            Signal post_filtered = get_signal_view(args[1]);
+            Signal weights = get_signal_view(args[2]);
+            Signal delta = get_signal_view(args[3]);
 
             dtype learning_rate = boost::lexical_cast<dtype>(args[4]);
             dtype dt = boost::lexical_cast<dtype>(args[5]);
@@ -878,13 +860,13 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
         }else if(type_string.compare("Voja") == 0){
 
-            SignalView pre_decoded = get_signal_view(args[0]);
-            SignalView post_filtered = get_signal_view(args[1]);
-            SignalView scaled_encoders = get_signal_view(args[2]);
-            SignalView delta = get_signal_view(args[3]);
-            SignalView learning_signal = get_signal_view(args[4]);
+            Signal pre_decoded = get_signal_view(args[0]);
+            Signal post_filtered = get_signal_view(args[1]);
+            Signal scaled_encoders = get_signal_view(args[2]);
+            Signal delta = get_signal_view(args[3]);
+            Signal learning_signal = get_signal_view(args[4]);
 
-            unique_ptr<BaseSignal> scale = python_list_to_signal(args[5], false);
+            Signal scale = python_list_to_signal(args[5], false);
 
             dtype learning_rate = boost::lexical_cast<dtype>(args[6]);
             dtype dt = boost::lexical_cast<dtype>(args[7]);
@@ -892,7 +874,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             add_op(unique_ptr<Operator>(
                 new Voja(
                     pre_decoded, post_filtered, scaled_encoders, delta,
-                    learning_signal, *scale, learning_rate, dt)));
+                    learning_signal, scale, learning_rate, dt)));
 
         }else if(type_string.compare("MpiSend") == 0){
 
@@ -903,7 +885,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
                     int tag = boost::lexical_cast<int>(args[1]);
                     key_type signal_key = boost::lexical_cast<key_type>(args[2]);
-                    SignalView content = get_signal_view(signal_key);
+                    Signal content = get_signal(signal_key);
 
                     add_mpi_send(index, dst, tag, content);
                 }
@@ -918,14 +900,14 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
                 if(src != rank){
                     int tag = boost::lexical_cast<int>(args[1]);
                     key_type signal_key = boost::lexical_cast<key_type>(args[2]);
-                    SignalView content = get_signal_view(signal_key);
+                    Signal content = get_signal(signal_key);
 
                     add_mpi_recv(index, src, tag, content);
                 }
             }
 
         }else if(type_string.compare("SpaunStimulus") == 0){
-            SignalView output = get_signal_view(args[0]);
+            Signal output = get_signal_view(args[0]);
 
             string stim_seq_str = args[1];
             boost::trim_if(stim_seq_str, boost::is_any_of("[]"));
@@ -935,8 +917,8 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             vector<string> stim_seq;
             boost::split(stim_seq, stim_seq_str, boost::is_any_of(","));
 
-            float present_interval = boost::lexical_cast<float>(args[2]);
-            float present_blanks = boost::lexical_cast<float>(args[3]);
+            dtype present_interval = boost::lexical_cast<dtype>(args[2]);
+            dtype present_blanks = boost::lexical_cast<dtype>(args[3]);
 
             int identifier = boost::lexical_cast<int>(args[4]);
 
@@ -971,7 +953,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
     }
 }
 
-void MpiSimulatorChunk::add_mpi_send(float index, int dst, int tag, SignalView content){
+void MpiSimulatorChunk::add_mpi_send(float index, int dst, int tag, Signal content){
 
     if(mpi_merged){
         if(merged_sends.find(dst) == merged_sends.end()){
@@ -991,7 +973,7 @@ void MpiSimulatorChunk::add_mpi_send(float index, int dst, int tag, SignalView c
     }
 }
 
-void MpiSimulatorChunk::add_mpi_recv(float index, int src, int tag, SignalView content){
+void MpiSimulatorChunk::add_mpi_recv(float index, int src, int tag, Signal content){
 
     if(mpi_merged){
         if(merged_recvs.find(src) == merged_recvs.end()){
@@ -1012,7 +994,7 @@ void MpiSimulatorChunk::add_mpi_recv(float index, int src, int tag, SignalView c
 }
 
 void MpiSimulatorChunk::add_probe(ProbeSpec ps){
-    SignalView signal = get_signal_view(ps.signal_spec);
+    Signal signal = get_signal_view(ps.signal_spec);
     probe_map[ps.probe_key] = shared_ptr<Probe>(new Probe(signal, ps.period));
 }
 
@@ -1036,7 +1018,7 @@ void MpiSimulatorChunk::close_simulation_log(){
 void MpiSimulatorChunk::flush_probes(){
     if(sim_log->is_ready()){
         for(auto& kv : probe_map){
-            int n_rows;
+            unsigned n_rows = 0;
             shared_ptr<dtype> buffer = (kv.second)->flush_to_buffer(n_rows);
 
             try{
@@ -1060,8 +1042,7 @@ string MpiSimulatorChunk::to_string() const{
     out << "** Signals: **" << endl;
     for(auto const& kv: signal_map){
         out << "Key: " << kv.first << endl;
-        out << "Label: " << signal_labels.at(kv.first);
-        out << "SignalView: " << *(kv.second) << endl;
+        out << "Signal: " << kv.second << endl;
     }
     out << endl;
 

@@ -4,18 +4,20 @@
 #include <vector>
 #include <sstream>
 
-#include "operator.hpp"
-
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+
+#include "typedef.hpp"
+#include "debug.hpp"
+
+
+using namespace std;
 
 const string OP_DELIM = ";";
 const string SIGNAL_DELIM = ":";
 const string PROBE_DELIM = "|";
 
-using namespace std;
-
-class Spec{
+struct Spec{
     virtual string to_string() const = 0;
 
     friend ostream& operator << (ostream &out, const Spec &op){
@@ -24,8 +26,7 @@ class Spec{
     }
 };
 
-class OpSpec: public Spec {
-public:
+struct OpSpec: public Spec {
     OpSpec(){};
     OpSpec(string op_string);
 
@@ -37,24 +38,28 @@ public:
 };
 
 /* Expected format of signal_string:
-*     key:(shape1, shape2):(stride1, stride2):offset */
-class SignalSpec: public Spec {
-public:
+*     key:label:ndim:(shape1, shape2):(stride1, stride2):offset */
+struct SignalSpec: public Spec {
     SignalSpec(){};
     SignalSpec(string signal_string);
 
     key_type key;
-    int shape1;
-    int shape2;
-    int stride1;
-    int stride2;
-    int offset;
+    string label;
+
+    unsigned ndim;
+
+    unsigned shape1;
+    unsigned shape2;
+
+    unsigned stride1;
+    unsigned stride2;
+
+    unsigned offset;
 
     string to_string() const override;
 };
 
-class ProbeSpec: public Spec {
-public:
+struct ProbeSpec: public Spec {
     ProbeSpec(){};
     ProbeSpec(string probe_string);
 

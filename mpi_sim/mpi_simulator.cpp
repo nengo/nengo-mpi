@@ -64,7 +64,7 @@ void MpiSimulator::from_file(string filename){
 
     probe_counts.resize(n_processors);
     for(const ProbeSpec& pi : chunk->probe_info){
-        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+        probe_data[pi.probe_key] = vector<Signal>();
         probe_counts[pi.component % n_processors] += 1;
     }
 
@@ -142,9 +142,8 @@ void MpiSimulator::gather_probe_data(){
             data.reserve(data.size() + data_length);
 
             for(int j = 0; j < data_length; j++){
-                unique_ptr<BaseSignal> matrix = recv_matrix(processor_idx, probe_tag, comm);
-
-                data.push_back(move(matrix));
+                Signal signal = recv_base_signal(processor_idx, probe_tag, comm);
+                data.push_back(signal);
             }
         }
     }
@@ -318,12 +317,12 @@ void worker_start(MPI_Comm comm){
 
                         send_key(key, 0, probe_tag, comm);
 
-                        vector<unique_ptr<BaseSignal>> probe_data = probe->harvest_data();
+                        vector<Signal> probe_data = probe->harvest_data();
 
                         send_int(probe_data.size(), 0, probe_tag, comm);
 
                         for(auto& pd : probe_data){
-                            send_matrix(move(pd), 0, probe_tag, comm);
+                            send_base_signal(move(pd), 0, probe_tag, comm);
                         }
                     }
                 }
@@ -414,6 +413,19 @@ void send_int(int i, int dst, int tag, MPI_Comm comm){
     MPI_Send(&i, 1, MPI_INT, dst, tag, comm);
 }
 
+unsigned recv_unsigned(int src, int tag, MPI_Comm comm){
+    MPI_Status status;
+    unsigned i;
+
+    MPI_Recv(&i, 1, MPI_UNSIGNED, src, tag, comm, &status);
+    return i;
+}
+
+void send_unsigned(unsigned i, int dst, int tag, MPI_Comm comm){
+    MPI_Send(&i, 1, MPI_UNSIGNED, dst, tag, comm);
+}
+
+
 key_type recv_key(int src, int tag, MPI_Comm comm){
     MPI_Status status;
     key_type i;
@@ -426,43 +438,24 @@ void send_key(key_type i, int dst, int tag, MPI_Comm comm){
     MPI_Send(&i, 1, MPI_LONG_LONG_INT, dst, tag, comm);
 }
 
-unique_ptr<BaseSignal> recv_matrix(int src, int tag, MPI_Comm comm){
+Signal recv_base_signal(int src, int tag, MPI_Comm comm){
     MPI_Status status;
 
-    int size1 = recv_int(src, tag, comm);
-    int size2 = recv_int(src, tag, comm);
+    unsigned size1 = recv_unsigned(src, tag, comm);
+    unsigned size2 = recv_unsigned(src, tag, comm);
 
-    unique_ptr<dtype[]> data_buffer(new dtype[size1 * size2]);
-    MPI_Recv(data_buffer.get(), size1 * size2, MPI_DOUBLE, src, tag, comm, &status);
+    Signal signal = Signal(size1, size2);
+    MPI_Recv(signal.raw_data, signal.size, MPI_DOUBLE, src, tag, comm, &status);
 
-    auto matrix = unique_ptr<BaseSignal>(new BaseSignal(size1, size2));
-
-    // Assumes matrices stored in row-major
-    for(int i = 0; i < size1; i++){
-        for(int j = 0; j < size2; j++){
-            (*matrix)(i, j) = data_buffer[i * size2 + j];
-        }
-    }
-
-    return move(matrix);
+    return signal;
 }
 
-void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm){
+void send_base_signal(Signal signal, int dst, int tag, MPI_Comm comm){
 
-    int size1 = matrix->size1(), size2 = matrix->size2();
-    send_int(size1, dst, tag, comm);
-    send_int(size2, dst, tag, comm);
+    send_unsigned(signal.shape1, dst, tag, comm);
+    send_unsigned(signal.shape2, dst, tag, comm);
 
-    unique_ptr<dtype[]> data_buffer(new dtype[size1 * size2]);
-
-    // Assumes matrices stored in row-major
-    for(int i = 0; i < size1; i++){
-        for(int j = 0; j < size2; j++){
-            data_buffer[i * size2 + j] = (*matrix)(i, j) ;
-        }
-    }
-
-    MPI_Send(data_buffer.get(), size1 * size2, MPI_DOUBLE, dst, tag, comm);
+    MPI_Send(signal.raw_data, signal.size, MPI_DOUBLE, dst, tag, comm);
 }
 
 int bcast_recv_int(MPI_Comm comm){
@@ -477,4 +470,18 @@ void bcast_send_int(int i, MPI_Comm comm){
     int src = 0;
 
     MPI_Bcast(&i, 1, MPI_INT, src, comm);
+}
+
+unsigned bcast_recv_unsigned(MPI_Comm comm){
+    int src = 0;
+
+    unsigned i;
+    MPI_Bcast(&i, 1, MPI_UNSIGNED, src, comm);
+    return i;
+}
+
+void bcast_send_unsigned(unsigned i, MPI_Comm comm){
+    int src = 0;
+
+    MPI_Bcast(&i, 1, MPI_UNSIGNED, src, comm);
 }

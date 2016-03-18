@@ -32,7 +32,7 @@ void Simulator::from_file(string filename){
     chunk->from_file(filename, file_plist, read_plist);
 
     for(const ProbeSpec& pi : chunk->probe_info){
-        probe_data[pi.probe_key] = vector<unique_ptr<BaseSignal>>();
+        probe_data[pi.probe_key] = vector<Signal>();
     }
 
     H5Pclose(file_plist);
@@ -49,7 +49,7 @@ void Simulator::finalize_build(){
     chunk->finalize_build();
 }
 
-SignalView Simulator::get_signal(string signal_string){
+Signal Simulator::get_signal_view(string signal_string){
     return chunk->get_signal_view(signal_string);
 }
 
@@ -91,7 +91,7 @@ void Simulator::gather_probe_data(){
     }
 }
 
-vector<unique_ptr<BaseSignal>> Simulator::get_probe_data(key_type probe_key){
+vector<Signal> Simulator::get_probe_data(key_type probe_key){
     if(chunk->is_logging()){
         throw logic_error(
             "Calling get_probe_data, but probe data has been written to file.");

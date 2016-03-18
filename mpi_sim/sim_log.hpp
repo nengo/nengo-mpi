@@ -8,9 +8,11 @@
 
 #include <hdf5.h>
 
-#include "operator.hpp"
 #include "spec.hpp"
+
+#include "typedef.hpp"
 #include "debug.hpp"
+
 
 using namespace std;
 

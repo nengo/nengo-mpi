@@ -34,9 +34,10 @@ class SignalProbe(object):
 
 
 class TestSimulator(nengo_mpi.Simulator):
-    """
-    Simulator for testing C++ operators. Note that this Simulator
-    does not need to be closed as nengo_mpi.Simulator does.
+    """ Simulator for testing C++ operators.
+
+    Note that this Simulator does not need to be closed as
+    nengo_mpi.Simulator does.
 
     Parameters
     ----------
@@ -107,26 +108,26 @@ def test_dot_inc():
 
     D = 2
 
-    A = Signal(np.eye(D), 'A')
-    X = Signal(np.ones(D), 'X')
+    A = Signal(np.random.random((D, D)), 'A')
+    X = Signal(np.random.random(D), 'X')
     Y = Signal(np.zeros(D), 'Y')
 
     ops = [Reset(Y), DotInc(A, X, Y)]
+    probes = [SignalProbe(Y)]
 
-    signal_probes = [SignalProbe(Y)]
+    sim = TestSimulator(ops, probes)
 
-    sim = TestSimulator(ops, signal_probes)
+    sim.run(0.01)
 
-    sim.run(1)
-
-    assert np.allclose(A.value.dot(X.value), sim.data[signal_probes[0]])
+    assert np.allclose(
+        A.initial_value.dot(X.initial_value), sim.data[probes[0]])
 
 
 def test_random_dot_inc():
     seed = 1
     np.random.seed(seed)
 
-    D = 3
+    D = 10
     n_tests = 10
 
     for i in range(n_tests):
@@ -135,14 +136,14 @@ def test_random_dot_inc():
         Y = Signal(np.zeros(D), 'Y')
 
         ops = [Reset(Y), DotInc(A, X, Y)]
-
         probes = [SignalProbe(Y)]
 
         sim = TestSimulator(ops, probes)
 
-        sim.run(1)
+        sim.run(0.01)
 
-        assert np.allclose(A.value.dot(X.value), sim.data[probes[0]])
+        assert np.allclose(
+            A.initial_value.dot(X.initial_value), sim.data[probes[0]])
 
 
 def test_reset():
@@ -383,78 +384,83 @@ def test_element_wise_inc():
     M = 3
     N = 2
 
-    X = Signal(3 * np.ones(1), 'X')
     A = Signal(2 * np.ones((M, 1)), 'A')
-    Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
-    X = Signal(3 * np.ones((M, 1)), 'X')
-    A = Signal(2 * np.ones(1), 'A')
-    Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
     X = Signal(3 * np.ones(1), 'X')
-    A = Signal(2 * np.ones((1, N)), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
     ewi_helper(TestSimulator, A, X, Y, 6)
 
-    X = Signal(3 * np.ones((1, N)), 'X')
     A = Signal(2 * np.ones(1), 'A')
-    Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
     X = Signal(3 * np.ones((M, 1)), 'X')
-    A = Signal(2 * np.ones((M, 1)), 'A')
     Y = Signal(np.zeros((M, 1)), 'Y')
     ewi_helper(TestSimulator, A, X, Y, 6)
 
-    X = Signal(3 * np.ones((1, N)), 'X')
     A = Signal(2 * np.ones((1, N)), 'A')
+    X = Signal(3 * np.ones(1), 'X')
     Y = Signal(np.zeros((1, N)), 'Y')
     ewi_helper(TestSimulator, A, X, Y, 6)
 
-    X = Signal(3 * np.ones(1), 'X')
-    A = Signal(2 * np.ones((M, N)), 'A')
-    Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
-    X = Signal(3 * np.ones((M, N)), 'X')
     A = Signal(2 * np.ones(1), 'A')
-    Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
-    X = Signal(3 * np.ones((M, N)), 'X')
-    A = Signal(2 * np.ones((M, N)), 'A')
-    Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
-    X = Signal(3 * np.ones((M, 1)), 'X')
-    A = Signal(2 * np.ones((1, N)), 'A')
-    Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
-    X = Signal(3 * np.ones((M, 1)), 'X')
-    A = Signal(2 * np.ones((M, N)), 'A')
-    Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
-    X = Signal(3 * np.ones((M, N)), 'X')
-    A = Signal(2 * np.ones((M, 1)), 'A')
-    Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
-
     X = Signal(3 * np.ones((1, N)), 'X')
-    A = Signal(2 * np.ones((M, N)), 'A')
-    Y = Signal(np.zeros((M, N)), 'Y')
+    Y = Signal(np.zeros((1, N)), 'Y')
     ewi_helper(TestSimulator, A, X, Y, 6)
 
-    X = Signal(3 * np.ones((M, N)), 'X')
+    A = Signal(2 * np.ones((M, 1)), 'A')
+    X = Signal(3 * np.ones((M, 1)), 'X')
+    Y = Signal(np.zeros((M, 1)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
     A = Signal(2 * np.ones((1, N)), 'A')
+    X = Signal(3 * np.ones((1, N)), 'X')
+    Y = Signal(np.zeros((1, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
+    A = Signal(2 * np.ones((M, N)), 'A')
+    X = Signal(3 * np.ones(1), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
     ewi_helper(TestSimulator, A, X, Y, 6)
 
-    X = Signal(3 * np.ones((1, 1)), 'X')
+    A = Signal(2 * np.ones(1), 'A')
+    X = Signal(3 * np.ones((M, N)), 'X')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
+    A = Signal(2 * np.ones((M, N)), 'A')
+    X = Signal(3 * np.ones((M, N)), 'X')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
+    A = Signal(2 * np.ones((1, N)), 'A')
+    X = Signal(3 * np.ones((M, 1)), 'X')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
+    A = Signal(2 * np.ones((M, 1)), 'A')
+    X = Signal(3 * np.ones((1, N)), 'X')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
+    A = Signal(2 * np.ones((M, N)), 'A')
+    X = Signal(3 * np.ones((M, 1)), 'X')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
+    A = Signal(2 * np.ones((M, 1)), 'A')
+    X = Signal(3 * np.ones((M, N)), 'X')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
+    A = Signal(2 * np.ones((M, N)), 'A')
+    X = Signal(3 * np.ones((1, N)), 'X')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
+    A = Signal(2 * np.ones((1, N)), 'A')
+    X = Signal(3 * np.ones((M, N)), 'X')
+    Y = Signal(np.zeros((M, N)), 'Y')
+    ewi_helper(TestSimulator, A, X, Y, 6)
+
     A = Signal(2 * np.ones((1, 1)), 'A')
+    X = Signal(3 * np.ones((1, 1)), 'X')
     Y = Signal(np.zeros((1, 1)), 'Y')
     ewi_helper(TestSimulator, A, X, Y, 6)
 

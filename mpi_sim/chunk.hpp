@@ -14,6 +14,7 @@
 
 #include <mpi.h>
 
+#include "signal.hpp"
 #include "operator.hpp"
 #include "utils.hpp"
 #include "spec.hpp"
@@ -22,8 +23,10 @@
 #include "probe.hpp"
 #include "sim_log.hpp"
 #include "psim_log.hpp"
-#include "debug.hpp"
 #include "ezProgressBar-2.1.1/ezETAProgressBar.hpp"
+
+#include "typedef.hpp"
+#include "debug.hpp"
 
 // How frequently to flush the probe buffers, in units of number of steps.
 const int FLUSH_PROBES_EVERY = 1000;
@@ -50,15 +53,22 @@ public:
 
     // *** Signals ***
 
-    /* Add data to the chunk, in the form of a BaseSignal. All data
-     * in the simulation is stored in BaseSignals, and BaseSignals are an
-     * analog of a Signal (not but not a SignalView) in the reference impl.
-     * The supplied key must be unique, as it will later be used by operators
-     * to retrieve a view of the BaseSignal. */
-    void add_base_signal(key_type key, string l, unique_ptr<BaseSignal> signal);
+    /* Add data to the chunk, in the form of a Signal. All data in
+     * the simulation is stored in Signals, and Signals are an analog
+     * of a Signal in the reference impl of nengo. The supplied key
+     * must be unique, as it will later be used by operators to retrieve
+     * views of the base Signal. */
+    void add_base_signal(key_type key, Signal signal);
 
-    /* Get a ``view'' on the BaseSignal stored at the given key.
+    /* Get a ``view'' of a base signal stored at the given key.
      * Most operators work in terms of these views.
+     *
+     *     key             : Key identifying the base signal that we
+     *                       are getting a view of.
+     *
+     *     label           : Name for the view.
+     *
+     *     ndim            : Number of dimensions for returned view.
      *
      *     shape1, shape2  : Shape of the returned view.
      *
@@ -68,29 +78,31 @@ public:
      *
      *     offset          : Index of the element in the base array that
      *                       the view begins at.                         */
-    SignalView get_signal_view(
-        key_type key, int shape1, int shape2, int stride1, int stride2, int offset);
+    Signal get_signal_view(
+        key_type key, string label, unsigned ndim,
+        unsigned shape1, unsigned shape2,
+        int stride1, int stride2, unsigned offset);
 
-    /* Get a ``view'' on a stored base signal from a SignalSpec object. */
-    SignalView get_signal_view(SignalSpec ss);
+    /* Get a ``view`` on a stored base signal from a SignalSpec object. */
+    Signal get_signal_view(SignalSpec ss);
 
-    /* Get a ``view'' on a stored base signal from a string
+    /* Get a ``view`` on a stored base signal from a string
      * (by converting it into a SignalSpec first) . */
-    SignalView get_signal_view(string ss);
+    Signal get_signal_view(string ss);
 
-    /* Get a ``view'' on a stored base signal from a key. Parameters of the view
+    /* Get a ``view`` on a stored base signal from a key. Parameters of the view
      * are derived from the signal itself (so the view will have the same shape
      * as the signal that it is a view of). */
-    SignalView get_signal_view(key_type key);
+    Signal get_signal(key_type key);
 
     // *** Operators ***
 
     /* Functions used to add operators to the chunk. These
-     * operators access views of the BaseSignals stored in the chunk,
+     * operators access views of the base Signals stored in the chunk,
      * and operate on the data in those views to carry out the simulation.
-     * At the time an operator is added, all BaseSignals that it operates on must
-     * have already been added to the chunk. Also note that the order in which
-     * operators are added to the chunk determines the order they will
+     * At the time that an operator is added, all base Signals that it operates
+     * on must have already been added to the chunk. Also note that the order
+     * in which operators are added to the chunk determines the order they will
      * be executed in at simulation time. */
     void add_op(unique_ptr<Operator> op);
 
@@ -102,8 +114,8 @@ public:
     /* Add MPI-related operators. These have to be added separately,
      * because we need to initialize them in a special way before the
      * simulation begins. */
-    void add_mpi_send(float index, int dst, int tag, SignalView content);
-    void add_mpi_recv(float index, int src, int tag, SignalView content);
+    void add_mpi_send(float index, int dst, int tag, Signal content);
+    void add_mpi_recv(float index, int src, int tag, Signal content);
 
     // *** Probes ***
 
@@ -124,7 +136,7 @@ public:
     // Used to pass the simulation time to python functions
     dtype* get_time_pointer(){return &time;}
 
-    int get_num_probes(){return probe_map.size();}
+    size_t get_num_probes(){return probe_map.size();}
 
     string to_string() const;
 
@@ -148,9 +160,8 @@ private:
     unique_ptr<SimulationLog> sim_log;
     string log_filename;
 
-    map<key_type, string> signal_labels;
-    map<key_type, shared_ptr<BaseSignal>> signal_map;
-    map<key_type, shared_ptr<BaseSignal>> signal_init_value;
+    map<key_type, Signal> signal_map;
+    map<key_type, Signal> signal_init_value;
 
     // Contains all operators - don't have to worry about deleting these, since we
     // have unique_ptr's for all these ops in the lists below.
@@ -166,8 +177,8 @@ private:
     bool collect_timings;
 
     // Used at build time to construct the merged mpi operators if mpi_merged is true
-    map<int, vector<pair<int, SignalView>>> merged_sends;
-    map<int, vector<pair<int, SignalView>>> merged_recvs;
+    map<int, vector<pair<int, Signal>>> merged_sends;
+    map<int, vector<pair<int, Signal>>> merged_recvs;
     map<int, int> send_tags;
     map<int, int> recv_tags;
 

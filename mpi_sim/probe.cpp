@@ -1,10 +1,11 @@
 #include "probe.hpp"
 
-Probe::Probe(SignalView signal, dtype period)
+Probe::Probe(Signal signal, dtype period)
 :signal(signal), period(period), data_index(0), time_index(0){
+
 }
 
-void Probe::init_for_simulation(int n_steps, int fe){
+void Probe::init_for_simulation(unsigned n_steps, unsigned flush_every_){
 
     if(!data.empty()){
         stringstream error;
@@ -19,57 +20,51 @@ void Probe::init_for_simulation(int n_steps, int fe){
 
     buffer.reset();
 
-    flush_every = fe;
+    flush_every = flush_every_;
     if(flush_every > 0){
-        buffer = shared_ptr<dtype>(new dtype[signal.size1() * flush_every]);
+        buffer = shared_ptr<dtype>(new dtype[signal.size * flush_every]);
     }else{
         buffer = shared_ptr<dtype>(NULL);
     }
 
-    int n_samples = (int) floor(n_steps / period);
+    unsigned n_samples = (unsigned) floor(n_steps / period);
 
     if(flush_every > 0){
         n_samples = min(n_samples, flush_every);
     }
 
     data.reserve(n_samples);
-
     for(unsigned i = 0; i < n_samples; i++){
-        data.push_back(unique_ptr<BaseSignal>(new BaseSignal(signal)));
+        data.push_back(signal.deep_copy());
     }
 }
 
-void Probe::gather(int step){
+void Probe::gather(unsigned step){
     if(fmod(step + time_index, period) < 1){
-        *(data[data_index]) = signal;
+        data[data_index].fill_with(signal);
         data_index++;
     }
 }
 
-shared_ptr<dtype> Probe::flush_to_buffer(int &n_rows){
+shared_ptr<dtype> Probe::flush_to_buffer(unsigned &n_rows){
     if(flush_every <= 0){
         throw logic_error(
             "Calling flush_to_buffer, but Probe has flush_every <= 0.");
     }
 
-    int n_cols = data[0]->size1();
-
-    int idx = 0;
-    for(int i = 0; i < data_index; i++){
-        for(int j = 0; j < n_cols; j++){
-            buffer.get()[idx] = (*data[i])(j, 0);
-            idx++;
-        }
+    unsigned offset = 0;
+    for(unsigned i = 0; i < data_index; i++){
+        data[i].copy_to_buffer(buffer.get()+offset);
+        offset += data[i].size;
     }
 
     n_rows = data_index;
-
     data_index = 0;
 
     return buffer;
 }
 
-vector<unique_ptr<BaseSignal>> Probe::harvest_data(){
+vector<Signal> Probe::harvest_data(){
     auto d = move(data);
     clear();
     return d;
@@ -96,9 +91,8 @@ string Probe::to_string() const{
 
     out << "data: " << endl;
     for(unsigned i = 0; i < data.size(); i++){
-         out << "index: " << i << ", signal: " << *(data[i]) << endl;
+         out << "index: " << i << ", signal: " << data[i] << endl;
     }
 
     return out.str();
 }
-

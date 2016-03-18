@@ -13,6 +13,10 @@
 #include "chunk.hpp"
 #include "psim_log.hpp"
 
+#include "typedef.hpp"
+#include "debug.hpp"
+
+
 using namespace std;
 
 const int setup_tag = 1;
@@ -72,11 +76,17 @@ void send_dtype(dtype d, int dst, int tag, MPI_Comm comm);
 int recv_int(int src, int tag, MPI_Comm comm);
 void send_int(int i, int dst, int tag, MPI_Comm comm);
 
+unsigned recv_unsigned(int src, int tag, MPI_Comm comm);
+void send_unsigned(unsigned i, int dst, int tag, MPI_Comm comm);
+
 key_type recv_key(int src, int tag, MPI_Comm comm);
 void send_key(key_type i, int dst, int tag, MPI_Comm comm);
 
-unique_ptr<BaseSignal> recv_matrix(int src, int tag, MPI_Comm comm);
-void send_matrix(unique_ptr<BaseSignal> matrix, int dst, int tag, MPI_Comm comm);
+Signal recv_base_signal(int src, int tag, MPI_Comm comm);
+void send_base_signal(Signal signal, int dst, int tag, MPI_Comm comm);
 
 int bcast_recv_int(MPI_Comm comm);
 void bcast_send_int(int i, MPI_Comm comm);
+
+unsigned bcast_recv_unsigned(MPI_Comm comm);
+void bcast_send_unsigned(unsigned i, MPI_Comm comm);

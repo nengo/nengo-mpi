@@ -11,7 +11,10 @@
 
 #include "sim_log.hpp"
 #include "spec.hpp"
+
+#include "typedef.hpp"
 #include "debug.hpp"
+
 
 // A parallel version of SimulationLog. Represents an HDF5 file to which we
 // write data collected throughout the simulation. All processors have access

@@ -8,34 +8,19 @@
 #include <random>
 #include <cstdint>
 
-#include <boost/numeric/ublas/matrix.hpp>
-#include <boost/numeric/ublas/matrix_proxy.hpp>
-#include <boost/numeric/ublas/storage.hpp>
-#include <boost/numeric/ublas/io.hpp>
-#include <boost/numeric/ublas/operation.hpp>
-
 #include <boost/circular_buffer.hpp>
-
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <openblas/cblas.h>
+
+#include "signal.hpp"
+
+#include "typedef.hpp"
 #include "debug.hpp"
 
 
 using namespace std;
-
-namespace ublas = boost::numeric::ublas;
-
-typedef double dtype;
-
-typedef ublas::unbounded_array<dtype> array_type;
-typedef ublas::matrix<dtype> BaseSignal;
-typedef ublas::matrix_slice<BaseSignal> SignalView;
-typedef ublas::scalar_matrix<dtype> ScalarSignal;
-
-/* Type of keys for various maps in the MpiSimulatorChunk. Keys are typically
- * addresses of python objects, so we need to use long long ints (64 bits). */
-typedef uintmax_t key_type;
 
 // Current implementation: Each Operator is essentially a closure.
 // At run time, these closures are stored in a list, and we call
@@ -80,35 +65,34 @@ protected:
 class Reset: public Operator{
 
 public:
-    Reset(SignalView dst, dtype value);
+    Reset(Signal dst, dtype value);
     virtual string classname() const { return "Reset"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    SignalView dst;
-    ScalarSignal dummy;
-    dtype value;
+    Signal dst;
+    const dtype value;
 };
 
 class Copy: public Operator{
 public:
-    Copy(SignalView dst, SignalView src);
+    Copy(Signal dst, Signal src);
     virtual string classname() const { return "Copy"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    SignalView dst;
-    SignalView src;
+    Signal dst;
+    Signal src;
 };
 
 class SlicedCopy: public Operator{
 public:
     SlicedCopy(
-        SignalView B, SignalView A, bool inc,
+        Signal B, Signal A, bool inc,
         int start_A, int stop_A, int step_A,
         int start_B, int stop_B, int step_B,
         vector<int> seq_A, vector<int> seq_B);
@@ -118,74 +102,84 @@ public:
     virtual string to_string() const;
 
 protected:
-    SignalView B;
-    SignalView A;
+    Signal B;
+    Signal A;
 
-    int length_A;
-    int length_B;
+    const unsigned length_A;
+    const unsigned length_B;
 
-    bool inc;
+    const bool inc;
 
-    int n_assignments;
+    unsigned n_assignments;
 
-    int start_A;
-    int stop_A;
-    int step_A;
+    const int start_A;
+    const int stop_A;
+    const int step_A;
 
-    int start_B;
-    int stop_B;
-    int step_B;
+    const int start_B;
+    const int stop_B;
+    const int step_B;
 
-    vector<int> seq_A;
-    vector<int> seq_B;
+    const vector<int> seq_A;
+    const vector<int> seq_B;
 };
 
 
 // Increment signal Y by dot(A,X)
 class DotInc: public Operator{
 public:
-    DotInc(SignalView A, SignalView X, SignalView Y);
+    DotInc(Signal A, Signal X, Signal Y);
     virtual string classname() const { return "DotInc"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    bool scalar;
+    const bool scalar;
+    bool matrix_vector;
 
-    SignalView A;
-    SignalView X;
-    SignalView Y;
+    Signal A;
+    Signal X;
+    Signal Y;
+
+    CBLAS_TRANSPOSE transpose_A;
+    CBLAS_TRANSPOSE transpose_X;
+
+    unsigned leading_dim_A;
+    unsigned leading_dim_X;
+    unsigned leading_dim_Y;
+
+    unsigned m;
+    unsigned n;
+    unsigned k;
 };
 
 
 class ElementwiseInc: public Operator{
 public:
-    ElementwiseInc(SignalView A, SignalView X, SignalView Y);
+    ElementwiseInc(Signal A, Signal X, Signal Y);
     virtual string classname() const { return "ElementwiseInc"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    SignalView A;
-    SignalView X;
-    SignalView Y;
-
-    bool broadcast;
+    Signal A;
+    Signal X;
+    Signal Y;
 
     // Strides are 0 or 1, to support broadcasting
-    int A_row_stride;
-    int A_col_stride;
+    const unsigned A_row_stride;
+    const unsigned A_col_stride;
 
-    int X_row_stride;
-    int X_col_stride;
+    const unsigned X_row_stride;
+    const unsigned X_col_stride;
 };
 
 class NoDenSynapse: public Operator{
 
 public:
-    NoDenSynapse(SignalView input, SignalView output, dtype b);
+    NoDenSynapse(Signal input, Signal output, dtype b);
 
     virtual string classname() const { return "NoDenSynapse"; }
 
@@ -193,16 +187,16 @@ public:
     virtual string to_string() const;
 
 protected:
-    SignalView input;
-    SignalView output;
+    Signal input;
+    Signal output;
 
-    dtype b;
+    const dtype b;
 };
 
 class SimpleSynapse: public Operator{
 
 public:
-    SimpleSynapse(SignalView input, SignalView output, dtype a, dtype b);
+    SimpleSynapse(Signal input, Signal output, dtype a, dtype b);
 
     virtual string classname() const { return "SimpleSynapse"; }
 
@@ -210,19 +204,19 @@ public:
     virtual string to_string() const;
 
 protected:
-    SignalView input;
-    SignalView output;
+    Signal input;
+    Signal output;
 
-    dtype a;
-    dtype b;
+    const dtype a;
+    const dtype b;
 };
 
 class Synapse: public Operator{
 
 public:
     Synapse(
-        SignalView input, SignalView output,
-        BaseSignal numer, BaseSignal denom);
+        Signal input, Signal output,
+        Signal numer, Signal denom);
 
     virtual string classname() const { return "Synapse"; }
 
@@ -232,11 +226,11 @@ public:
     virtual void reset(unsigned seed);
 
 protected:
-    SignalView input;
-    SignalView output;
+    Signal input;
+    Signal output;
 
-    BaseSignal numer;
-    BaseSignal denom;
+    const Signal numer;
+    const Signal denom;
 
     vector< boost::circular_buffer<dtype> > x;
     vector< boost::circular_buffer<dtype> > y;
@@ -245,7 +239,7 @@ protected:
 class TriangleSynapse: public Operator{
 
 public:
-    TriangleSynapse(SignalView input, SignalView output, dtype n0, dtype ndiff, int n_taps);
+    TriangleSynapse(Signal input, Signal output, dtype n0, dtype ndiff, unsigned n_taps);
 
     virtual string classname() const { return "TriangleSynapse"; }
 
@@ -255,12 +249,12 @@ public:
     virtual void reset(unsigned seed);
 
 protected:
-    SignalView input;
-    SignalView output;
+    Signal input;
+    Signal output;
 
-    dtype n0;
-    dtype ndiff;
-    int n_taps;
+    const dtype n0;
+    const dtype ndiff;
+    const unsigned n_taps;
 
     vector< boost::circular_buffer<dtype> > x;
 };
@@ -270,7 +264,7 @@ class WhiteNoise: public Operator{
 
 public:
     WhiteNoise(
-        SignalView output, dtype mean, dtype std,
+        Signal output, dtype mean, dtype std,
         bool do_scale, bool inc, dtype dt);
 
     virtual string classname() const { return "WhiteNoise"; }
@@ -281,26 +275,26 @@ public:
     virtual void reset(unsigned seed);
 
 protected:
-    SignalView output;
+    Signal output;
 
-    dtype mean;
-    dtype std;
-
-    dtype alpha;
-
-    bool do_scale;
-    bool inc;
-
-    dtype dt;
+    const dtype mean;
+    const dtype std;
 
     default_random_engine rng;
     normal_distribution<dtype> dist;
+
+    const dtype alpha;
+
+    const bool do_scale;
+    const bool inc;
+
+    const dtype dt;
 };
 
 class WhiteSignal: public Operator{
 
 public:
-    WhiteSignal(SignalView output, BaseSignal coefs);
+    WhiteSignal(Signal output, Signal coefs);
 
     virtual string classname() const { return "WhiteSignal"; }
 
@@ -310,204 +304,183 @@ public:
     virtual void reset(unsigned seed);
 
 protected:
-    SignalView output;
-    BaseSignal coefs;
-    int idx;
+    Signal output;
+    const Signal coefs;
+
+    unsigned idx;
 };
 
 class LIF: public Operator{
 
 public:
     LIF(
-        int n_neuron, dtype tau_rc, dtype tau_ref, dtype min_voltage,
-        dtype dt, SignalView J, SignalView output, SignalView voltage,
-        SignalView ref_time);
+        unsigned n_neuron, dtype tau_rc, dtype tau_ref, dtype min_voltage,
+        dtype dt, Signal J, Signal output, Signal voltage,
+        Signal ref_time);
     virtual string classname() const { return "LIF"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    dtype dt;
-    dtype dt_inv;
-    dtype tau_rc;
-    dtype tau_ref;
-    dtype min_voltage;
-    int n_neurons;
+    const unsigned n_neurons;
 
-    SignalView J;
-    SignalView output;
-    SignalView voltage;
-    SignalView ref_time;
+    const dtype dt;
+    const dtype dt_inv;
 
-    ScalarSignal dt_vec;
-    ScalarSignal one;
-    BaseSignal mult;
-    BaseSignal dV;
+    const dtype tau_rc;
+    const dtype tau_ref;
+
+    const dtype min_voltage;
+
+    Signal J;
+    Signal output;
+    Signal voltage;
+    Signal ref_time;
+
+    const Signal one;
+    Signal mult;
+    Signal dV;
 };
 
 class LIFRate: public Operator{
 public:
-    LIFRate(int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output);
+    LIFRate(unsigned n_neurons, dtype tau_rc, dtype tau_ref, Signal J, Signal output);
     virtual string classname() const { return "LIFRate"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    dtype tau_rc;
-    dtype tau_ref;
-    int n_neurons;
+    unsigned n_neurons;
 
-    SignalView J;
-    SignalView output;
+    const dtype tau_rc;
+    const dtype tau_ref;
+
+    Signal J;
+    Signal output;
 };
 
 class AdaptiveLIF: public LIF{
 public:
     AdaptiveLIF(
-        int n_neuron, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
-        dtype min_voltage, dtype dt, SignalView J, SignalView output, SignalView voltage,
-        SignalView ref_time, SignalView adaptation);
+        unsigned n_neuron, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
+        dtype min_voltage, dtype dt, Signal J, Signal output, Signal voltage,
+        Signal ref_time, Signal adaptation);
     virtual string classname() const { return "AdaptiveLIF"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    dtype tau_n;
-    dtype inc_n;
-    SignalView adaptation;
-    BaseSignal temp;
+    const dtype tau_n;
+    const dtype inc_n;
+
+    Signal adaptation;
+    Signal temp_J;
+    Signal dAdapt;
 };
 
 class AdaptiveLIFRate: public LIFRate{
 
 public:
     AdaptiveLIFRate(
-        int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
-        dtype dt, SignalView J, SignalView output, SignalView adaptation);
+        unsigned n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
+        dtype dt, Signal J, Signal output, Signal adaptation);
     virtual string classname() const { return "AdaptiveLIFRate"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    dtype dt;
-    dtype tau_n;
-    dtype inc_n;
-    SignalView adaptation;
-    BaseSignal temp;
+    const dtype dt;
+    const dtype tau_n;
+    const dtype inc_n;
+
+    Signal adaptation;
+    Signal temp_J;
+    Signal dAdapt;
 };
 
 class RectifiedLinear: public Operator{
 public:
-    RectifiedLinear(int n_neurons, SignalView J, SignalView output);
+    RectifiedLinear(unsigned n_neurons, Signal J, Signal output);
     virtual string classname() const { return "RectifiedLinear"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    int n_neurons;
+    const unsigned n_neurons;
 
-    SignalView J;
-    SignalView output;
+    Signal J;
+    Signal output;
 };
 
 class Sigmoid: public Operator{
 public:
-    Sigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output);
+    Sigmoid(unsigned n_neurons, dtype tau_ref, Signal J, Signal output);
     virtual string classname() const { return "Sigmoid"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    int n_neurons;
-    dtype tau_ref;
-    dtype tau_ref_inv;
+    const unsigned n_neurons;
 
-    SignalView J;
-    SignalView output;
-};
+    const dtype tau_ref;
+    const dtype tau_ref_inv;
 
-class Izhikevich: public Operator{
-public:
-    Izhikevich(
-        int n_neurons, dtype tau_recovery, dtype coupling,
-        dtype reset_voltage, dtype reset_recovery, dtype dt,
-        SignalView J, SignalView output, SignalView voltage,
-        SignalView recovery);
-    virtual string classname() const { return "Izhikevich"; }
-
-    void operator()();
-    virtual string to_string() const;
-
-protected:
-    int n_neurons;
-    dtype tau_recovery;
-    dtype coupling;
-    dtype reset_voltage;
-    dtype reset_recovery;
-    dtype dt;
-    dtype dt_inv;
-
-    SignalView J;
-    SignalView output;
-    SignalView voltage;
-    SignalView recovery;
-
-    BaseSignal dV;
-    BaseSignal dU;
-    BaseSignal voltage_squared;
-    ScalarSignal bias;
+    Signal J;
+    Signal output;
 };
 
 class BCM: public Operator{
 public:
     BCM(
-        SignalView pre_filtered, SignalView post_filtered, SignalView weights,
-        SignalView delta, dtype learning_rate, dtype dt);
+        Signal pre_filtered, Signal post_filtered, Signal weights,
+        Signal delta, dtype learning_rate, dtype dt);
     virtual string classname() const { return "BCM"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    dtype alpha;
+    const dtype alpha;
 
-    SignalView pre_filtered;
-    SignalView post_filtered;
-    SignalView theta;
-    SignalView delta;
+    Signal pre_filtered;
+    Signal post_filtered;
+    Signal theta;
+    Signal delta;
+
+    Signal squared_pf;
 };
 
 class Oja: public Operator{
 public:
     Oja(
-        SignalView pre_filtered, SignalView post_filtered, SignalView theta,
-        SignalView delta, dtype learning_rate, dtype dt, dtype beta);
+        Signal pre_filtered, Signal post_filtered, Signal theta,
+        Signal delta, dtype learning_rate, dtype dt, dtype beta);
     virtual string classname() const { return "Oja"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    dtype alpha;
-    dtype beta;
+    const dtype alpha;
+    const dtype beta;
 
-    SignalView pre_filtered;
-    SignalView post_filtered;
-    SignalView weights;
-    SignalView delta;
+    Signal pre_filtered;
+    Signal post_filtered;
+    Signal weights;
+    Signal delta;
 };
 
 class Voja: public Operator{
 public:
     Voja(
-        SignalView pre_decoded, SignalView post_filtered, SignalView scaled_encoders,
-        SignalView delta, SignalView learning_signal, BaseSignal scale,
+        Signal pre_decoded, Signal post_filtered, Signal scaled_encoders,
+        Signal delta, Signal learning_signal, Signal scale,
         dtype learning_rate, dtype dt);
     virtual string classname() const { return "Voja"; }
 
@@ -515,17 +488,13 @@ public:
     virtual string to_string() const;
 
 protected:
-    dtype alpha;
+    const dtype alpha;
 
-    SignalView pre_decoded;
-    SignalView post_filtered;
-    SignalView scaled_encoders;
-    SignalView delta;
-    SignalView learning_signal;
+    Signal pre_decoded;
+    Signal post_filtered;
+    Signal scaled_encoders;
+    Signal delta;
+    Signal learning_signal;
 
-    BaseSignal scale;
+    Signal scale;
 };
-
-string signal_to_string(const SignalView signal);
-string signal_to_string(const BaseSignal signal);
-string shape_string(const SignalView signal);

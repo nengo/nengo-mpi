@@ -3,7 +3,7 @@
 unique_ptr<ImageStore> SpaunStimulus::image_store = nullptr;
 
 SpaunStimulus::SpaunStimulus(
-    SignalView output, dtype* time_pointer, vector<string> stim_sequence,
+    Signal output, dtype* time_pointer, vector<string> stim_sequence,
     dtype present_interval, dtype present_blanks, int identifier)
 :output(output), time_pointer(time_pointer), previous_index(-1),
 stim_sequence(stim_sequence), present_interval(present_interval),
@@ -27,7 +27,7 @@ present_blanks(present_blanks), identifier(identifier){
         image_store = static_cast<unique_ptr<ImageStore>>(new ImageStore(vision_data_dir));
     }
 
-    image_size = output.size1();
+    image_size = output.shape1;
 }
 
 void SpaunStimulus::operator() (){
@@ -45,11 +45,10 @@ void SpaunStimulus::operator() (){
 
     if(index != previous_index){
         if(index >= n_stimuli){
-            output = ScalarSignal(image_size, 1, 0.0);
+            dtype init_value = 0.0;
+            output.fill_with(0.0);
         }else{
-            output = SignalView(
-                *images[index], ublas::slice(0, 1, image_size),
-                ublas::slice(0, 1, 1));
+            output.fill_with(images[index]);
         }
 
         previous_index = index;
@@ -95,14 +94,15 @@ void SpaunStimulus::reset(unsigned seed){
     for(string label: stim_sequence){
         cout << "Loading image for stimulus " << stim_count << " with label " << label << endl;
 
-        unique_ptr<BaseSignal> image;
+        Signal image;
         if(label == "None" || label == "NULL"){
-            image = unique_ptr<BaseSignal>(new BaseSignal(ScalarSignal(image_size, 1, 0.0)));
+            dtype init_value = 0.0;
+            image = Signal(image_size, init_value);
         }else{
             image = image_store->get_image_with_label(label, image_size, rng);
         }
 
-        images.push_back(move(image));
+        images.push_back(image);
 
         stim_count++;
     }
@@ -134,8 +134,8 @@ void ImageStore::load_image_counts(string filename){
     ifs.close();
 }
 
-unique_ptr<BaseSignal> ImageStore::get_image_with_label(
-        string label, int desired_img_size, default_random_engine rng){
+Signal ImageStore::get_image_with_label(
+        string label, unsigned desired_img_size, default_random_engine rng){
 
     if(image_counts.find(label) == image_counts.end()){
         stringstream ss;
@@ -163,14 +163,15 @@ unique_ptr<BaseSignal> ImageStore::get_image_with_label(
     getline(ifs, str_data);
     ifs.close();
 
-    unique_ptr<BaseSignal> image = python_list_to_signal(str_data, false);
+    bool get_size = false;
+    Signal image = python_list_to_signal(str_data, get_size);
 
     if(loaded_img_size == -1){
-        loaded_img_size = image->size1();
+        loaded_img_size = image.shape1;
     }
 
     if(desired_img_size < loaded_img_size){
-        image = do_down_sample(move(image), desired_img_size);
+        image = do_down_sample(image, desired_img_size);
     }else if(desired_img_size > loaded_img_size){
         throw runtime_error("SpaunStimulus: loaded images too small.");
     }
@@ -178,16 +179,17 @@ unique_ptr<BaseSignal> ImageStore::get_image_with_label(
     return image;
 }
 
-unique_ptr<BaseSignal> do_down_sample(unique_ptr<BaseSignal> image, int new_size){
-    auto new_image = unique_ptr<BaseSignal>(new BaseSignal(new_size, 1));
+Signal do_down_sample(Signal image, unsigned new_size){
+    dtype init_value = 0.0;
+    Signal new_image(new_size, init_value);
 
     // For now, just randomly choose the pixels for the new image from the old image
     srand (time(NULL));
 
-    vector<int> chosen_indices;
+    vector<unsigned> chosen_indices;
 
     while(chosen_indices.size() < new_size){
-        int index = rand() % image->size1();
+        unsigned index = rand() % image.shape1;
 
         auto iter = find(chosen_indices.begin(), chosen_indices.end(), index);
         if(iter == chosen_indices.end()){
@@ -197,18 +199,17 @@ unique_ptr<BaseSignal> do_down_sample(unique_ptr<BaseSignal> image, int new_size
 
     sort(chosen_indices.begin(), chosen_indices.end());
 
-    int new_index = 0;
-
+    unsigned new_index = 0;
     for(auto index : chosen_indices){
-        (*new_image)(new_index, 0) = (*image)(index, 0);
+        new_image(new_index) = image(index);
         new_index++;
     }
 
     return new_image;
 }
 
-void print_image(BaseSignal* image){
-    int s = (int) sqrt(image->size1());
+void print_image(Signal image){
+    int s = (int) sqrt(image.shape1);
     cout << "Using image dimension: " << s << endl;
     for(int i = 0; i < s; i++){
         for(int j = 0; j < s; j++){
@@ -216,7 +217,7 @@ void print_image(BaseSignal* image){
                 cout << ", ";
             }
 
-            if((*image)(i * s + j, 0) > 0.0){
+            if(image(i * s + j) > 0.0){
                 cout << 1;
             }else{
                 cout << 0;

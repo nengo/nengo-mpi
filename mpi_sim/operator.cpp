@@ -1,15 +1,13 @@
 #include "operator.hpp"
 
 // ********************************************************************************
-Reset::Reset(SignalView dst, dtype value)
+Reset::Reset(Signal dst, dtype value)
 :dst(dst), value(value){
 
-    dummy = ScalarSignal(dst.size1(), dst.size2(), value);
 }
 
 void Reset::operator() (){
-
-    dst = dummy;
+    dst.fill_with(value);
 
     run_dbg(*this);
 }
@@ -20,19 +18,19 @@ string Reset::to_string() const {
     out << Operator::to_string();
     out << "dst:" << endl;
     out << signal_to_string(dst) << endl;
+    out << "value: " << value << endl;
 
     return out.str();
 }
 
 // ********************************************************************************
-Copy::Copy(SignalView dst, SignalView src)
+Copy::Copy(Signal dst, Signal src)
 :dst(dst), src(src){
 
 }
 
 void Copy::operator() (){
-
-    dst = src;
+    dst.fill_with(src);
 
     run_dbg(*this);
 }
@@ -51,17 +49,14 @@ string Copy::to_string() const  {
 
 // ********************************************************************************
 SlicedCopy::SlicedCopy(
-    SignalView B, SignalView A, bool inc,
+    Signal B, Signal A, bool inc,
     int start_A, int stop_A, int step_A,
     int start_B, int stop_B, int step_B,
     vector<int> seq_A, vector<int> seq_B)
-:B(B), A(A), inc(inc),
+:B(B), A(A), length_A(A.shape1), length_B(B.shape1), inc(inc),
 start_A(start_A), stop_A(stop_A), step_A(step_A),
 start_B(start_B), stop_B(stop_B), step_B(step_B),
 seq_A(seq_A), seq_B(seq_B){
-
-    length_A = A.size1();
-    length_B = B.size1();
 
     if(seq_A.size() > 0 && (start_A != 0 || stop_A != 0 || step_A != 0)){
         throw runtime_error(
@@ -75,23 +70,23 @@ seq_A(seq_A), seq_B(seq_B){
             "but one of start/step/stop was non-zero.");
     }
 
-    int n_assignments_A = 0;
+    unsigned n_assignments_A = 0;
     if(seq_A.size() > 0){
         n_assignments_A = seq_A.size();
     }else{
         if(step_A > 0 || step_A < 0){
-            n_assignments_A = int(ceil(max((stop_A - start_A) / float(step_A), 0.0f)));
+            n_assignments_A = unsigned(ceil(max((stop_A - start_A) / float(step_A), 0.0f)));
         }else{
             throw runtime_error("While creating SlicedCopy, step_A equal to 0.");
         }
     }
 
-    int n_assignments_B = 0;
+    unsigned n_assignments_B = 0;
     if(seq_B.size() > 0){
         n_assignments_B = seq_B.size();
     }else{
         if(step_B > 0 || step_B < 0){
-            n_assignments_B = int(ceil(max((stop_B - start_B) / float(step_B), 0.0f)));
+            n_assignments_B = unsigned(ceil(max((stop_B - start_B) / float(step_B), 0.0f)));
         }else{
             throw runtime_error("While creating SlicedCopy, step_B equal to 0.");
         }
@@ -109,58 +104,72 @@ seq_A(seq_A), seq_B(seq_B){
 }
 
 void SlicedCopy::operator() (){
+    unsigned idx_A, idx_B;
     if(seq_A.size() > 0 && seq_B.size() > 0){
         if(inc){
-            for(int i = 0; i < n_assignments; i++){
-                B(seq_B[i] % length_B, 0) += A(seq_A[i] % length_A, 0);
+            for(unsigned i = 0; i < n_assignments; i++){
+                idx_A = seq_A[i] % length_A;
+                idx_B = seq_B[i] % length_B;
+
+                B(idx_B) += A(idx_A);
             }
         }else{
-            for(int i = 0; i < n_assignments; i++){
-                B(seq_B[i] % length_B, 0) = A(seq_A[i] % length_A, 0);
+            for(unsigned i = 0; i < n_assignments; i++){
+                idx_A = seq_A[i] % length_A;
+                idx_B = seq_B[i] % length_B;
+
+                B(idx_B) = A(idx_A);
             }
         }
 
     }else if(seq_A.size() > 0){
-        int index_B = start_B;
         if(inc){
-            for(int i = 0; i < n_assignments; i++){
-                B(index_B % length_B, 0) += A(seq_A[i] % length_A, 0);
-                index_B += step_B;
+            for(unsigned i = 0; i < n_assignments; i++){
+                idx_A = seq_A[i] % length_A;
+                idx_B = (start_B + i * step_B) % length_B;
+
+                B(idx_B) += A(idx_A);
             }
         }else{
-            for(int i = 0; i < n_assignments; i++){
-                B(index_B % length_B, 0) = A(seq_A[i] % length_A, 0);
-                index_B += step_B;
+            for(unsigned i = 0; i < n_assignments; i++){
+                idx_A = seq_A[i] % length_A;
+                idx_B = (start_B + i * step_B) % length_B;
+
+                B(idx_B) = A(idx_A);
             }
         }
 
     }else if(seq_B.size() > 0){
-        int index_A = start_A;
         if(inc){
-            for(int i = 0; i < n_assignments; i++){
-                B(seq_B[i] % length_B, 0) += A(index_A % length_A, 0);
-                index_A += step_A;
+            for(unsigned i = 0; i < n_assignments; i++){
+                idx_A = (start_A + i * step_A) % length_A;
+                idx_B = seq_B[i] % length_B;
+
+                B(idx_B) += A(idx_A);
             }
         }else{
-            for(int i = 0; i < n_assignments; i++){
-                B(seq_B[i] % length_B, 0) = A(index_A % length_A, 0);
-                index_A += step_A;
+            for(unsigned i = 0; i < n_assignments; i++){
+                idx_A = (start_A + i * step_A) % length_A;
+                idx_B = seq_B[i] % length_B;
+
+                B(idx_B) = A(idx_A);
             }
         }
 
     }else{
-        int index_A = start_A, index_B = start_B;
         if(inc){
-            for(int i = 0; i < n_assignments; i++){
-                B(index_B % length_B, 0) += A(index_A % length_A, 0);
-                index_A += step_A;
-                index_B += step_B;
+            for(unsigned i = 0; i < n_assignments; i++){
+                idx_A = (start_A + i * step_A) % length_A;
+                idx_B = (start_B + i * step_B) % length_B;
+
+                B(idx_B) += A(idx_A);
             }
         }else{
-            for(int i = 0; i < n_assignments; i++){
-                B(index_B % length_B, 0) = A(index_A % length_A, 0);
-                index_A += step_A;
-                index_B += step_B;
+            for(unsigned i = 0; i < n_assignments; i++){
+                idx_A = (start_A + i * step_A) % length_A;
+                idx_B = (start_B + i * step_B) % length_B;
+
+                B(idx_B) = A(idx_A);
             }
         }
 
@@ -204,14 +213,13 @@ string SlicedCopy::to_string() const{
 }
 
 // ********************************************************************************
-DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
-:A(A), X(X), Y(Y){
-    if(A.size2() != X.size1()){
-        // Scalar multiplication
-        scalar = true;
+DotInc::DotInc(Signal A, Signal X, Signal Y)
+:scalar(A.shape2 != X.shape1), matrix_vector(X.shape2 == 1), A(A), X(X), Y(Y){
 
+    if(scalar){
+        // Scalar multiplication
         bool bad_shapes =
-            A.size1() != 1 || A.size2() != 1 || X.size1() != Y.size1() || X.size2() != Y.size2();
+            A.shape1 != 1 || A.shape2 != 1 || X.shape1 != Y.shape1 || X.shape2 != Y.shape2;
 
         if(bad_shapes){
             stringstream ss;
@@ -224,10 +232,9 @@ DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
         }
 
     }else{
-        // Full matrix multiplication
-        scalar = false;
-
-        bool bad_shapes = A.size1() != Y.size1() || X.size2() != Y.size2();
+        // MM or MV multiplication
+        bool bad_shapes =
+            A.shape1 != Y.shape1 || X.shape2 != Y.shape2 || A.shape2 != X.shape1;
 
         if(bad_shapes){
             stringstream ss;
@@ -238,21 +245,68 @@ DotInc::DotInc(SignalView A, SignalView X, SignalView Y)
 
             throw runtime_error(ss.str());
         }
+
+        if(matrix_vector){
+            m = A.row_major ? A.shape1 : A.shape2;
+            n = A.row_major ? A.shape2 : A.shape1;
+        }else{
+            m = Y.shape1;
+            n = Y.shape2;
+            k = A.shape2;
+        }
+
+        // TODO: the requirement that A and X be contiguous can be slightly weakened.
+        // All we really need is that it is stored contiguously along the major dimension.
+        if(!A.is_contiguous){
+            stringstream ss;
+            ss << "While creating DotInc, got signal A that is not contiguous. "
+               << "A: " << A << endl;
+
+            throw runtime_error(ss.str());
+        }
+        transpose_A = A.row_major ? CblasNoTrans : CblasTrans;
+        leading_dim_A = A.row_major ? A.stride1 : A.stride2;
+
+        if(!X.is_contiguous){
+            stringstream ss;
+            ss << "While creating DotInc, got signal X that is not contiguous. "
+               << "X: " << X << endl;
+
+            throw runtime_error(ss.str());
+        }
+        transpose_X = X.row_major ? CblasNoTrans : CblasTrans;
+        leading_dim_X = X.row_major ? X.stride1 : X.stride2;
+
+        if(!Y.row_major){
+            stringstream ss;
+            ss << "While creating DotInc, got signal Y that is not in row-major order. "
+               << "Y: " << Y << endl;
+            throw runtime_error(ss.str());
+        }
+        leading_dim_Y = Y.stride1;
     }
 }
 
 void DotInc::operator() (){
     if(scalar){
-        dtype a = A(0, 0);
+        dtype a = A(0);
 
-        for(int i = 0; i < X.size1(); i++){
-            for(int j = 0; j < X.size2(); j++){
+        for(unsigned i = 0; i < X.shape1; i++){
+            for(unsigned j = 0; j < X.shape2; j++){
                 Y(i, j) += a * X(i, j);
             }
         }
 
+    }else if(X.shape2 == 1){
+        cblas_dgemv(
+            CblasRowMajor, transpose_A, m, n, 1.0,
+            A.raw_data, leading_dim_A, X.raw_data, X.stride1,
+            1.0, Y.raw_data, Y.stride1);
     }else{
-        axpy_prod(A, X, Y, false);
+        cblas_dgemm(
+            CblasRowMajor, transpose_A, transpose_X, m, n, k,
+            1.0, A.raw_data, leading_dim_A, X.raw_data, leading_dim_X,
+            1.0, Y.raw_data, leading_dim_Y);
     }
 
     run_dbg(*this);
@@ -275,48 +329,48 @@ string DotInc::to_string() const{
 }
 
 // ********************************************************************************
-ElementwiseInc::ElementwiseInc(SignalView A, SignalView X, SignalView Y)
-:A(A), X(X), Y(Y){
+ElementwiseInc::ElementwiseInc(Signal A, Signal X, Signal Y)
+:A(A), X(X), Y(Y),
+A_row_stride(A.shape1 > 1 ? 1 : 0), A_col_stride(A.shape2 > 1 ? 1 : 0),
+X_row_stride(X.shape1 > 1 ? 1 : 0), X_col_stride(X.shape2 > 1 ? 1 : 0){
 
-    if(A.size1() != Y.size1() || A.size2() != Y.size2() ||
-       X.size1() != Y.size1() || X.size2() != Y.size2()){
-        broadcast = true;
-        A_row_stride = A.size1() > 1 ? 1 : 0;
-        A_col_stride = A.size2() > 1 ? 1 : 0;
+    if(A.shape1 != Y.shape1 && A.shape1 != 1){
+        throw runtime_error(
+            "While creating ElementwiseInc, A and Y had incompatible dimensions.");
+    }
 
-        X_row_stride = X.size1() > 1 ? 1 : 0;
-        X_col_stride = X.size2() > 1 ? 1 : 0;
-    }else{
-        broadcast = false;
-        A_row_stride = 1;
-        A_col_stride = 1;
+    if(A.shape2 != Y.shape2 && A.shape2 != 1){
+        throw runtime_error(
+            "While creating ElementwiseInc, A and Y had incompatible dimensions.");
+    }
 
-        X_row_stride = 1;
-        X_col_stride = 1;
+    if(X.shape1 != Y.shape1 && X.shape1 != 1){
+        throw runtime_error(
+            "While creating ElementwiseInc, X and Y had incompatible dimensions.");
+    }
 
+    if(X.shape2 != Y.shape2 && X.shape2 != 1){
+        throw runtime_error(
+            "While creating ElementwiseInc, X and Y had incompatible dimensions.");
     }
 }
 
 void ElementwiseInc::operator() (){
-    if(broadcast){
-        int A_i = 0, A_j = 0, X_i = 0, X_j = 0;
+    unsigned A_i = 0, A_j = 0, X_i = 0, X_j = 0;
 
-        for(int Y_i = 0; Y_i < Y.size1(); Y_i++){
-            A_j = 0;
-            X_j = 0;
+    for(unsigned Y_i = 0; Y_i < Y.shape1; Y_i++){
+        A_j = 0;
+        X_j = 0;
 
-            for(int Y_j = 0;Y_j < Y.size2(); Y_j++){
-                Y(Y_i, Y_j) += A(A_i, A_j) * X(X_i, X_j);
-                A_j += A_col_stride;
-                X_j += X_col_stride;
-            }
+        for(unsigned Y_j = 0; Y_j < Y.shape2; Y_j++){
+            Y(Y_i, Y_j) += A(A_i, A_j) * X(X_i, X_j);
 
-            A_i += A_row_stride;
-            X_i += X_row_stride;
+            A_j += A_col_stride;
+            X_j += X_col_stride;
         }
 
-    }else{
-        Y += element_prod(A, X);
+        A_i += A_row_stride;
+        X_i += X_row_stride;
     }
 
     run_dbg(*this);
@@ -333,7 +387,6 @@ string ElementwiseInc::to_string() const{
     out << "Y:" << endl;
     out << signal_to_string(Y) << endl;
 
-    out << "Broadcast: " << broadcast << endl;
     out << "A_row_stride: " << A_row_stride << endl;
     out << "A_col_stride: " << A_col_stride << endl;
 
@@ -345,13 +398,24 @@ string ElementwiseInc::to_string() const{
 
 // ********************************************************************************
 NoDenSynapse::NoDenSynapse(
-    SignalView input, SignalView output, dtype b)
+    Signal input, Signal output, dtype b)
 :input(input), output(output), b(b){
+    if(input.shape2 > 1 || output.shape2 > 1){
+        throw runtime_error(
+            "While creating NoDenSynapse, expected vectors but received matrices.");
+    }
 
+    if(input.shape1 != output.shape1){
+        throw runtime_error(
+            "While creating NoDenSynapse, input and output had incompatible dimensions.");
+    }
 }
 
 void NoDenSynapse::operator() (){
-    output = b * input;
+    cblas_dscal(output.shape1, 0.0, output.raw_data, output.stride1);
+    cblas_daxpy(
+        output.shape1, b, input.raw_data, input.stride1,
+        output.raw_data, output.stride1);
 
     run_dbg(*this);
 }
@@ -371,14 +435,30 @@ string NoDenSynapse::to_string() const{
 
 // ********************************************************************************
 SimpleSynapse::SimpleSynapse(
-    SignalView input, SignalView output, dtype a, dtype b)
+    Signal input, Signal output, dtype a, dtype b)
 :input(input), output(output), a(a), b(b){
+    if(input.shape2 > 1 || output.shape2 > 1){
+        stringstream ss;
+        ss << "While creating SimpleSynapse, expected vectors but received matrices." << endl;
+        ss << input << endl;
+        ss << output << endl;
 
+        throw runtime_error(ss.str());
+        // throw runtime_error(
+        //     "While creating SimpleSynapse, expected vectors but received matrices.");
+    }
+
+    if(input.shape1 != output.shape1){
+        throw runtime_error(
+            "While creating SimpleSynapse, input and output had incompatible dimensions.");
+    }
 }
 
 void SimpleSynapse::operator() (){
-    output *= -a;
-    output += b * input;
+    cblas_dscal(output.shape1, -a, output.raw_data, output.stride1);
+    cblas_daxpy(
+        output.shape1, b, input.raw_data, input.stride1,
+        output.raw_data, output.stride1);
 
     run_dbg(*this);
 }
@@ -399,31 +479,40 @@ string SimpleSynapse::to_string() const{
 
 // ********************************************************************************
 Synapse::Synapse(
-    SignalView input, SignalView output, BaseSignal numer, BaseSignal denom)
+    Signal input, Signal output, Signal numer, Signal denom)
 :input(input), output(output), numer(numer), denom(denom){
+    if(input.shape2 > 1 || output.shape2 > 1 || numer.shape2 > 1 || denom.shape2 > 1){
+        throw runtime_error(
+            "While creating Synapse, expected vectors but received matrices.");
+    }
 
-    for(int i = 0; i < input.size1(); i++){
-        x.push_back(boost::circular_buffer<dtype>(numer.size1()));
-        y.push_back(boost::circular_buffer<dtype>(denom.size1()));
+    if(input.shape1 != output.shape1){
+        throw runtime_error(
+            "While creating Synapse, input and output had incompatible dimensions.");
+    }
+
+    for(unsigned i = 0; i < input.shape1; i++){
+        x.push_back(boost::circular_buffer<dtype>(numer.shape1));
+        y.push_back(boost::circular_buffer<dtype>(denom.shape1));
     }
 }
 
 void Synapse::operator() (){
-    for(int i = 0; i < input.size1(); i++){
+    for(unsigned i = 0; i < input.shape1; i++){
 
-        x[i].push_front(input(i, 0));
+        x[i].push_front(input(i));
 
-        output(i, 0) = 0.0;
+        output(i) = 0.0;
 
-        for(int j = 0; j < x[i].size(); j++){
-            output(i, 0) += numer(j, 0) * x[i][j];
+        for(unsigned j = 0; j < x[i].size(); j++){
+            output(i) += numer(j) * x[i][j];
         }
 
-        for(int j = 0; j < y[i].size(); j++){
-            output(i, 0) -= denom(j, 0) * y[i][j];
+        for(unsigned j = 0; j < y[i].size(); j++){
+            output(i) -= denom(j) * y[i][j];
         }
 
-        y[i].push_front(output(i, 0));
+        y[i].push_front(output(i));
     }
 
     run_dbg(*this);
@@ -444,17 +533,17 @@ string Synapse::to_string() const{
 
     /*
     out << "x & y:" << endl;
-    for(int i = 0; i < input.size(); i++){
+    for(unsigned i = 0; i < input.size(); i++){
         out << "i: " << i << endl;
 
         out << "x.size " << x[i].size() << endl;
-        for(int j = 0; j < x[i].size(); j++){
+        for(unsigned j = 0; j < x[i].size(); j++){
             out << "x[ "<< j << "] = "<< x[i][j] << ", ";
         }
         out << endl;
 
         out << "y.size " << y[i].size() << endl;
-        for(int j = 0; j < y[i].size(); j++){
+        for(unsigned j = 0; j < y[i].size(); j++){
             out << "y[ "<< j << "] = "<< y[i][j] << ", ";
         }
         out << endl;
@@ -465,12 +554,12 @@ string Synapse::to_string() const{
 }
 
 void Synapse::reset(unsigned seed){
-    for(int i = 0; i < input.size1(); i++){
-        for(int j = 0; j < x[i].size(); j++){
+    for(unsigned i = 0; i < input.shape1; i++){
+        for(unsigned j = 0; j < x[i].size(); j++){
             x[i][j] = 0.0;
         }
 
-        for(int j = 0; j < y[i].size(); j++){
+        for(unsigned j = 0; j < y[i].size(); j++){
             y[i][j] = 0.0;
         }
     }
@@ -478,23 +567,32 @@ void Synapse::reset(unsigned seed){
 
 // ********************************************************************************
 TriangleSynapse::TriangleSynapse(
-    SignalView input, SignalView output, dtype n0, dtype ndiff, int n_taps)
+    Signal input, Signal output, dtype n0, dtype ndiff, unsigned n_taps)
 :input(input), output(output), n0(n0), ndiff(ndiff), n_taps(n_taps){
+    if(input.shape2 > 1 || output.shape2 > 1){
+        throw runtime_error(
+            "While creating TriangleSynapse, expected vectors but received matrices.");
+    }
 
-    for(int i = 0; i < input.size1(); i++){
+    if(input.shape1 != output.shape1){
+        throw runtime_error(
+            "While creating TriangleSynapse, input and output had incompatible dimensions.");
+    }
+
+    for(unsigned i = 0; i < input.shape1; i++){
         x.push_back(boost::circular_buffer<dtype>(n_taps));
     }
 }
 
 void TriangleSynapse::operator() (){
-    for(int i = 0; i < input.size1(); i++){
-        output(i, 0) += n0 * input(i, 0);
+    for(unsigned i = 0; i < input.shape1; i++){
+        output(i) += n0 * input(i);
 
-        for(int j = 0; j < x[i].size(); j++){
-            output(i, 0) -= x[i][j];
+        for(unsigned j = 0; j < x[i].size(); j++){
+            output(i) -= x[i][j];
         }
 
-        x[i].push_front(ndiff * input(i, 0));
+        x[i].push_front(ndiff * input(i));
     }
 
     run_dbg(*this);
@@ -514,11 +612,11 @@ string TriangleSynapse::to_string() const{
 
     /*
     out << "x :" << endl;
-    for(int i = 0; i < input.size(); i++){
+    for(unsigned i = 0; i < input.size(); i++){
         out << "i: " << i << endl;
 
         out << "x.size " << x[i].size() << endl;
-        for(int j = 0; j < x[i].size(); j++){
+        for(unsigned j = 0; j < x[i].size(); j++){
             out << "x[ "<< j << "] = "<< x[i][j] << ", ";
         }
         out << endl;
@@ -529,8 +627,8 @@ string TriangleSynapse::to_string() const{
 }
 
 void TriangleSynapse::reset(unsigned seed){
-    for(int i = 0; i < input.size1(); i++){
-        for(int j = 0; j < x[i].size(); j++){
+    for(unsigned i = 0; i < input.shape1; i++){
+        for(unsigned j = 0; j < x[i].size(); j++){
             x[i][j] = 0.0;
         }
     }
@@ -538,20 +636,20 @@ void TriangleSynapse::reset(unsigned seed){
 
 // ********************************************************************************
 WhiteNoise::WhiteNoise(
-    SignalView output, dtype mean, dtype std, bool do_scale, bool inc, dtype dt)
-:output(output), mean(mean), std(std), dist(mean, std), do_scale(do_scale), inc(inc), dt(dt){
+    Signal output, dtype mean, dtype std, bool do_scale, bool inc, dtype dt)
+:output(output), mean(mean), std(std), dist(mean, std),
+alpha(do_scale ? 1.0 / dt : 1.0), do_scale(do_scale), inc(inc), dt(dt){
 
-    alpha = do_scale ? 1.0 / dt : 1.0;
 }
 
 void WhiteNoise::operator() (){
     if(inc){
-        for(int i = 0; i < output.size1(); i++){
-            output(i, 0) += alpha * dist(rng);
+        for(unsigned i = 0; i < output.shape1; i++){
+            output(i) += alpha * dist(rng);
         }
     }else{
-        for(int i = 0; i < output.size1(); i++){
-            output(i, 0) = alpha * dist(rng);
+        for(unsigned i = 0; i < output.shape1; i++){
+            output(i) = alpha * dist(rng);
         }
     }
 
@@ -578,14 +676,14 @@ void WhiteNoise::reset(unsigned seed){
 }
 
 // ********************************************************************************
-WhiteSignal::WhiteSignal(SignalView output, BaseSignal coefs)
+WhiteSignal::WhiteSignal(Signal output, Signal coefs)
 :output(output), coefs(coefs), idx(0){
 
 }
 
 void WhiteSignal::operator() (){
-    for(int i = 0; i < output.size1(); i++){
-        output(i, 0) = coefs(idx % coefs.size1(), i);
+    for(unsigned i = 0; i < output.shape1; i++){
+        output(i) = coefs(idx % coefs.shape1, i);
     }
 
     idx++;
@@ -612,51 +710,66 @@ void WhiteSignal::reset(unsigned seed){
 
 // ********************************************************************************
 LIF::LIF(
-    int n_neurons, dtype tau_rc, dtype tau_ref, dtype min_voltage,
-    dtype dt, SignalView J, SignalView output, SignalView voltage,
-    SignalView ref_time)
-:n_neurons(n_neurons), dt(dt), tau_rc(tau_rc), tau_ref(tau_ref),
-min_voltage(min_voltage), dt_inv(1.0 / dt), J(J), output(output),
-voltage(voltage), ref_time(ref_time){
+    unsigned n_neurons, dtype tau_rc, dtype tau_ref, dtype min_voltage,
+    dtype dt, Signal J, Signal output, Signal voltage,
+    Signal ref_time)
+:n_neurons(n_neurons), dt(dt), dt_inv(1.0 / dt), tau_rc(tau_rc), tau_ref(tau_ref),
+min_voltage(min_voltage), J(J), output(output), voltage(voltage), ref_time(ref_time),
+one(n_neurons, (dtype) 1.0), mult(n_neurons), dV(n_neurons){
 
-    one = ScalarSignal(n_neurons, 1, 1.0);
-    dt_vec = ScalarSignal(n_neurons, 1, dt);
 }
 
 void LIF::operator() (){
-    dV = -expm1(-dt / tau_rc) * (J - voltage);
-    voltage += dV;
+    // dV = -expm1(-dt / tau_rc) * (J - voltage)
+    cblas_dcopy(n_neurons, J.raw_data, J.stride1, dV.raw_data, dV.stride1);
+    cblas_daxpy(n_neurons, -1.0, voltage.raw_data, voltage.stride1, dV.raw_data, dV.stride1);
+    dtype scale = -expm1(-dt / tau_rc);
+    cblas_dscal(n_neurons, scale, dV.raw_data, dV.stride1);
+
+    // voltage += dV
+    cblas_daxpy(n_neurons, 1.0, dV.raw_data, dV.stride1, voltage.raw_data, voltage.stride1);
+
+    // voltage = max(voltage, 0)
+    dtype v;
     for(unsigned i = 0; i < n_neurons; ++i){
-        voltage(i, 0) = voltage(i, 0) < min_voltage ? min_voltage : voltage(i, 0);
+        v = voltage(i);
+        voltage(i) = v < min_voltage ? min_voltage : v;
     }
 
-    ref_time -= dt_vec;
+    // ref_time -= dt_vec
+    cblas_daxpy(n_neurons, -dt, one.raw_data, one.stride1,
+                ref_time.raw_data, ref_time.stride1);
 
-    mult = ref_time;
-    mult *= -dt_inv;
-    mult += one;
+    // mult = -dt_inv * ref_time + 1
+    cblas_dcopy(n_neurons, ref_time.raw_data, ref_time.stride1, mult.raw_data, mult.stride1);
+    cblas_dscal(n_neurons, -dt_inv, mult.raw_data, mult.stride1);
+    cblas_daxpy(n_neurons, 1.0, one.raw_data, one.stride1, mult.raw_data, mult.stride1);
 
+    // mult = mult.clip(0, 1)
+    dtype m;
     for(unsigned i = 0; i < n_neurons; ++i){
-        mult(i, 0) = mult(i, 0) > 1 ? 1.0 : mult(i, 0);
-        mult(i, 0) = mult(i, 0) < 0 ? 0.0 : mult(i, 0);
+        m = mult(i);
+        mult(i) = m > 1.0 ? 1.0 : (m < 0.0 ? 0.0 : m);
     }
 
     dtype overshoot;
     for(unsigned i = 0; i < n_neurons; ++i){
-        voltage(i, 0) *= mult(i, 0);
-        if(voltage(i, 0) > 1.0){
-            output(i, 0) = dt_inv;
-            overshoot = (voltage(i, 0) - 1.0) / dV(i, 0);
-            ref_time(i, 0) = tau_ref + dt * (1.0 - overshoot);
-            voltage(i, 0) = 0.0;
+        voltage(i) *= mult(i);
+        v = voltage(i);
+        if(v > 1.0){
+            output(i) = dt_inv;
+            overshoot = (v - 1.0) / dV(i);
+            ref_time(i) = tau_ref + dt * (1.0 - overshoot);
+            voltage(i) = 0.0;
         }
         else
         {
-            output(i, 0) = 0.0;
+            output(i) = 0.0;
         }
     }
 
     run_dbg(*this);
+
 }
 
 string LIF::to_string() const{
@@ -682,17 +795,18 @@ string LIF::to_string() const{
 
 // ********************************************************************************
 LIFRate::LIFRate(
-    int n_neurons, dtype tau_rc, dtype tau_ref, SignalView J, SignalView output)
+    unsigned n_neurons, dtype tau_rc, dtype tau_ref, Signal J, Signal output)
 :n_neurons(n_neurons), tau_rc(tau_rc), tau_ref(tau_ref), J(J), output(output){
 
 }
 
 void LIFRate::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
-        if(J(i, 0) > 1.0){
-            output(i, 0) = 1.0 / (tau_ref + tau_rc * log1p(1.0 / (J(i, 0) - 1.0)));
+        dtype j = J(i);
+        if(j > 1.0){
+             output(i) = 1.0 / (tau_ref + tau_rc * log1p(1.0 / (j - 1.0)));
         }else{
-            output(i, 0) = 0.0;
+            output(i) = 0.0;
         }
     }
 
@@ -716,21 +830,34 @@ string LIFRate::to_string() const{
 
 // ********************************************************************************
 AdaptiveLIF::AdaptiveLIF(
-    int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
-    dtype min_voltage, dtype dt, SignalView J, SignalView output, SignalView voltage,
-    SignalView ref_time, SignalView adaptation)
+    unsigned n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref,
+    dtype min_voltage, dtype dt, Signal J, Signal output, Signal voltage,
+    Signal ref_time, Signal adaptation)
 :LIF(n_neurons, tau_rc, tau_ref, min_voltage, dt, J, output, voltage, ref_time),
-tau_n(tau_n), inc_n(inc_n), adaptation(adaptation){
+tau_n(tau_n), inc_n(inc_n), adaptation(adaptation), temp_J(n_neurons), dAdapt(n_neurons){
 
 }
 
 void AdaptiveLIF::operator() (){
-    temp = J;
-    J -= adaptation;
-    LIF::operator()();
-    J = temp;
+    // temp_J = J
+    cblas_dcopy(n_neurons, J.raw_data, J.stride1, temp_J.raw_data, temp_J.stride1);
 
-    adaptation += (dt / tau_n) * (inc_n * output - adaptation);
+    // J -= adaptation
+    cblas_daxpy(n_neurons, -1.0, adaptation.raw_data, adaptation.stride1,
+                J.raw_data, J.stride1);
+
+    LIF::operator()();
+
+    // J = temp_J
+    cblas_dcopy(n_neurons, temp_J.raw_data, temp_J.stride1, J.raw_data, J.stride1);
+
+    // adaptation += (dt / tau_n) * (inc_n * output - adaptation);
+    cblas_dcopy(n_neurons, output.raw_data, output.stride1, dAdapt.raw_data, dAdapt.stride1);
+    cblas_dscal(n_neurons, inc_n, dAdapt.raw_data, dAdapt.stride1);
+    cblas_daxpy(n_neurons, -1.0, adaptation.raw_data, adaptation.stride1,
+                dAdapt.raw_data, dAdapt.stride1);
+    cblas_daxpy(n_neurons, dt/tau_n, dAdapt.raw_data, dAdapt.stride1,
+                adaptation.raw_data, adaptation.stride1);
 
     run_dbg(*this);
 }
@@ -749,20 +876,34 @@ string AdaptiveLIF::to_string() const{
 
 // ********************************************************************************
 AdaptiveLIFRate::AdaptiveLIFRate(
-    int n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref, dtype dt,
-    SignalView J, SignalView output, SignalView adaptation)
+    unsigned n_neurons, dtype tau_n, dtype inc_n, dtype tau_rc, dtype tau_ref, dtype dt,
+    Signal J, Signal output, Signal adaptation)
 :LIFRate(n_neurons, tau_rc, tau_ref, J, output),
-tau_n(tau_n), inc_n(inc_n), dt(dt), adaptation(adaptation){
+tau_n(tau_n), inc_n(inc_n), dt(dt), adaptation(adaptation),
+temp_J(n_neurons), dAdapt(n_neurons){
 
 }
 
 void AdaptiveLIFRate::operator() (){
-    temp = J;
-    J -= adaptation;
-    LIFRate::operator()();
-    J = temp;
+    // temp_J = J
+    cblas_dcopy(n_neurons, J.raw_data, J.stride1, temp_J.raw_data, temp_J.stride1);
 
-    adaptation += (dt / tau_n) * (inc_n * output - adaptation);
+    // J -= adaptation
+    cblas_daxpy(n_neurons, -1.0, adaptation.raw_data, adaptation.stride1,
+                J.raw_data, J.stride1);
+
+    LIFRate::operator()();
+
+    // J = temp_J
+    cblas_dcopy(n_neurons, temp_J.raw_data, temp_J.stride1, J.raw_data, J.stride1);
+
+    // adaptation += (dt / tau_n) * (inc_n * output - adaptation);
+    cblas_dcopy(n_neurons, output.raw_data, output.stride1, dAdapt.raw_data, dAdapt.stride1);
+    cblas_dscal(n_neurons, inc_n, dAdapt.raw_data, dAdapt.stride1);
+    cblas_daxpy(n_neurons, -1.0, adaptation.raw_data, adaptation.stride1,
+                dAdapt.raw_data, dAdapt.stride1);
+    cblas_daxpy(n_neurons, dt/tau_n, dAdapt.raw_data, dAdapt.stride1,
+                adaptation.raw_data, adaptation.stride1);
 
     run_dbg(*this);
 }
@@ -781,7 +922,7 @@ string AdaptiveLIFRate::to_string() const{
 }
 
 // ********************************************************************************
-RectifiedLinear::RectifiedLinear(int n_neurons, SignalView J, SignalView output)
+RectifiedLinear::RectifiedLinear(unsigned n_neurons, Signal J, Signal output)
 :n_neurons(n_neurons), J(J), output(output){
 
 }
@@ -789,8 +930,8 @@ RectifiedLinear::RectifiedLinear(int n_neurons, SignalView J, SignalView output)
 void RectifiedLinear::operator() (){
     dtype j = 0;
     for(unsigned i = 0; i < n_neurons; ++i){
-        j = J(i, 0);
-        output(i, 0) = j > 0.0 ? j : 0.0;
+        j = J(i);
+        output(i) = j > 0.0 ? j : 0.0;
     }
 
     run_dbg(*this);
@@ -810,14 +951,14 @@ string RectifiedLinear::to_string() const{
 }
 
 // ********************************************************************************
-Sigmoid::Sigmoid(int n_neurons, dtype tau_ref, SignalView J, SignalView output)
+Sigmoid::Sigmoid(unsigned n_neurons, dtype tau_ref, Signal J, Signal output)
 :n_neurons(n_neurons), tau_ref(tau_ref), tau_ref_inv(1.0 / tau_ref), J(J), output(output){
 
 }
 
 void Sigmoid::operator() (){
     for(unsigned i = 0; i < n_neurons; ++i){
-        output(i, 0) = tau_ref_inv / (1.0 + exp(-J(i, 0)));
+        output(i) = tau_ref_inv / (1.0 + exp(-J(i)));
     }
 
     run_dbg(*this);
@@ -838,86 +979,24 @@ string Sigmoid::to_string() const{
 }
 
 // ********************************************************************************
-Izhikevich::Izhikevich(
-    int n_neurons, dtype tau_recovery, dtype coupling, dtype reset_voltage,
-    dtype reset_recovery, dtype dt, SignalView J, SignalView output,
-    SignalView voltage, SignalView recovery)
-:n_neurons(n_neurons), tau_recovery(tau_recovery), coupling(coupling),
-reset_voltage(reset_voltage), reset_recovery(reset_recovery), dt(dt), dt_inv(1.0/dt),
-J(J), output(output), voltage(voltage), recovery(recovery){
-
-    bias = ScalarSignal(n_neurons, 1, 140);
-}
-
-void Izhikevich::operator() (){
-    for(unsigned i = 0; i < n_neurons; ++i){
-        J(i, 0) = J(i, 0) > -30 ? J(i, 0) : -30;
-    }
-
-    voltage_squared = 0.04 * element_prod(voltage, voltage);
-
-    dV = 5 * voltage;
-    dV += voltage_squared + bias + J - recovery;
-    dV *= 1000 * dt;
-    voltage += dV;
-
-    for(unsigned i = 0; i < n_neurons; ++i){
-        if(voltage(i, 0) >= 30){
-            output(i, 0) = dt_inv;
-            voltage(i, 0) = reset_voltage;
-        }else{
-            output(i, 0) = 0.0;
-        }
-    }
-
-    dU = coupling * voltage;
-    dU -= recovery;
-    dU *= tau_recovery * 1000 * dt;
-    recovery += dU;
-
-    for(unsigned i = 0; i < n_neurons; ++i){
-        if(output(i, 0) > 0){
-            recovery(i, 0) += reset_recovery;
-        }
-    }
-
-    run_dbg(*this);
-}
-
-string Izhikevich::to_string() const{
-
-    stringstream out;
-    out << Operator::to_string();
-    out << "n_neurons: " << n_neurons << endl;
-    out << "tau_recovery: " << tau_recovery << endl;
-    out << "coupling: " << coupling << endl;
-    out << "reset_voltage: " << reset_voltage << endl;
-    out << "reset_recovery: " << reset_recovery << endl;
-    out << "dt: " << dt << endl;
-
-    out << "J:" << endl;
-    out << signal_to_string(J) << endl;
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
-    out << "voltage:" << endl;
-    out << signal_to_string(voltage) << endl;
-    out << "recovery:" << endl;
-    out << signal_to_string(recovery) << endl;
-
-    return out.str();
-}
-
-// ********************************************************************************
 BCM::BCM(
-    SignalView pre_filtered, SignalView post_filtered, SignalView theta,
-    SignalView delta, dtype learning_rate, dtype dt)
-:pre_filtered(pre_filtered), post_filtered(post_filtered), theta(theta), delta(delta),
-alpha(learning_rate * dt){}
+    Signal pre_filtered, Signal post_filtered, Signal theta,
+    Signal delta, dtype learning_rate, dtype dt)
+:alpha(learning_rate * dt), pre_filtered(pre_filtered), post_filtered(post_filtered),
+theta(theta), delta(delta), squared_pf(post_filtered.size){
+
+}
 
 void BCM::operator() (){
-    opb_prod(
-        alpha * element_prod(post_filtered, post_filtered - theta),
-        trans(pre_filtered), delta, true);
+    for(unsigned i = 0; i < post_filtered.shape1; i++){
+        squared_pf(i) = post_filtered(i) * (post_filtered(i) - theta(i));
+    }
+
+    delta.fill_with(0.0);
+
+    cblas_dger(
+        CblasRowMajor, delta.shape1, delta.shape2, alpha, squared_pf.raw_data, squared_pf.stride1,
+        pre_filtered.raw_data, pre_filtered.stride1, delta.raw_data, delta.stride1);
 
     run_dbg(*this);
 }
@@ -941,22 +1020,26 @@ string BCM::to_string() const{
 
 // ********************************************************************************
 Oja::Oja(
-    SignalView pre_filtered, SignalView post_filtered, SignalView weights,
-    SignalView delta, dtype learning_rate, dtype dt, dtype beta)
-:pre_filtered(pre_filtered), post_filtered(post_filtered), weights(weights), delta(delta),
-alpha(learning_rate * dt), beta(beta){}
+    Signal pre_filtered, Signal post_filtered, Signal weights,
+    Signal delta, dtype learning_rate, dtype dt, dtype beta)
+:alpha(learning_rate * dt), beta(beta), pre_filtered(pre_filtered),
+post_filtered(post_filtered), weights(weights), delta(delta){
+
+}
 
 void Oja::operator() (){
-    for(int i = 0; i < weights.size1(); i++){
-        dtype post_squared = post_filtered(i, 0);
+    for(unsigned i = 0; i < weights.shape1; i++){
+        dtype post_squared = post_filtered(i);
         post_squared *= alpha * post_squared;
 
-        for(int j = 0; j < weights.size2(); j++){
+        for(unsigned j = 0; j < weights.shape2; j++){
             delta(i, j) = -beta * weights(i, j) * post_squared;
         }
     }
 
-    opb_prod(alpha * post_filtered, trans(pre_filtered), delta, false);
+    cblas_dger(
+        CblasRowMajor, delta.shape1, delta.shape2, alpha, post_filtered.raw_data, post_filtered.stride1,
+        pre_filtered.raw_data, pre_filtered.stride1, delta.raw_data, delta.stride1);
 
     run_dbg(*this);
 }
@@ -981,25 +1064,25 @@ string Oja::to_string() const{
 
 // ********************************************************************************
 Voja::Voja(
-    SignalView pre_decoded, SignalView post_filtered, SignalView scaled_encoders,
-    SignalView delta, SignalView learning_signal, BaseSignal scale,
+    Signal pre_decoded, Signal post_filtered, Signal scaled_encoders,
+    Signal delta, Signal learning_signal, Signal scale,
     dtype learning_rate, dtype dt)
-:pre_decoded(pre_decoded), post_filtered(post_filtered), scaled_encoders(scaled_encoders),
-delta(delta), learning_signal(learning_signal), scale(scale), alpha(learning_rate * dt){
+:alpha(learning_rate * dt), pre_decoded(pre_decoded), post_filtered(post_filtered),
+scaled_encoders(scaled_encoders), delta(delta), learning_signal(learning_signal), scale(scale){
 
 }
 
 void Voja::operator() (){
     // For now, learning_signal is required to have size 1.
-    dtype coef = alpha * learning_signal(0, 0);
+    dtype coef = alpha * learning_signal(0);
 
-    for(int i = 0; i < scaled_encoders.size1(); i++){
-        dtype s = scale(i, 0);
-        dtype pf = post_filtered(i, 0);
+    for(unsigned i = 0; i < scaled_encoders.shape1; i++){
+        dtype s = scale(i);
+        dtype pf = post_filtered(i);
 
-        for(int j = 0; j < scaled_encoders.size2(); j++){
+        for(unsigned j = 0; j < scaled_encoders.shape2; j++){
             delta(i, j) =
-                coef * (s * post_filtered(i, 0) * pre_decoded(j, 0)
+                coef * (s * post_filtered(i) * pre_decoded(j)
                 - pf * scaled_encoders(i, j));
         }
     }
@@ -1026,37 +1109,4 @@ string Voja::to_string() const{
     out << signal_to_string(scale) << endl;
 
     return out.str();
-}
-
-// ********************************************************************************
-string signal_to_string(const SignalView signal){
-
-    stringstream ss;
-
-    if(RUN_DEBUG_TEST){
-        ss << signal;
-    }else{
-        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
-    }
-
-    return ss.str();
-}
-
-string signal_to_string(const BaseSignal signal){
-
-    stringstream ss;
-
-    if(RUN_DEBUG_TEST){
-        ss << signal;
-    }else{
-        ss << "[" << signal.size1() << ", " << signal.size2() << "]";
-    }
-
-    return ss.str();
-}
-
-string shape_string(const SignalView signal){
-    stringstream ss;
-    ss << "(" << signal.size1() << ", " << signal.size2() << ")";
-    return ss.str();
 }
