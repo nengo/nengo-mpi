@@ -31,7 +31,7 @@ public:
     virtual void finalize_build();
 
     virtual Signal get_signal_view(string signal_string);
-    virtual void add_pyfunc(unique_ptr<Operator> pyfunc);
+    virtual void add_pyfunc(float index, unique_ptr<Operator> pyfunc);
 
     virtual void run_n_steps(int steps, bool progress, string log_filename);
 
@@ -46,10 +46,6 @@ public:
     friend ostream& operator << (ostream &out, const Simulator &sim){
         out << sim.to_string();
         return out;
-    }
-
-    dtype* get_time_pointer(){
-        return chunk->get_time_pointer();
     }
 
     dtype dt(){

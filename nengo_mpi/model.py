@@ -20,6 +20,7 @@ except ImportError:
 
 import nengo
 from nengo import builder
+from nengo.builder.signal import Signal
 from nengo.builder import Builder as DefaultBuilder
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
@@ -34,6 +35,7 @@ from nengo.connection import Connection
 from nengo.ensemble import Ensemble
 from nengo.node import Node
 from nengo.probe import Probe
+from nengo.exceptions import BuildError, SimulationError
 
 from nengo_mpi import PartitionError
 from nengo_mpi.spaun_mpi import SpaunStimulus, build_spaun_stimulus
@@ -221,8 +223,8 @@ def make_checked_func(func, t_in, takes_input):
         Whether the function takes the current time step as an argument.
     takes_input: bool
         Whether the function takes an input other than the current time step.
-    """
 
+    """
     def f():
         return pyfunc_checks(func())
 
@@ -384,7 +386,7 @@ def signal_to_string(signal):
         signal.ndim,
         "%d,%d" % (shape[0], shape[1]),
         "%d,%d" % (stride[0], stride[1]),
-        signal.offset
+        signal.elemoffset
     ]
 
     signal_string = SIGNAL_DELIM.join(map(str, signal_args))
@@ -457,6 +459,22 @@ class MpiModel(builder.Model):
             self, n_components, assignments, dt=0.001, label=None,
             decoder_cache=NoDecoderCache(), save_file=""):
 
+        self.dt = dt
+        self.label = label
+        self.decoder_cache = decoder_cache
+
+        # We want to keep track of the toplevel network
+        self.toplevel = None
+
+        # Builders can set a config object to affect sub-builders
+        self.config = None
+
+        # Resources used by the build process.
+        self.operators = []
+        self.params = {}
+        self.seeds = {}
+        self.probes = []
+
         if not h5py_available:
             raise Exception("h5py not available.")
 
@@ -510,7 +528,19 @@ class MpiModel(builder.Model):
         self.pyfunc_args = []
         self.probed_connections = set()
 
-        super(MpiModel, self).__init__(dt, label, decoder_cache)
+        self.sig = defaultdict(dict)
+        self.sig['common'][0] = Signal(0., readonly=True, name='ZERO')
+        self.sig['common'][1] = Signal(1., readonly=True, name='ONE')
+        self.sig['common']['NULL'] = Signal(1., readonly=False, name='NULL')
+
+        self.step = Signal(np.array(0, dtype=np.int64), name='step')
+        self.time = Signal(np.array(0, dtype=np.float64), name='time')
+        self.time_update = builder.operator.TimeUpdate(self.step, self.time)
+
+        for component in range(n_components):
+            self.assign_signal(component, self.sig['common'][0])
+            self.assign_signal(component, self.sig['common'][1])
+            self.assign_signal(component, self.sig['common']['NULL'])
 
     @property
     def runnable(self):
@@ -593,7 +623,7 @@ class MpiModel(builder.Model):
             try:
                 synapse_op = (
                     op for op in self.object_ops[conn]
-                    if isinstance(op, builder.synapses.SimSynapse)).next()
+                    if isinstance(op, builder.processes.SimProcess)).next()
             except StopIteration:
                 raise PartitionError(
                     "A Connection crossing a component boundary "
@@ -613,6 +643,31 @@ class MpiModel(builder.Model):
             self.assign_ops(pre_component, pre_ops)
             self.assign_ops(post_component, post_ops)
 
+    def assign_signal(self, component, signal):
+        """ Assign a signal to a component.
+
+        Any signal can be assigned to multiple components, in which case each
+        component gets its own copy.
+
+        Parameters
+        ----------
+        component: int
+            Component to add the signal to.
+        signal: instance of Signal
+            Signal to assign to the component.
+
+        """
+        base = signal.base
+        key = make_key(base)
+
+        if key not in self.base_signals[component]:
+            logger.info(
+                "Component %d: Adding signal %s with key: %s",
+                component, signal, key)
+
+            self.base_signals[component][key] = base
+            self.total_base_signal_size[component] += base.size
+
     def assign_ops(self, component, ops):
         """ Assign a collection of operators to a component.
 
@@ -621,22 +676,13 @@ class MpiModel(builder.Model):
         component: int
             Component to add the operators to.
         ops: collection of nengo.builder.operator.Operator instances
-            Operators to add the model.
+            Operators to assign to the component.
 
         """
         # Add all base signals needed by the ops
         for op in ops:
             for signal in op.all_signals:
-                base = signal.base
-                key = make_key(base)
-
-                if key not in self.base_signals[component]:
-                    logger.debug(
-                        "Component %d: Adding signal %s with key: %s",
-                        component, signal, key)
-
-                    self.base_signals[component][key] = base
-                    self.total_base_signal_size[component] += base.size
+                self.assign_signal(component, signal)
 
         self.component_ops[component].extend(ops)
 
@@ -664,11 +710,17 @@ class MpiModel(builder.Model):
         all_ops = list(chain(
             *[self.component_ops[component]
               for component in range(self.n_components)]))
-
         dg = operator_depencency_graph(all_ops)
         global_ordering = [
             op for op in toposort(dg) if hasattr(op, 'make_step')]
         self.global_ordering = {op: i for i, op in enumerate(global_ordering)}
+        self.global_ordering[self.time_update] = -1
+
+        # Needs to be done after calling operator_depencency_graph.
+        # operator_depencency_graph will detect an error caused
+        # by multiple sets of the time signal
+        for component in range(self.n_components):
+            self.assign_ops(component, [self.time_update])
 
         self._finalize_ops()
         self._finalize_probes()
@@ -758,7 +810,6 @@ class MpiModel(builder.Model):
                     component_group, 'probes', probe_strings,
                     compression=self.h5_compression)
 
-            probe_strings = self.probe_strings[component]
             store_string_list(
                 save_file, 'probe_info', self.all_probe_strings,
                 compression=self.h5_compression)
@@ -768,12 +819,7 @@ class MpiModel(builder.Model):
             os.remove(self.save_file_name)
 
             for args in self.pyfunc_args:
-                f = {
-                    'N': self.mpi_sim.create_PyFunc,
-                    'I': self.mpi_sim.create_PyFuncI,
-                    'O': self.mpi_sim.create_PyFuncO,
-                    'IO': self.mpi_sim.create_PyFuncIO}[args[0]]
-                f(*args[1:])
+                self.mpi_sim.create_PyFunc(*args)
 
             self.mpi_sim.finalize_build()
 
@@ -837,50 +883,30 @@ class MpiModel(builder.Model):
 
                 if op_type == builder.node.SimPyFunc:
                     if not self.runnable:
-                        raise Exception(
+                        raise BuildError(
                             "Cannot create SimPyFunc operator "
                             "when saving to file.")
 
-                    t_in = op.t_in
-                    fn = op.fn
-                    x = op.x
+                    if component != 0:
+                        raise BuildError(
+                            "Cannot add SimPyFunc operator on any "
+                            "component other than component 0.")
 
-                    if x is None:
-                        if op.output is None:
-                            pyfunc_args = ["N", fn, t_in]
-                        else:
-                            pyfunc_args = [
-                                "O", make_checked_func(fn, t_in, False),
-                                t_in, signal_to_string(op.output)]
-
-                    else:
-                        input_array = x.initial_value
-
-                        if op.output is None:
-                            pyfunc_args = [
-                                "I", fn, t_in,
-                                signal_to_string(x), input_array]
-
-                        else:
-                            pyfunc_args = [
-                                "IO", make_checked_func(fn, t_in, True), t_in,
-                                signal_to_string(x), input_array,
-                                signal_to_string(op.output)]
-
+                    pyfunc_args = self._make_pyfunc_args(op)
                     self.pyfunc_args.append(
                         pyfunc_args + [self.global_ordering[op]])
                 else:
                     op_string = self._op_to_string(op)
 
                     if op_string:
-                        logger.debug(
+                        logger.info(
                             "Component %d: Adding operator with string: %s",
                             component, op_string)
 
                         self.op_strings[component].append(op_string)
 
     def _op_to_string(self, op):
-        """ Convert operator into a string.
+        """ Convert operator to a string.
 
         Such strings will eventually be used to construct operators in the
         C++ code. See the MpiSimulatorChunk::add_op for details on how these
@@ -893,7 +919,12 @@ class MpiModel(builder.Model):
         """
         op_type = type(op)
 
-        if op_type == builder.operator.Reset:
+        if op_type == builder.operator.TimeUpdate:
+            op_args = [
+                "TimeUpdate", signal_to_string(op.step),
+                signal_to_string(op.time), self.dt]
+
+        elif op_type == builder.operator.Reset:
             op_args = ["Reset", signal_to_string(op.dst), op.value]
 
         elif op_type == builder.operator.Copy:
@@ -1024,10 +1055,19 @@ class MpiModel(builder.Model):
                     'nengo_mpi cannot handle neurons of type ' +
                     str(neuron_type))
 
-        elif op_type == builder.synapses.SimSynapse:
+        elif op_type == builder.processes.SimProcess:
+            process_type = type(op.process)
 
-            if isinstance(op.synapse, LinearFilter):
-                step = op.synapse.make_step(self.dt, [])
+            if isinstance(op.process, LinearFilter):
+
+                shape_in = op.input.shape if op.input is not None else (0,)
+                shape_out = op.output.shape if op.output is not None else (0,)
+
+                # rng=None only works because LinearFilter doesn't make use
+                # of the rng
+                step = op.process.make_step(
+                    shape_in, shape_out, self.dt, rng=None)
+
                 den = step.den
                 num = step.num
 
@@ -1046,8 +1086,13 @@ class MpiModel(builder.Model):
                         ",".join(map(str, num)),
                         ",".join(map(str, den))]
 
-            elif isinstance(op.synapse, Triangle):
-                f = op.synapse.make_step(self.dt, op.output)
+            elif isinstance(op.process, Triangle):
+                shape_in = op.input.shape if op.input is not None else (0,)
+                shape_out = op.output.shape if op.output is not None else (0,)
+
+                f = op.process.make_step(shape_in, shape_out,
+                                         self.dt, rng=None)
+
                 closures = get_closures(f)
                 n0 = closures['n0']
                 ndiff = closures['ndiff']
@@ -1058,23 +1103,16 @@ class MpiModel(builder.Model):
                     "TriangleSynapse", signal_to_string(op.input),
                     signal_to_string(op.output), n0, ndiff, n_taps]
 
-            else:
-                raise NotImplementedError(
-                    'nengo_mpi cannot handle synapses of '
-                    'type %s' % type(op.synapse))
-
-        elif op_type == builder.processes.SimProcess:
-            process_type = type(op.process)
-
-            if process_type is WhiteNoise:
+            elif process_type is WhiteNoise:
                 assert type(op.process.dist) is nengo.dists.Gaussian
                 mean = op.process.dist.mean
                 std = op.process.dist.std
                 do_scale = op.process.scale
+                inc = op.mode == 'inc'
 
                 op_args = [
                     "WhiteNoise", signal_to_string(op.output),
-                    float(mean), float(std), int(do_scale), int(op.inc),
+                    float(mean), float(std), int(do_scale), int(inc),
                     self.dt]
 
             elif process_type is WhiteSignal:
@@ -1123,7 +1161,7 @@ class MpiModel(builder.Model):
                 op.learning_rate, self.dt]
 
         elif op_type == builder.operator.PreserveValue:
-            logger.debug(
+            logger.info(
                 "Skipping PreserveValue, operator: %s, signal: %s",
                 str(op.dst), signal_to_string(op.dst))
 
@@ -1141,7 +1179,7 @@ class MpiModel(builder.Model):
             output = signal_to_string(op.output)
 
             op_args = [
-                "SpaunStimulus", output, op.stimulus_sequence,
+                "SpaunStimulus", output, self.time, op.stimulus_sequence,
                 op.present_interval, op.present_blanks, op.identifier]
 
         else:
@@ -1154,6 +1192,45 @@ class MpiModel(builder.Model):
 
         op_string = OP_DELIM.join(map(str, op_args))
         return op_string
+
+    def _make_pyfunc_args(self, op):
+        fn = op.fn
+        pass_time = op.t is not None
+        pass_input = op.x is not None
+        return_output = op.output is not None
+
+        def pyfunc(time, x):
+            args = (x,) if pass_input else ()
+            y = fn(time, *args) if pass_time else fn(*args)
+            if return_output and y is None:
+                # required since Numpy turns None into NaN
+                raise SimulationError(
+                    "Function %r returned None" % fn.__name__)
+
+            if y is None:
+                y = np.array([0.0])
+
+            if np.isscalar(y) or not y.shape:
+                y = np.array([y])
+
+            return y
+
+        t = op.t if pass_time else self.sig['common'][0]
+        x = op.x if pass_input else self.sig['common'][0]
+
+        if not x.shape:
+            input_array = np.array([0.0])
+        else:
+            input_array = x.initial_value.copy()
+
+        output = (
+            op.output if return_output
+            else self.sig['common']['NULL'])
+
+        pyfunc_args = [
+            pyfunc, signal_to_string(t), signal_to_string(x),
+            input_array, signal_to_string(output)]
+        return pyfunc_args
 
     def _finalize_probes(self):
         """ Finalize probes.
@@ -1175,7 +1252,7 @@ class MpiModel(builder.Model):
 
             component = self.assignments[probe]
 
-            logger.debug(
+            logger.info(
                 "Component: %d: Adding probe of signal %s.\n"
                 "probe_key: %d, signal_string: %s, period: %d",
                 component, str(signal), probe_key,

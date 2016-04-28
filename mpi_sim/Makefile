@@ -58,15 +58,21 @@ DEFS=
 all: DEFS += -DNDEBUG -O3
 all: build
 
+# Print simulation-related debug info.
 run_dbg: DEFS+= -DRUN_DEBUG
 run_dbg: mpi_dbg
 
+# Print build-related debug info.
 build_dbg: DEFS+= -DBUILD_DEBUG
 build_dbg: dbg
 
+# Print mpi-related debug info.
 mpi_dbg: DEFS+= -DMPI_DEBUG
 mpi_dbg: dbg
 
+# All special debugging modes also activate basic debugging output.
+# Each MPI process will direct its output to a file called
+# chunk_x_dbg, where x is the rank of the processor.
 dbg: DEFS+= -DDEBUG -g
 dbg: build
 

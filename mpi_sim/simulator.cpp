@@ -53,8 +53,8 @@ Signal Simulator::get_signal_view(string signal_string){
     return chunk->get_signal_view(signal_string);
 }
 
-void Simulator::add_pyfunc(unique_ptr<Operator> pyfunc){
-    chunk->add_op(move(pyfunc));
+void Simulator::add_pyfunc(float index, unique_ptr<Operator> pyfunc){
+    chunk->add_op(index, move(pyfunc));
 }
 
 void Simulator::run_n_steps(int steps, bool progress, string log_filename){
@@ -138,10 +138,10 @@ void Simulator::write_to_time_file(char* filename, double delta){
         if(f.good()){
             if(f.tellp() == 0){
                 // Write the header
-                f << "seconds,nprocs,label,t" << endl;
+                f << "seconds,nprocs,label" << endl;
             }
 
-            f << delta << "," << 1 << "," << label << "," << *get_time_pointer() << endl;
+            f << delta << "," << 1 << "," << label << "," << endl;
         }
 
         f.close();

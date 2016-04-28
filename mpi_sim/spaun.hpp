@@ -25,7 +25,7 @@ class ImageStore;
 class SpaunStimulus: public Operator{
 public:
     SpaunStimulus(
-        Signal output, dtype* time_pointer, vector<string> stim_sequence,
+        Signal output, Signal time, vector<string> stim_sequence,
         dtype present_interval, dtype present_blanks, int identifier);
 
     string classname() const {return "SpaunStimulus"; }
@@ -38,8 +38,6 @@ public:
     virtual unsigned get_seed_modifier() const{ return unsigned(identifier); }
 
 protected:
-    dtype* time_pointer;
-
     int n_stimuli;
     string vision_data_dir;
     vector<string> stim_sequence;
@@ -49,6 +47,7 @@ protected:
     int image_size;
     vector<Signal> images;
     Signal output;
+    Signal t;
     int previous_index;
 
     int identifier;

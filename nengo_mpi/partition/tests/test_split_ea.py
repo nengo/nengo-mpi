@@ -63,7 +63,7 @@ def test_simple_split():
     remove_log_file(splitter)
 
 
-def test_circconv_split():
+def _test_circconv_split():
 
     dims = 16
     seed = 1

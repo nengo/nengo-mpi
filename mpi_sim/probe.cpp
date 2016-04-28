@@ -89,10 +89,12 @@ string Probe::to_string() const{
     out << "data_index: " << data_index << endl;
     out << "time_index: " << time_index << endl;
 
+    /*
     out << "data: " << endl;
     for(unsigned i = 0; i < data.size(); i++){
          out << "index: " << i << ", signal: " << data[i] << endl;
     }
+    */
 
     return out.str();
 }

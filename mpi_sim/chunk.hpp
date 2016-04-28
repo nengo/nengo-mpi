@@ -63,21 +63,21 @@ public:
     /* Get a ``view'' of a base signal stored at the given key.
      * Most operators work in terms of these views.
      *
-     *     key             : Key identifying the base signal that we
+     *     key              : Key identifying the base signal that we
      *                       are getting a view of.
      *
-     *     label           : Name for the view.
+     *     label            : Name for the view.
      *
-     *     ndim            : Number of dimensions for returned view.
+     *     ndim             : Number of dimensions for returned view.
      *
-     *     shape1, shape2  : Shape of the returned view.
+     *     shape1, shape2   : Shape of the returned view.
      *
-     *     stride1, stide2 : Number of steps to take in the base signal
-     *                       to get a new element of the view along that
-     *                       dimension.
+     *     stride1, stride2 : Number of steps to take in the base signal
+     *                        to get a new element of the view along that
+     *                        dimension.
      *
-     *     offset          : Index of the element in the base array that
-     *                       the view begins at.                         */
+     *     offset           : Index of the element in the base array that
+     *                        the view begins at.                         */
     Signal get_signal_view(
         key_type key, string label, unsigned ndim,
         unsigned shape1, unsigned shape2,
@@ -103,13 +103,20 @@ public:
      * At the time that an operator is added, all base Signals that it operates
      * on must have already been added to the chunk. Also note that the order
      * in which operators are added to the chunk determines the order they will
-     * be executed in at simulation time. */
-    void add_op(unique_ptr<Operator> op);
+     * be executed in during the simulation. */
 
     /* Add an operator from an OpSpec object, which stores the type of operator
      * to add, as well as any parameters that operator needs (e.g. the Signals
-     * that it operates on). */
+     * that it operates on). Identifiies the type of operator that needs to
+     * be created, and calls the constructor appropriately. */
     void add_op(OpSpec os);
+
+    /* Add an existing operator to the chunk. */
+    void add_op(float index, unique_ptr<Operator> op);
+
+    /* Add a TimeUpdate operator. A chunk may have only one TimeUpdate operator,
+     * so this function only has an effect the first time that it is called. */
+    void add_time_update(float index, unique_ptr<TimeUpdate> op);
 
     /* Add MPI-related operators. These have to be added separately,
      * because we need to initialize them in a special way before the
@@ -132,10 +139,6 @@ public:
     void close_simulation_log();
 
     void flush_probes();
-
-    // Used to pass the simulation time to python functions
-    dtype* get_time_pointer(){return &time;}
-
     size_t get_num_probes(){return probe_map.size();}
 
     string to_string() const;
@@ -152,8 +155,6 @@ public:
     vector<ProbeSpec> probe_info;
 
 private:
-    dtype time;
-    int n_steps;
     int rank;
     int n_processors;
 
@@ -172,6 +173,8 @@ private:
 
     list<unique_ptr<MPIOperator>> mpi_sends;
     list<unique_ptr<MPIOperator>> mpi_recvs;
+
+    unique_ptr<TimeUpdate> time_update;
 
     bool mpi_merged;
     bool collect_timings;

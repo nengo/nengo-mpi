@@ -156,149 +156,51 @@ void PythonMpiSimulator::close(){
 }
 
 void PythonMpiSimulator::create_PyFunc(
-        bpy::object py_fn, bpy::object t_in, bpy::object index){
-
-    bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
-
-    auto pyfunc = unique_ptr<Operator>(new PyFunc(py_fn, time_pointer));
-
-    float c_index = bpy::extract<float>(index);
-    pyfunc->set_index(c_index);
-
-    sim->add_pyfunc(move(pyfunc));
-}
-
-void PythonMpiSimulator::create_PyFuncI(
-        bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input, bpy::object index){
-
-    string input_signal = bpy::extract<string>(input);
-
-    build_dbg("Creating PyFuncI. Input signal: " << input_signal);
-    Signal input_mat = sim->get_signal_view(input_signal);
-
-    bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
-
-    auto pyfunc = unique_ptr<Operator>(
-        new PyFunc(py_fn, time_pointer, input_mat, py_input));
-
-    float c_index = bpy::extract<float>(index);
-    pyfunc->set_index(c_index);
-
-    sim->add_pyfunc(move(pyfunc));
-}
-
-void PythonMpiSimulator::create_PyFuncO(
-        bpy::object py_fn, bpy::object t_in,
-        bpy::object output, bpy::object index){
-
-    string output_signal = bpy::extract<string>(output);
-
-    build_dbg("Creating PyFuncO. Output signal: " << output_signal);
-    Signal output_mat = sim->get_signal_view(output_signal);
-
-    bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
-
-    auto pyfunc = unique_ptr<Operator>(new PyFunc(py_fn, time_pointer, output_mat));
-
-    float c_index = bpy::extract<float>(index);
-    pyfunc->set_index(c_index);
-
-    sim->add_pyfunc(move(pyfunc));
-}
-
-
-void PythonMpiSimulator::create_PyFuncIO(
-        bpy::object py_fn, bpy::object t_in, bpy::object input,
+        bpy::object py_fn, bpy::object t, bpy::object input,
         bpyn::array py_input, bpy::object output, bpy::object index){
 
-    build_dbg("Creating PyFuncIO.");
+    build_dbg("Creating PyFunc.");
 
-    string input_signal = bpy::extract<string>(input);
-    build_dbg("Input signal: " << input_signal);
-    Signal input_mat = sim->get_signal_view(input_signal);
+    string time_signal_string = bpy::extract<string>(t);
+    Signal t_ = sim->get_signal_view(time_signal_string);
+    build_dbg("Time signal: " << t_);
 
-    string output_signal = bpy::extract<string>(output);
-    build_dbg("Output signal: " << output_signal);
-    Signal output_mat = sim->get_signal_view(output_signal);
+    string input_signal_string = bpy::extract<string>(input);
+    Signal input_ = sim->get_signal_view(input_signal_string);
+    build_dbg("Input signal: " << input_);
 
-    bool c_t_in = bpy::extract<bool>(t_in);
-    dtype* time_pointer = c_t_in ? sim->get_time_pointer() : NULL;
+    string output_signal_string = bpy::extract<string>(output);
+    Signal output_ = sim->get_signal_view(output_signal_string);
+    build_dbg("Output signal: " << output_);
 
     auto pyfunc = unique_ptr<Operator>(
-        new PyFunc(py_fn, time_pointer, input_mat, py_input, output_mat));
+        new PyFunc(py_fn, t_, input_, py_input, output_));
 
-    float c_index = bpy::extract<float>(index);
-    pyfunc->set_index(c_index);
-
-    sim->add_pyfunc(move(pyfunc));
+    float index_ = bpy::extract<float>(index);
+    sim->add_pyfunc(index_, move(pyfunc));
 }
 
 string PythonMpiSimulator::to_string() const{
     return sim->to_string();
 }
 
-PyFunc::PyFunc(bpy::object py_fn, dtype* time)
-:py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
-get_output(false), py_input(0.0){
-
-}
-
-PyFunc::PyFunc(bpy::object py_fn, dtype* time, Signal output)
-:py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(false),
-get_output(true), py_input(0.0), output(output){
-
-}
-
-PyFunc::PyFunc(bpy::object py_fn, dtype* time, Signal input, bpyn::array py_input)
-:py_fn(py_fn), time(time), supply_time(time!=NULL),
-supply_input(true), get_output(false), input(input), py_input(py_input){
-
-}
-
 PyFunc::PyFunc(
-    bpy::object py_fn, dtype* time, Signal input,
+    bpy::object py_fn, Signal t, Signal input,
     bpyn::array py_input, Signal output)
-:py_fn(py_fn), time(time), supply_time(time!=NULL), supply_input(true),
-get_output(true), input(input), py_input(py_input), output(output){
+:py_fn(py_fn), t(t), input(input), py_input(py_input), output(output){
 
 }
 
 void PyFunc::operator() (){
-
-    bpy::object py_output;
-    if(supply_input){
-
-        // TODO: currently assuming pyfunc only operate on vectors.
-        for(unsigned i = 0; i < input.shape1; ++i){
-            py_input[i] = input(i);
-        }
-
-        if(supply_time){
-            py_output = py_fn(*time, py_input);
-        }else{
-            py_output = py_fn(py_input);
-        }
-    }else{
-        if(supply_time){
-            py_output = py_fn(*time);
-        }else{
-            py_output = py_fn();
-        }
+    // TODO: currently assuming pyfuncs only accept and return vectors.
+    for(unsigned i = 0; i < input.shape1; i++){
+        py_input[i] = input(i);
     }
 
-    if(get_output){
-        if(hasattr(py_output, "ndim")){
-            // TODO: currently assuming pyfunc only operate on vectors.
-            for(unsigned i = 0; i < output.shape1; ++i){
-                output(i) = bpy::extract<dtype>(py_output[i]);
-            }
-        }else{
-            output(0) = bpy::extract<dtype>(py_output);
-        }
+    bpy::object py_output = py_fn(t(0), py_input);
+
+    for(unsigned i = 0; i < output.shape1; i++){
+        output(i) = bpy::extract<dtype>(py_output[i]);
     }
 
     run_dbg(*this);
@@ -308,6 +210,10 @@ string PyFunc::to_string() const{
     stringstream out;
 
     out << "PyFunc: " << endl;
+    out << "Time: " << endl;
+    out << t << endl << endl;
+    out << "Input: " << endl;
+    out << input << endl << endl;
     out << "Output: " << endl;
     out << output << endl << endl;
 
@@ -334,8 +240,5 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("reset", &PythonMpiSimulator::reset)
         .def("close", &PythonMpiSimulator::close)
         .def("create_PyFunc", &PythonMpiSimulator::create_PyFunc)
-        .def("create_PyFuncO", &PythonMpiSimulator::create_PyFuncO)
-        .def("create_PyFuncI", &PythonMpiSimulator::create_PyFuncI)
-        .def("create_PyFuncIO", &PythonMpiSimulator::create_PyFuncIO)
         .def("to_string", &PythonMpiSimulator::to_string);
 }

@@ -1,6 +1,33 @@
 #include "operator.hpp"
 
 // ********************************************************************************
+TimeUpdate::TimeUpdate(Signal step, Signal time, dtype dt)
+:step(step), time(time), dt(dt){
+
+}
+
+void TimeUpdate::operator() (){
+    step(0) += 1;
+    time(0) = step(0) * dt;
+
+    run_dbg(*this);
+}
+
+string TimeUpdate::to_string() const {
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "step:" << endl;
+    out << signal_to_string(step) << endl;
+    out << "time:" << endl;
+    out << signal_to_string(time) << endl;
+    out << "dt: " << dt << endl;
+
+    return out.str();
+}
+
+
+// ********************************************************************************
 Reset::Reset(Signal dst, dtype value)
 :dst(dst), value(value){
 
@@ -39,10 +66,10 @@ string Copy::to_string() const  {
 
     stringstream out;
     out << Operator::to_string();
-    out << "dst:" << endl;
-    out << signal_to_string(dst) << endl;
     out << "src:" << endl;
     out << signal_to_string(src) << endl;
+    out << "dst:" << endl;
+    out << signal_to_string(dst) << endl;
 
     return out.str();
 }
@@ -182,10 +209,10 @@ string SlicedCopy::to_string() const{
 
     stringstream out;
     out << Operator::to_string();
-    out << "B:" << endl;
-    out << signal_to_string(B) << endl;
     out << "A:" << endl;
     out << signal_to_string(A) << endl;
+    out << "B:" << endl;
+    out << signal_to_string(B) << endl;
 
     out << "inc: " << inc << endl;
 

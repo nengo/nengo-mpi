@@ -5,10 +5,10 @@ from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 import nengo
 from nengo.builder.signal import Signal
 from nengo.builder.operator import DotInc, ElementwiseInc, Reset
-from nengo.builder.operator import Copy, SlicedCopy
+from nengo.builder.operator import Copy, SlicedCopy, TimeUpdate
 from nengo.builder.node import SimPyFunc
 from nengo.builder.neurons import SimNeurons
-from nengo.builder.synapses import SimSynapse
+from nengo.builder.processes import SimProcess
 
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 
@@ -19,6 +19,8 @@ import nengo.utils.numpy as npext
 
 import numpy as np
 from collections import defaultdict
+import logging
+logger = logging.getLogger(__name__)
 
 import pytest
 
@@ -45,8 +47,8 @@ class TestSimulator(nengo_mpi.Simulator):
         List of python operators.
     signal_probes: list
         List of SignalProbes.
-    """
 
+    """
     def __init__(
             self, operators, signal_probes, dt=0.001, seed=None):
 
@@ -185,6 +187,68 @@ def test_copy():
         D + copy_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
 
 
+def test_sliced_copy_converge():
+    D = 40
+
+    data1 = np.random.random(D)
+    S1 = Signal(data1, 'S1')
+
+    data2 = np.random.random(D)
+    S2 = Signal(data2, 'S2')
+
+    data3 = np.random.random(D)
+    S3 = Signal(data3, 'S3')
+
+    converge = Signal(np.zeros(3 * D), 'converge')
+
+    ops = [
+        Reset(converge, 0),
+        SlicedCopy(S1, converge, b_slice=slice(0, D), inc=True),
+        SlicedCopy(S2, converge, b_slice=slice(D, 2 * D), inc=True),
+        SlicedCopy(S3, converge, b_slice=slice(2 * D, 3 * D), inc=True)]
+
+    probes = [SignalProbe(converge)]
+    sim = TestSimulator(ops, probes)
+
+    sim.run(0.05)
+
+    ground_truth = np.array(list(data1) + list(data2) + list(data3))
+
+    assert np.allclose(
+        ground_truth, sim.data[probes[0]], atol=0.000001, rtol=0.0)
+
+
+def test_sliced_copy_diverge():
+    D = 40
+
+    data = np.random.random(3 * D)
+    diverge = Signal(data, 'diverge')
+
+    S1 = Signal(np.zeros(D), 'S1')
+    S2 = Signal(np.zeros(D), 'S2')
+    S3 = Signal(np.zeros(D), 'S3')
+
+    ops = [
+        Reset(S1, 0),
+        Reset(S2, 0),
+        Reset(S3, 0),
+        SlicedCopy(diverge, S1, a_slice=slice(0, D), inc=True),
+        SlicedCopy(diverge, S2, a_slice=slice(D, 2 * D), inc=True),
+        SlicedCopy(diverge, S3, a_slice=slice(2 * D, 3 * D), inc=True)]
+
+    probes = [SignalProbe(S1), SignalProbe(S2), SignalProbe(S3)]
+    sim = TestSimulator(ops, probes)
+
+    sim.run(0.05)
+
+    assert np.allclose(
+        data[:D], sim.data[probes[0]], atol=0.000001, rtol=0.0)
+    assert np.allclose(
+        data[D:2*D], sim.data[probes[1]], atol=0.000001, rtol=0.0)
+    assert np.allclose(
+        data[2*D:], sim.data[probes[2]], atol=0.000001, rtol=0.0)
+
+
 def test_sliced_copy():
     D = 2 * 20
 
@@ -318,7 +382,7 @@ def test_lif():
         neurons=lif, J=J, output=output, states=[voltage, ref_time])
 
     input = np.arange(-2, 2, .1)
-    input_func = SimPyFunc(J, lambda: input, False, None)
+    input_func = SimPyFunc(J, lambda: input, None, None)
 
     probes = [SignalProbe(output)]
 
@@ -350,7 +414,7 @@ def test_stateless_neurons(neuron_type):
     op = SimNeurons(neurons=neurons, J=J, output=output)
 
     input = np.arange(-2, 2, .1)
-    input_func = SimPyFunc(J, lambda: input, False, None)
+    input_func = SimPyFunc(J, lambda: input, None, None)
 
     probes = [SignalProbe(output)]
 
@@ -370,13 +434,17 @@ def test_filter():
 
     input = Signal(np.zeros(D), 'input')
     output = Signal(np.zeros(D), 'output')
+    step = Signal(np.array(0, dtype=np.int64), name='step')
+    time = Signal(np.array(0, dtype=np.float64), name='time')
 
-    synapse = SimSynapse(input, output, Lowpass(0.05))
-    input_func = SimPyFunc(input, lambda: 1, False, None)
+    synapse = SimProcess(Lowpass(0.05), input, output, t=time)
+    input_func = SimPyFunc(input, lambda: 1, None, None)
+    time_update = TimeUpdate(step, time)
 
     probes = [SignalProbe(output)]
 
-    sim = TestSimulator([synapse, input_func], probes)
+    sim = TestSimulator(
+        [synapse, input_func, time_update], probes)
     sim.run(0.2)
 
 

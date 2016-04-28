@@ -3,9 +3,9 @@
 unique_ptr<ImageStore> SpaunStimulus::image_store = nullptr;
 
 SpaunStimulus::SpaunStimulus(
-    Signal output, dtype* time_pointer, vector<string> stim_sequence,
+    Signal output, Signal t, vector<string> stim_sequence,
     dtype present_interval, dtype present_blanks, int identifier)
-:output(output), time_pointer(time_pointer), previous_index(-1),
+:output(output), t(t), previous_index(-1),
 stim_sequence(stim_sequence), present_interval(present_interval),
 present_blanks(present_blanks), identifier(identifier){
 
@@ -32,7 +32,7 @@ present_blanks(present_blanks), identifier(identifier){
 
 void SpaunStimulus::operator() (){
 
-    dtype index_f = (*time_pointer) / present_interval / pow(2, present_blanks);
+    dtype index_f = t(0) / present_interval / pow(2, present_blanks);
 
     // Need to do this because if index_f is nearly an
     // int, doesn't get converted to an int properly.

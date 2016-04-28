@@ -125,6 +125,9 @@ Signal Signal::get_view(
     view.row_major = (stride2_ == 1);
 
     view.raw_data += offset_;
+
+    build_dbg("View:");
+    build_dbg(view);
     return view;
 }
 

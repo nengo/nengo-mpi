@@ -51,18 +51,8 @@ public:
     void reset(bpy::object seed);
     void close();
 
-    /* Methods for creating PyFunc operators. */
-    void create_PyFunc(bpy::object py_fn, bpy::object t_in, bpy::object index);
-
-    void create_PyFuncI(
-        bpy::object py_fn, bpy::object t_in, bpy::object input,
-        bpyn::array py_input, bpy::object index);
-
-    void create_PyFuncO(
-        bpy::object py_fn, bpy::object t_in,bpy::object output, bpy::object index);
-
-    void create_PyFuncIO(
-        bpy::object py_fn, bpy::object t_in, bpy::object input,
+    void create_PyFunc(
+        bpy::object py_fn, bpy::object t, bpy::object input,
         bpyn::array py_input, bpy::object output, bpy::object index);
 
     string to_string() const;
@@ -73,28 +63,18 @@ private:
 
 class PyFunc: public Operator{
 public:
-    PyFunc(bpy::object py_fn, dtype* t_in);
     PyFunc(
-        bpy::object py_fn, dtype* t_in, Signal input, bpyn::array py_input);
-    PyFunc(bpy::object py_fn, dtype* t_in, Signal output);
-    PyFunc(
-        bpy::object py_fn, dtype* t_in, Signal input,
+        bpy::object py_fn, Signal t, Signal input,
         bpyn::array py_input, Signal output);
 
     void operator()();
     virtual string to_string() const;
 
 private:
+    Signal t;
     Signal input;
     Signal output;
 
-    dtype* time;
-
     bpy::object py_fn;
     bpyn::array py_input;
-    //bpyn::array py_output;
-
-    bool supply_time;
-    bool supply_input;
-    bool get_output;
 };

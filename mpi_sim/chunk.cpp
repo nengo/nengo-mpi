@@ -4,13 +4,13 @@
 #define MAX_RUNTIME_OUTPUT_SIZE 5000
 
 MpiSimulatorChunk::MpiSimulatorChunk(bool collect_timings)
-:time(0.0), dt(0.001), n_steps(0), rank(0), n_processors(1),
+:dt(0.001), rank(0), n_processors(1),
 mpi_merged(false), collect_timings(collect_timings){
 
 }
 
 MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged, bool collect_timings)
-:time(0.0), dt(0.001), n_steps(0), rank(rank), n_processors(n_processors),
+:dt(0.001), rank(rank), n_processors(n_processors),
 mpi_merged(mpi_merged), collect_timings(collect_timings){
     stringstream ss;
     ss << "Chunk " << rank;
@@ -160,7 +160,7 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
                    signal.size * sizeof(dtype));
 
             signal.stride1 = stride[0];
-            signal.stride2 =  stride[1];
+            signal.stride2 = stride[1];
 
             signal_offset += signal.size;
 
@@ -255,7 +255,8 @@ void MpiSimulatorChunk::from_file(string filename, hid_t file_plist, hid_t read_
         component += n_processors;
     }
 
-    // Read probe info
+    // Read probe info - all processes need info about all active probes
+    // for purposes of writing results to the HDF5 file.
 
     // Open the dataset
     hid_t probe_info_dset = H5Dopen(f, "probe_info", H5P_DEFAULT);
@@ -364,7 +365,7 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
         recv->set_communicator(comm);
     }
 
-    // Very important; ensures ops are executed in correct order
+    // Important: ensures ops are executed in correct order
     operator_list.sort(compare_op_ptr);
 }
 
@@ -402,6 +403,7 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
     fill_n(per_op_timings, operator_list.size(), 0.0);
 
     vector<double> step_times;
+    int n_steps = 0;
 
     for(unsigned step = 0; step < steps; ++step){
         clock_t begin = clock();
@@ -417,16 +419,12 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
         dbg("Rank " << rank << " beginning step: " << step << endl);
 
-        // Update time before calling operators, as refimpl does
-        n_steps++;
-        time = n_steps * dt;
-
         if(collect_timings){
             int op_index = 0;
             for(auto& op: operator_list){
                 clock_t op_begin = clock();
 
-                //Call the operator
+                // Call the operator
                 (*op)();
 
                 clock_t op_end = clock();
@@ -439,12 +437,13 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
             }
         }else{
             for(auto& op: operator_list){
-                //Call the operator
+                // Call the operator
                 (*op)();
             }
 
         }
 
+        n_steps++;
         for(auto& kv: probe_map){
             (kv.second)->gather(n_steps);
         }
@@ -546,9 +545,6 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 }
 
 void MpiSimulatorChunk::reset(unsigned seed){
-    time = 0.0;
-    n_steps = 0;
-
     for(Operator* op: operator_list){
         op->reset(seed + op->get_seed_modifier());
     }
@@ -592,8 +588,22 @@ Signal MpiSimulatorChunk::get_signal_view(
         throw out_of_range(msg.str());
     }
 
-    return signal_map.at(key).get_view(
+    build_dbg("Getting view with args -");
+    build_dbg("label: " << label);
+    build_dbg("key: " << key);
+    build_dbg("ndim: " << ndim);
+    build_dbg("shape1: " << shape1);
+    build_dbg("shape2: " << shape2);
+    build_dbg("stride1: " << stride1);
+    build_dbg("stride2: " << stride2);
+    build_dbg("offset: " << offset);
+
+    auto view = signal_map.at(key).get_view(
         label, ndim, shape1, shape2, stride1, stride2, offset);
+
+    build_dbg("Retrieved view: " << view);
+
+    return view;
 }
 
 Signal MpiSimulatorChunk::get_signal_view(SignalSpec ss){
@@ -617,22 +627,26 @@ Signal MpiSimulatorChunk::get_signal(key_type key){
     return signal_map.at(key);
 }
 
-void MpiSimulatorChunk::add_op(unique_ptr<Operator> op){
-    operator_list.push_back(op.get());
-    operator_store.push_back(move(op));
-}
-
 void MpiSimulatorChunk::add_op(OpSpec op_spec){
     string type_string = op_spec.type_string;
     vector<string>& args = op_spec.arguments;
     float index = op_spec.index;
 
     try{
-        if(type_string.compare("Reset") == 0){
+        if(type_string.compare("TimeUpdate") == 0){
+            Signal step = get_signal_view(args[0]);
+            Signal time = get_signal_view(args[1]);
+            dtype dt = boost::lexical_cast<dtype>(args[2]);
+
+            add_time_update(
+                index,
+                unique_ptr<TimeUpdate>(new TimeUpdate(step, time, dt)));
+
+        }else if(type_string.compare("Reset") == 0){
             Signal dst = get_signal_view(args[0]);
             dtype value = boost::lexical_cast<dtype>(args[1]);
 
-            add_op(unique_ptr<Operator>(new Reset(dst, value)));
+            add_op(index, unique_ptr<Operator>(new Reset(dst, value)));
 
         }else if(type_string.compare("Copy") == 0){
 
@@ -640,7 +654,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal src = get_signal_view(args[1]);
 
             Operator* op = new Copy(dst, src);
-            add_op(unique_ptr<Operator>(op));
+            add_op(index, unique_ptr<Operator>(op));
 
         }else if(type_string.compare("SlicedCopy") == 0){
 
@@ -660,7 +674,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             vector<int> seq_A = python_list_to_index_vector(args[9]);
             vector<int> seq_B = python_list_to_index_vector(args[10]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new SlicedCopy(
                     dst, src, inc, start_A, stop_A, step_A,
                     start_B, stop_B, step_B, seq_A, seq_B)));
@@ -670,14 +684,14 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal X = get_signal_view(args[1]);
             Signal Y = get_signal_view(args[2]);
 
-            add_op(unique_ptr<Operator>(new DotInc(A, X, Y)));
+            add_op(index, unique_ptr<Operator>(new DotInc(A, X, Y)));
 
         }else if(type_string.compare("ElementwiseInc") == 0){
             Signal A = get_signal_view(args[0]);
             Signal X = get_signal_view(args[1]);
             Signal Y = get_signal_view(args[2]);
 
-            add_op(unique_ptr<Operator>(new ElementwiseInc(A, X, Y)));
+            add_op(index, unique_ptr<Operator>(new ElementwiseInc(A, X, Y)));
 
         }else if(type_string.compare("LIF") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);
@@ -691,7 +705,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal voltage = get_signal_view(args[7]);
             Signal ref_time = get_signal_view(args[8]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new LIF(
                     n_neurons, tau_rc, tau_ref, min_voltage,
                     dt, J, output, voltage, ref_time)));
@@ -704,7 +718,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal J = get_signal_view(args[3]);
             Signal output = get_signal_view(args[4]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new LIFRate(n_neurons, tau_rc, tau_ref, J, output)));
 
         }else if(type_string.compare("AdaptiveLIF") == 0){
@@ -724,7 +738,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal ref_time = get_signal_view(args[10]);
             Signal adaptation = get_signal_view(args[11]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new AdaptiveLIF(
                     n_neurons, tau_n, inc_n, tau_rc, tau_ref,
                     min_voltage, dt, J, output, voltage, ref_time,
@@ -745,7 +759,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal output = get_signal_view(args[7]);
             Signal adaptation = get_signal_view(args[8]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new AdaptiveLIFRate(
                     n_neurons, tau_n, inc_n, tau_rc, tau_ref,
                     dt, J, output, adaptation)));
@@ -756,7 +770,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal J = get_signal_view(args[1]);
             Signal output = get_signal_view(args[2]);
 
-            add_op(unique_ptr<Operator>(new RectifiedLinear(n_neurons, J, output)));
+            add_op(index, unique_ptr<Operator>(new RectifiedLinear(n_neurons, J, output)));
 
         }else if(type_string.compare("Sigmoid") == 0){
             int n_neurons = boost::lexical_cast<int>(args[0]);
@@ -765,7 +779,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal J = get_signal_view(args[2]);
             Signal output = get_signal_view(args[3]);
 
-            add_op(unique_ptr<Operator>(new Sigmoid(n_neurons, tau_ref, J, output)));
+            add_op(index, unique_ptr<Operator>(new Sigmoid(n_neurons, tau_ref, J, output)));
 
         }else if(type_string.compare("NoDenSynapse") == 0){
 
@@ -773,7 +787,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal output = get_signal_view(args[1]);
             dtype b = boost::lexical_cast<dtype>(args[2]);
 
-            add_op(unique_ptr<Operator>(new NoDenSynapse(input, output, b)));
+            add_op(index, unique_ptr<Operator>(new NoDenSynapse(input, output, b)));
 
         }else if(type_string.compare("SimpleSynapse") == 0){
 
@@ -782,7 +796,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype a = boost::lexical_cast<dtype>(args[2]);
             dtype b = boost::lexical_cast<dtype>(args[3]);
 
-            add_op(unique_ptr<Operator>(new SimpleSynapse(input, output, a, b)));
+            add_op(index, unique_ptr<Operator>(new SimpleSynapse(input, output, a, b)));
 
         }else if(type_string.compare("Synapse") == 0){
 
@@ -792,7 +806,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal numerator = python_list_to_signal(args[2], false);
             Signal denominator = python_list_to_signal(args[3], false);
 
-            add_op(unique_ptr<Operator>(new Synapse(input, output, numerator, denominator)));
+            add_op(index, unique_ptr<Operator>(new Synapse(input, output, numerator, denominator)));
 
         }else if(type_string.compare("TriangleSynapse") == 0){
 
@@ -803,7 +817,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype ndiff = boost::lexical_cast<dtype>(args[3]);
             int n_taps = boost::lexical_cast<int>(args[4]);
 
-            add_op(unique_ptr<Operator>(new TriangleSynapse(input, output, n0, ndiff, n_taps)));
+            add_op(index, unique_ptr<Operator>(new TriangleSynapse(input, output, n0, ndiff, n_taps)));
 
         }else if(type_string.compare("WhiteNoise") == 0){
 
@@ -817,7 +831,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
             dtype dt = boost::lexical_cast<dtype>(args[5]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new WhiteNoise(output, mean, std, do_scale, inc, dt)));
 
         }else if(type_string.compare("WhiteSignal") == 0){
@@ -827,7 +841,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             bool get_size = true;
             Signal coefs = python_list_to_signal(args[1], get_size);
 
-            add_op(unique_ptr<Operator>(new WhiteSignal(output, coefs)));
+            add_op(index, unique_ptr<Operator>(new WhiteSignal(output, coefs)));
 
         }else if(type_string.compare("BCM") == 0){
 
@@ -839,7 +853,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype learning_rate = boost::lexical_cast<dtype>(args[4]);
             dtype dt = boost::lexical_cast<dtype>(args[5]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new BCM(
                     pre_filtered, post_filtered, theta, delta, learning_rate, dt)));
 
@@ -854,7 +868,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype dt = boost::lexical_cast<dtype>(args[5]);
             dtype beta = boost::lexical_cast<dtype>(args[6]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new Oja(
                     pre_filtered, post_filtered, weights, delta, learning_rate, dt, beta)));
 
@@ -871,7 +885,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype learning_rate = boost::lexical_cast<dtype>(args[6]);
             dtype dt = boost::lexical_cast<dtype>(args[7]);
 
-            add_op(unique_ptr<Operator>(
+            add_op(index, unique_ptr<Operator>(
                 new Voja(
                     pre_decoded, post_filtered, scaled_encoders, delta,
                     learning_signal, scale, learning_rate, dt)));
@@ -908,8 +922,9 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
         }else if(type_string.compare("SpaunStimulus") == 0){
             Signal output = get_signal_view(args[0]);
+            Signal time = get_signal_view(args[1]);
 
-            string stim_seq_str = args[1];
+            string stim_seq_str = args[2];
             boost::trim_if(stim_seq_str, boost::is_any_of("[]"));
             boost::replace_all(stim_seq_str, "\"", "");
             boost::replace_all(stim_seq_str, "\'", "");
@@ -917,25 +932,23 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             vector<string> stim_seq;
             boost::split(stim_seq, stim_seq_str, boost::is_any_of(","));
 
-            dtype present_interval = boost::lexical_cast<dtype>(args[2]);
-            dtype present_blanks = boost::lexical_cast<dtype>(args[3]);
+            dtype present_interval = boost::lexical_cast<dtype>(args[3]);
+            dtype present_blanks = boost::lexical_cast<dtype>(args[4]);
 
-            int identifier = boost::lexical_cast<int>(args[4]);
+            int identifier = boost::lexical_cast<int>(args[5]);
 
             auto op = unique_ptr<Operator>(
                 new SpaunStimulus(
-                     output, get_time_pointer(), stim_seq,
+                     output, time, stim_seq,
                      present_interval, present_blanks, identifier));
 
-            add_op(move(op));
+            add_op(index, move(op));
 
         }else{
             stringstream msg;
             msg << "Received an operator type that nengo_mpi can't handle: " << type_string;
             throw runtime_error(msg.str());
         }
-
-        operator_list.back()->set_index(index);
 
     }catch(const boost::bad_lexical_cast& e){
         stringstream msg;
@@ -950,6 +963,22 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
         }
 
         throw runtime_error(msg.str());
+    }
+}
+
+void MpiSimulatorChunk::add_op(float index, unique_ptr<Operator> op){
+    operator_list.push_back(op.get());
+    op->set_index(index);
+    operator_store.push_back(move(op));
+    build_dbg("At index " << index << ", adding op:");
+    build_dbg(*(op.get()));
+}
+
+void MpiSimulatorChunk::add_time_update(float index, unique_ptr<TimeUpdate> time_update_){
+    if(!time_update){
+        operator_list.push_back((Operator*) time_update_.get());
+        time_update = move(time_update_);
+        time_update->set_index(index);
     }
 }
 
@@ -969,6 +998,7 @@ void MpiSimulatorChunk::add_mpi_send(float index, int dst, int tag, Signal conte
     }else{
         auto mpi_send = unique_ptr<MPIOperator>(new MPISend(dst, tag, content));
         operator_list.push_back((Operator *) mpi_send.get());
+        mpi_send->set_index(index);
         mpi_sends.push_back(move(mpi_send));
     }
 }
@@ -989,6 +1019,7 @@ void MpiSimulatorChunk::add_mpi_recv(float index, int src, int tag, Signal conte
     }else{
         auto mpi_recv = unique_ptr<MPIOperator>(new MPIRecv(src, tag, content));
         operator_list.push_back((Operator *) mpi_recv.get());
+        mpi_recv->set_index(index);
         mpi_recvs.push_back(move(mpi_recv));
     }
 }

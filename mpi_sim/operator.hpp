@@ -40,7 +40,10 @@ public:
 
     virtual void operator() () = 0;
     virtual string to_string() const{
-        return classname() + '\n';
+        stringstream ss;
+        ss << classname() << endl;
+        ss << "index: "<< index << endl;
+        return ss.str();
     }
 
     // Here we only need to reset aspects of operator's state that are *not* stored as signals
@@ -61,6 +64,22 @@ public:
 protected:
     float index;
 };
+
+class TimeUpdate: public Operator{
+
+public:
+    TimeUpdate(Signal step, Signal time, dtype t);
+    virtual string classname() const { return "TimeUpdate"; }
+
+    void operator()();
+    virtual string to_string() const;
+
+protected:
+    Signal step;
+    Signal time;
+    const dtype dt;
+};
+
 
 class Reset: public Operator{
 
