@@ -49,10 +49,17 @@ class TestSimulator(nengo_mpi.Simulator):
         List of SignalProbes.
 
     """
-    def __init__(
-            self, operators, signal_probes, dt=0.001, seed=None):
+    def __init__(self, operators, signal_probes, dt=0.001, seed=None):
+
+        if self._open_simulators:
+            raise RuntimeError(
+                "Attempting to create active instance of TestSimulator "
+                "while another instance exists that has not been "
+                "closed. Call `close` on existing instances before "
+                "creating new ones.")
 
         self.runnable = True
+        self.n_steps = 0
         self.dt = dt
 
         assignments = defaultdict(int)
@@ -75,7 +82,7 @@ class TestSimulator(nengo_mpi.Simulator):
 
         self.data = ProbeDict(self._probe_outputs)
 
-        print "TestSimulator ready."
+        self._open_simulators.append(self)
         seed = np.random.randint(npext.maxint) if seed is None else seed
         self.reset(seed=seed)
 
@@ -117,9 +124,8 @@ def test_dot_inc():
     ops = [Reset(Y), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
 
-    sim = TestSimulator(ops, probes)
-
-    sim.run(0.01)
+    with TestSimulator(ops, probes) as sim:
+        sim.run(0.01)
 
     assert np.allclose(
         A.initial_value.dot(X.initial_value), sim.data[probes[0]])
@@ -140,9 +146,8 @@ def test_random_dot_inc():
         ops = [Reset(Y), DotInc(A, X, Y)]
         probes = [SignalProbe(Y)]
 
-        sim = TestSimulator(ops, probes)
-
-        sim.run(0.01)
+        with TestSimulator(ops, probes) as sim:
+            sim.run(0.01)
 
         assert np.allclose(
             A.initial_value.dot(X.initial_value), sim.data[probes[0]])
@@ -159,9 +164,8 @@ def test_reset():
 
     ops = [Reset(Y, reset_val), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
-    sim = TestSimulator(ops, probes)
-
-    sim.run(0.05)
+    with TestSimulator(ops, probes) as sim:
+        sim.run(0.05)
 
     assert np.allclose(
         D + reset_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
@@ -179,9 +183,8 @@ def test_copy():
 
     ops = [Copy(Y, C), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
-    sim = TestSimulator(ops, probes)
-
-    sim.run(0.05)
+    with TestSimulator(ops, probes) as sim:
+        sim.run(0.05)
 
     assert np.allclose(
         D + copy_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
@@ -208,9 +211,8 @@ def test_sliced_copy_converge():
         SlicedCopy(S3, converge, b_slice=slice(2 * D, 3 * D), inc=True)]
 
     probes = [SignalProbe(converge)]
-    sim = TestSimulator(ops, probes)
-
-    sim.run(0.05)
+    with TestSimulator(ops, probes) as sim:
+        sim.run(0.05)
 
     ground_truth = np.array(list(data1) + list(data2) + list(data3))
 
@@ -237,9 +239,8 @@ def test_sliced_copy_diverge():
         SlicedCopy(diverge, S3, a_slice=slice(2 * D, 3 * D), inc=True)]
 
     probes = [SignalProbe(S1), SignalProbe(S2), SignalProbe(S3)]
-    sim = TestSimulator(ops, probes)
-
-    sim.run(0.05)
+    with TestSimulator(ops, probes) as sim:
+        sim.run(0.05)
 
     assert np.allclose(
         data[:D], sim.data[probes[0]], atol=0.000001, rtol=0.0)
@@ -283,9 +284,8 @@ def test_sliced_copy():
             b_slice=slice(1, 2 * D, 2), inc=True)]
 
     probes = [SignalProbe(final_out), SignalProbe(converge)]
-    sim = TestSimulator(ops, probes)
-
-    sim.run(0.05)
+    with TestSimulator(ops, probes) as sim:
+        sim.run(0.05)
 
     ground_truth = np.zeros(2*D)
     ground_truth[0:2*D:2] = data1
@@ -337,9 +337,8 @@ def test_sliced_copy_seq():
             b_slice=permutation5[int(1.5*D):], inc=True)]
 
     probes = [SignalProbe(final_out), SignalProbe(converge)]
-    sim = TestSimulator(ops, probes)
-
-    sim.run(0.05)
+    with TestSimulator(ops, probes) as sim:
+        sim.run(0.05)
 
     data = np.hstack((data1, data2, data3))
 
@@ -386,8 +385,8 @@ def test_lif():
 
     probes = [SignalProbe(output)]
 
-    sim = TestSimulator([op, input_func], probes)
-    sim.run(1.0)
+    with TestSimulator([op, input_func], probes) as sim:
+        sim.run(1.0)
 
     spikes = sim.data[probes[0]] / (1.0 / sim.dt)
     sim_rates = spikes.sum(axis=0)
@@ -418,8 +417,8 @@ def test_stateless_neurons(neuron_type):
 
     probes = [SignalProbe(output)]
 
-    sim = TestSimulator([op, input_func], probes)
-    sim.run(0.2)
+    with TestSimulator([op, input_func], probes) as sim:
+        sim.run(0.2)
 
     sim_rates = sim.data[probes[0]]
     math_rates = neurons.rates(
@@ -443,9 +442,9 @@ def test_filter():
 
     probes = [SignalProbe(output)]
 
-    sim = TestSimulator(
-        [synapse, input_func, time_update], probes)
-    sim.run(0.2)
+    with TestSimulator(
+            [synapse, input_func, time_update], probes) as sim:
+        sim.run(0.2)
 
 
 def test_element_wise_inc():
@@ -538,8 +537,8 @@ def ewi_helper(Simulator, A, X, Y, reference):
 
     probes = [SignalProbe(Y)]
 
-    sim = Simulator([ewi, Reset(Y)], probes)
-    sim.run(0.2)
+    with Simulator([ewi, Reset(Y)], probes) as sim:
+        sim.run(0.2)
     assert np.allclose(reference, sim.data[probes[0]][-1])
 
 
@@ -562,10 +561,9 @@ def test_spaun_stimulus():
     probes = [SignalProbe(output)]
     operators = [spaun_stim]
 
-    sim = TestSimulator(operators, probes)
     run_time = spaun_stimulus.get_est_runtime()
-
-    sim.run(run_time)
+    with TestSimulator(operators, probes) as sim:
+        sim.run(run_time)
 
     def image_string(image):
         s = int(np.sqrt(len(image)))

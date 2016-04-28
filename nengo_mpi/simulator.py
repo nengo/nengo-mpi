@@ -17,7 +17,7 @@ class Simulator(object):
     """MPI simulator for nengo 2.0."""
 
     # Only one instance of nengo_mpi.Simulator can be unclosed at any time
-    __open_simulators = []
+    _open_simulators = []
 
     def __init__(
             self, network, dt=0.001, seed=None, model=None,
@@ -59,7 +59,7 @@ class Simulator(object):
         """
         self.runnable = not save_file
 
-        if self.runnable and self.__open_simulators:
+        if self.runnable and self._open_simulators:
             raise RuntimeError(
                 "Attempting to create active instance of nengo_mpi.Simulator "
                 "while another instance exists that has not been "
@@ -105,7 +105,7 @@ class Simulator(object):
         print "MPI model ready."
 
         if self.runnable:
-            self.__open_simulators.append(self)
+            self._open_simulators.append(self)
 
             seed = np.random.randint(npext.maxint) if seed is None else seed
             self.reset(seed=seed)
@@ -186,13 +186,13 @@ class Simulator(object):
 
     @property
     def closed(self):
-        return self not in Simulator.__open_simulators
+        return self not in self._open_simulators
 
     def close(self):
         if self.runnable:
             try:
                 self.mpi_sim.close()
-                self.__open_simulators.remove(self)
+                self._open_simulators.remove(self)
             except ValueError:
                 raise RuntimeError(
                     "Attempting to close a runnable instance of "
@@ -207,7 +207,7 @@ class Simulator(object):
     @staticmethod
     @atexit.register
     def close_simulators():
-        open_simulators = Simulator.__open_simulators
+        open_simulators = Simulator._open_simulators
         if len(open_simulators) > 1:
             raise RuntimeError(
                 "Multiple instances of nengo_mpi.Simulator "
@@ -217,4 +217,4 @@ class Simulator(object):
 
     @staticmethod
     def all_closed():
-        return Simulator.__open_simulators == []
+        return Simulator._open_simulators == []
