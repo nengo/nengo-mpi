@@ -1210,9 +1210,13 @@ class MpiModel(builder.Model):
             if y is None:
                 y = np.array([0.0])
 
-            if np.isscalar(y) or not y.shape:
-                y = np.array([y])
-
+            try:
+                float(y[0])
+            except:
+                try:
+                    y = np.array([float(y)])
+                except:
+                    raise Exception("Cannot use %s as output of Node." % y)
             return y
 
         t = op.t if pass_time else self.sig['common'][0]
