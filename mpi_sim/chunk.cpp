@@ -836,12 +836,31 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 
         }else if(type_string.compare("WhiteSignal") == 0){
 
-            Signal output = get_signal_view(args[0]);
+            bool get_size = true;
+            Signal coefs = python_list_to_signal(args[0], get_size);
+
+            Signal output = get_signal_view(args[1]);
+            Signal time = get_signal_view(args[2]);
+            dtype dt = boost::lexical_cast<dtype>(args[3]);
+
+            auto op = unique_ptr<Operator>(
+                new WhiteSignal(coefs, output, time, dt));
+            add_op(index, move(op));
+
+        }else if(type_string.compare("PresentInput") == 0){
 
             bool get_size = true;
-            Signal coefs = python_list_to_signal(args[1], get_size);
+            Signal input = python_list_to_signal(args[0], get_size);
 
-            add_op(index, unique_ptr<Operator>(new WhiteSignal(output, coefs)));
+            Signal output = get_signal_view(args[1]);
+            Signal time = get_signal_view(args[2]);
+
+            dtype presentation_time = boost::lexical_cast<dtype>(args[3]);
+            dtype dt = boost::lexical_cast<dtype>(args[4]);
+
+            auto op = unique_ptr<Operator>(
+                new PresentInput(input, output, time, presentation_time, dt));
+            add_op(index, move(op));
 
         }else if(type_string.compare("BCM") == 0){
 
@@ -853,9 +872,11 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             dtype learning_rate = boost::lexical_cast<dtype>(args[4]);
             dtype dt = boost::lexical_cast<dtype>(args[5]);
 
-            add_op(index, unique_ptr<Operator>(
+            auto op = unique_ptr<Operator>(
                 new BCM(
-                    pre_filtered, post_filtered, theta, delta, learning_rate, dt)));
+                    pre_filtered, post_filtered, theta,
+                    delta, learning_rate, dt));
+            add_op(index, move(op));
 
         }else if(type_string.compare("Oja") == 0){
 

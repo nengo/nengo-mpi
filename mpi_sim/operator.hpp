@@ -313,21 +313,41 @@ protected:
 class WhiteSignal: public Operator{
 
 public:
-    WhiteSignal(Signal output, Signal coefs);
+    WhiteSignal(Signal coefs, Signal output, Signal time, dtype dt);
 
     virtual string classname() const { return "WhiteSignal"; }
 
     void operator()();
     virtual string to_string() const;
 
-    virtual void reset(unsigned seed);
+protected:
+    const Signal coefs;
+    Signal output;
+    Signal time;
+    dtype dt;
+};
+
+class PresentInput: public Operator{
+
+public:
+    PresentInput(
+        Signal input, Signal output, Signal time,
+        dtype presentation_time, dtype dt);
+
+    virtual string classname() const { return "PresentInput"; }
+
+    void operator()();
+    virtual string to_string() const;
 
 protected:
+    const Signal input;
     Signal output;
-    const Signal coefs;
+    Signal time;
 
-    unsigned idx;
+    dtype presentation_time;
+    dtype dt;
 };
+
 
 class LIF: public Operator{
 

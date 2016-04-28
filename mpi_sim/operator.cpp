@@ -702,17 +702,16 @@ void WhiteNoise::reset(unsigned seed){
 }
 
 // ********************************************************************************
-WhiteSignal::WhiteSignal(Signal output, Signal coefs)
-:output(output), coefs(coefs), idx(0){
+WhiteSignal::WhiteSignal(Signal coefs, Signal output, Signal time, dtype dt)
+:coefs(coefs), output(output), time(time), dt(dt){
 
 }
 
 void WhiteSignal::operator() (){
+    unsigned idx = int(round(time(0) / dt));
     for(unsigned i = 0; i < output.shape1; i++){
         output(i) = coefs(idx % coefs.shape1, i);
     }
-
-    idx++;
 
     run_dbg(*this);
 }
@@ -721,18 +720,48 @@ string WhiteSignal::to_string() const{
 
     stringstream out;
     out << Operator::to_string();
-    out << "output:" << endl;
-    out << signal_to_string(output) << endl;
+    out << "dt:" << dt << endl;
     out << "coefs:" << endl;
     out << signal_to_string(coefs) << endl;
-    out << "idx: " << idx << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "time:" << endl;
+    out << signal_to_string(time) << endl;
 
     return out.str();
 }
 
-void WhiteSignal::reset(unsigned seed){
-    idx = 0;
+// ********************************************************************************
+PresentInput::PresentInput(Signal input, Signal output, Signal time, dtype presentation_time, dtype dt)
+:input(input), output(output), time(time), presentation_time(presentation_time), dt(dt){
+
 }
+
+void PresentInput::operator() (){
+    unsigned idx = int((time(0) - dt) / presentation_time + 1e-7);
+    for(unsigned i = 0; i < output.shape1; i++){
+        output(i) = input(idx % input.shape1, i);
+    }
+
+    run_dbg(*this);
+}
+
+string PresentInput::to_string() const{
+
+    stringstream out;
+    out << Operator::to_string();
+    out << "dt:" << dt << endl;
+    out << "presentation_time:" << presentation_time << endl;
+    out << "input:" << endl;
+    out << signal_to_string(input) << endl;
+    out << "output:" << endl;
+    out << signal_to_string(output) << endl;
+    out << "time:" << endl;
+    out << signal_to_string(time) << endl;
+
+    return out.str();
+}
+
 
 // ********************************************************************************
 LIF::LIF(

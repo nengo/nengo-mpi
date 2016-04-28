@@ -25,7 +25,8 @@ from nengo.builder import Builder as DefaultBuilder
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
 from nengo.neurons import AdaptiveLIF, AdaptiveLIFRate, Izhikevich
 from nengo.synapses import LinearFilter, Triangle
-from nengo.processes import WhiteNoise, FilteredNoise, BrownNoise, WhiteSignal
+from nengo.processes import (
+    WhiteNoise, FilteredNoise, BrownNoise, WhiteSignal, PresentInput)
 from nengo.utils.graphs import toposort
 from nengo.utils.builder import full_transform
 from nengo.utils.simulator import operator_depencency_graph
@@ -1063,10 +1064,9 @@ class MpiModel(builder.Model):
                 shape_in = op.input.shape if op.input is not None else (0,)
                 shape_out = op.output.shape if op.output is not None else (0,)
 
-                # rng=None only works because LinearFilter doesn't make use
-                # of the rng
+                rng = op.process.get_rng(np.random)
                 step = op.process.make_step(
-                    shape_in, shape_out, self.dt, rng=None)
+                    shape_in, shape_out, self.dt, rng=rng)
 
                 den = step.den
                 num = step.num
@@ -1090,8 +1090,9 @@ class MpiModel(builder.Model):
                 shape_in = op.input.shape if op.input is not None else (0,)
                 shape_out = op.output.shape if op.output is not None else (0,)
 
+                rng = op.process.get_rng(np.random)
                 f = op.process.make_step(shape_in, shape_out,
-                                         self.dt, rng=None)
+                                         self.dt, rng=rng)
 
                 closures = get_closures(f)
                 n0 = closures['n0']
@@ -1116,15 +1117,31 @@ class MpiModel(builder.Model):
                     self.dt]
 
             elif process_type is WhiteSignal:
+                rng = op.process.get_rng(np.random)
                 f = op.process.make_step(
-                    (0,), op.output.shape, self.dt, np.random.RandomState())
+                    (0,), op.output.shape, self.dt, rng=rng)
                 closures = get_closures(f)
                 assert closures['dt'] == self.dt
                 coefs = closures['signal']
 
                 op_args = [
-                    "WhiteSignal", signal_to_string(op.output),
-                    ndarray_to_string(coefs)]
+                    "WhiteSignal", ndarray_to_string(coefs),
+                    signal_to_string(op.output),
+                    signal_to_string(op.t), self.dt]
+
+            elif process_type is PresentInput:
+                rng = op.process.get_rng(np.random)
+                f = op.process.make_step(
+                    (0,), op.output.shape, self.dt, rng=rng)
+                closures = get_closures(f)
+                assert closures['dt'] == self.dt
+                inputs = closures['inputs']
+                presentation_time = closures['presentation_time']
+
+                op_args = [
+                    "PresentInput", ndarray_to_string(inputs),
+                    signal_to_string(op.output),
+                    signal_to_string(op.t), presentation_time, self.dt]
 
             elif process_type in [FilteredNoise, BrownNoise]:
                 raise NotImplementedError(
