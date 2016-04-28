@@ -16,7 +16,7 @@ class Simulator(object):
     """MPI simulator for nengo 2.0."""
 
     # Only one instance of nengo_mpi.Simulator can be unclosed at any time
-    __unclosed_simulators = []
+    __open_simulators = []
 
     def __init__(
             self, network, dt=0.001, seed=None, model=None,
@@ -64,7 +64,7 @@ class Simulator(object):
 
         self.runnable = not save_file
 
-        if self.runnable and self.__unclosed_simulators:
+        if self.runnable and self.__open_simulators:
             raise RuntimeError(
                 "Attempting to create active instance of nengo_mpi.Simulator "
                 "while another instance exists that has not been "
@@ -113,7 +113,7 @@ class Simulator(object):
             seed = np.random.randint(npext.maxint) if seed is None else seed
             self.reset(seed=seed)
 
-            self.__unclosed_simulators.append(self)
+            self.__open_simulators.append(self)
 
     @property
     def mpi_sim(self):
@@ -187,7 +187,7 @@ class Simulator(object):
         if self.runnable:
             try:
                 self.mpi_sim.close()
-                self.__unclosed_simulators.remove(self)
+                self.__open_simulators.remove(self)
             except ValueError:
                 raise RuntimeError(
                     "Attempting to close a runnable instance of "
@@ -196,20 +196,20 @@ class Simulator(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, tb):
+    def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
     @staticmethod
     @atexit.register
     def close_simulators():
-        unclosed_simulators = Simulator.__unclosed_simulators
-        if len(unclosed_simulators) > 1:
+        open_simulators = Simulator.__open_simulators
+        if len(open_simulators) > 1:
             raise RuntimeError(
                 "Multiple instances of nengo_mpi.Simulator "
                 "open simulatenously.")
-        if unclosed_simulators:
-            unclosed_simulators[0].close()
+        if open_simulators:
+            open_simulators[0].close()
 
     @staticmethod
     def all_closed():
-        return Simulator.__unclosed_simulators == []
+        return Simulator.__open_simulators == []
