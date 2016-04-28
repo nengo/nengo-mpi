@@ -1117,7 +1117,7 @@ class MpiModel(builder.Model):
 
             elif process_type is WhiteSignal:
                 f = op.process.make_step(
-                    0, op.output.size, self.dt, np.random.RandomState())
+                    (0,), op.output.shape, self.dt, np.random.RandomState())
                 closures = get_closures(f)
                 assert closures['dt'] == self.dt
                 coefs = closures['signal']
