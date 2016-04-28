@@ -1,6 +1,7 @@
 from nengo.simulator import ProbeDict
 from nengo.cache import get_default_decoder_cache
 import nengo.utils.numpy as npext
+from nengo.exceptions import SimulatorClosed
 
 from nengo_mpi.model import MpiBuilder, MpiModel
 from nengo_mpi.partition import Partitioner, verify_assignments
@@ -22,22 +23,19 @@ class Simulator(object):
             self, network, dt=0.001, seed=None, model=None,
             partitioner=None, assignments=None, save_file=""):
         """
-        Creates a Simulator for a nengo network than can be executed
+        Creates a simulator for a nengo Network than can be executed
         in parallel using MPI.
 
         Parameters
         ----------
         network : nengo.Network
             A network object to be built and then simulated.
-
         dt : float
             The length of a simulator timestep, in seconds.
-
         seed : int
             A seed for all stochastic operators used in this simulator.
             Note that there are not stochastic operators implemented
             currently, so this parameters does nothing.
-
         model : nengo.builder.Model
             A model object that contains build artifacts to be simulated.
             Usually the simulator will build this model for you; however,
@@ -46,22 +44,19 @@ class Simulator(object):
             then you can pass in an instance of ``MpiModel'' instance
             or a ``nengo.builder.Model`` instance. If the latter, it
             will be converted into an ``MpiModel''.
-
         partitioner: Partitioner
             Specifies how to assign nengo objects to MPI processes.
             ``partitioner'' and ``assignment'' cannot both be supplied.
-
         assignments: dict
             Dictionary mapping from nengo objects to indices of
             partitions components. ``partitioner'' and ``assignment''
             cannot both be supplied.
-
         save_file: string
             Name of file that will store all data added to the simulator.
             The simulator can later be reconstructed from this file. If
             equal to the empty string, then no file is created.
-        """
 
+        """
         self.runnable = not save_file
 
         if self.runnable and self.__open_simulators:
@@ -110,10 +105,10 @@ class Simulator(object):
         print "MPI model ready."
 
         if self.runnable:
+            self.__open_simulators.append(self)
+
             seed = np.random.randint(npext.maxint) if seed is None else seed
             self.reset(seed=seed)
-
-            self.__open_simulators.append(self)
 
     @property
     def mpi_sim(self):
@@ -130,6 +125,9 @@ class Simulator(object):
 
     def run_steps(self, steps, progress_bar, log_filename):
         """ Simulate for the given number of `dt` steps. """
+        if self.closed:
+            raise SimulatorClosed(
+                "MpiSimulator cannot run because it is closed.")
 
         self.mpi_sim.run_n_steps(steps, progress_bar, log_filename)
 
@@ -168,6 +166,9 @@ class Simulator(object):
         return dt * np.arange(1, n_steps + 1)
 
     def reset(self, seed=None):
+        if self.closed:
+            raise SimulatorClosed("Cannot reset closed MpiSimulator.")
+
         if seed is not None:
             self.seed = seed
 
@@ -182,6 +183,10 @@ class Simulator(object):
 
         for pk in self.model.probe_keys:
             self._probe_outputs[pk] = []
+
+    @property
+    def closed(self):
+        return self not in Simulator.__open_simulators
 
     def close(self):
         if self.runnable:
