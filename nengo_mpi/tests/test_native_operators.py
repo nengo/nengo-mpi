@@ -173,21 +173,16 @@ def test_reset():
 
 def test_copy():
     D = 40
-    copy_val = 4.0
-
-    A = Signal(np.ones((D, D)), 'A')
-    X = Signal(np.ones(D), 'X')
-    Y = Signal(np.zeros(D), 'Y')
-
-    C = Signal(copy_val * np.ones(D))
-
-    ops = [Copy(Y, C), DotInc(A, X, Y)]
-    probes = [SignalProbe(Y)]
+    data = np.random.random(D)
+    A = Signal(data, 'A')
+    B = Signal(np.zeros(D), 'B')
+    ops = [Copy(A, B)]
+    probes = [SignalProbe(B)]
     with TestSimulator(ops, probes) as sim:
         sim.run(0.05)
 
     assert np.allclose(
-        D + copy_val, sim.data[probes[0]], atol=0.00001, rtol=0.0)
+        data, sim.data[probes[0]], atol=0.00001, rtol=0.0)
 
 
 def test_sliced_copy_converge():
