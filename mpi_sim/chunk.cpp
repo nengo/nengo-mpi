@@ -657,27 +657,28 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             add_op(index, unique_ptr<Operator>(op));
 
         }else if(type_string.compare("SlicedCopy") == 0){
+            Signal src = get_signal_view(args[0]);
+            Signal dst = get_signal_view(args[1]);
 
-            Signal dst = get_signal_view(args[0]);
-            Signal src = get_signal_view(args[1]);
+            int start_src = boost::lexical_cast<int>(args[2]);
+            int stop_src = boost::lexical_cast<int>(args[3]);
+            int step_src = boost::lexical_cast<int>(args[4]);
 
-            bool inc = bool(boost::lexical_cast<int>(args[2]));
+            int start_dst = boost::lexical_cast<int>(args[5]);
+            int stop_dst = boost::lexical_cast<int>(args[6]);
+            int step_dst = boost::lexical_cast<int>(args[7]);
 
-            int start_A = boost::lexical_cast<int>(args[3]);
-            int stop_A = boost::lexical_cast<int>(args[4]);
-            int step_A = boost::lexical_cast<int>(args[5]);
+            vector<int> seq_src = python_list_to_index_vector(args[8]);
+            vector<int> seq_dst = python_list_to_index_vector(args[9]);
 
-            int start_B = boost::lexical_cast<int>(args[6]);
-            int stop_B = boost::lexical_cast<int>(args[7]);
-            int step_B = boost::lexical_cast<int>(args[8]);
-
-            vector<int> seq_A = python_list_to_index_vector(args[9]);
-            vector<int> seq_B = python_list_to_index_vector(args[10]);
+            bool inc = bool(boost::lexical_cast<int>(args[10]));
 
             add_op(index, unique_ptr<Operator>(
                 new SlicedCopy(
-                    dst, src, inc, start_A, stop_A, step_A,
-                    start_B, stop_B, step_B, seq_A, seq_B)));
+                    src, dst,
+                    start_src, stop_src, step_src,
+                    start_dst, stop_dst, step_dst,
+                    seq_src, seq_dst, inc)));
 
         }else if(type_string.compare("DotInc") == 0){
             Signal A = get_signal_view(args[0]);

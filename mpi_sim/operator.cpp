@@ -76,127 +76,127 @@ string Copy::to_string() const  {
 
 // ********************************************************************************
 SlicedCopy::SlicedCopy(
-    Signal B, Signal A, bool inc,
-    int start_A, int stop_A, int step_A,
-    int start_B, int stop_B, int step_B,
-    vector<int> seq_A, vector<int> seq_B)
-:B(B), A(A), length_A(A.shape1), length_B(B.shape1), inc(inc),
-start_A(start_A), stop_A(stop_A), step_A(step_A),
-start_B(start_B), stop_B(stop_B), step_B(step_B),
-seq_A(seq_A), seq_B(seq_B){
+    Signal src, Signal dst,
+    int start_src, int stop_src, int step_src,
+    int start_dst, int stop_dst, int step_dst,
+    vector<int> seq_src, vector<int> seq_dst, bool inc)
+:src(src), dst(dst), length_src(src.shape1), length_dst(dst.shape1), inc(inc),
+start_src(start_src), stop_src(stop_src), step_src(step_src),
+start_dst(start_dst), stop_dst(stop_dst), step_dst(step_dst),
+seq_src(seq_src), seq_dst(seq_dst){
 
-    if(seq_A.size() > 0 && (start_A != 0 || stop_A != 0 || step_A != 0)){
+    if(seq_src.size() > 0 && (start_src != 0 || stop_src != 0 || step_src != 0)){
         throw runtime_error(
-            "While creating SlicedCopy, seq_A was non-empty, "
+            "While creating SlicedCopy, seq_src was non-empty, "
             "but one of start/step/stop was non-zero.");
     }
 
-    if(seq_B.size() > 0 && (start_B != 0 || stop_B != 0 || step_B != 0)){
+    if(seq_dst.size() > 0 && (start_dst != 0 || stop_dst != 0 || step_dst != 0)){
         throw runtime_error(
-            "While creating SlicedCopy, seq_B was non-empty, "
+            "While creating SlicedCopy, seq_dst was non-empty, "
             "but one of start/step/stop was non-zero.");
     }
 
-    unsigned n_assignments_A = 0;
-    if(seq_A.size() > 0){
-        n_assignments_A = seq_A.size();
+    unsigned n_assignments_src = 0;
+    if(seq_src.size() > 0){
+        n_assignments_src = seq_src.size();
     }else{
-        if(step_A > 0 || step_A < 0){
-            n_assignments_A = unsigned(ceil(max((stop_A - start_A) / float(step_A), 0.0f)));
+        if(step_src > 0 || step_src < 0){
+            n_assignments_src = unsigned(ceil(max((stop_src - start_src) / float(step_src), 0.0f)));
         }else{
-            throw runtime_error("While creating SlicedCopy, step_A equal to 0.");
+            throw runtime_error("While creating SlicedCopy, step_src equal to 0.");
         }
     }
 
-    unsigned n_assignments_B = 0;
-    if(seq_B.size() > 0){
-        n_assignments_B = seq_B.size();
+    unsigned n_assignments_dst = 0;
+    if(seq_dst.size() > 0){
+        n_assignments_dst = seq_dst.size();
     }else{
-        if(step_B > 0 || step_B < 0){
-            n_assignments_B = unsigned(ceil(max((stop_B - start_B) / float(step_B), 0.0f)));
+        if(step_dst > 0 || step_dst < 0){
+            n_assignments_dst = unsigned(ceil(max((stop_dst - start_dst) / float(step_dst), 0.0f)));
         }else{
-            throw runtime_error("While creating SlicedCopy, step_B equal to 0.");
+            throw runtime_error("While creating SlicedCopy, step_dst equal to 0.");
         }
     }
 
-    if(n_assignments_A != n_assignments_B){
+    if(n_assignments_src != n_assignments_dst){
         stringstream ss;
-        ss << "While creating SlicedCopy, got mismatching slice sizes for A and B. "
-           << "Size of A slice was " << n_assignments_A << ", while sice of B slice was "
-           << n_assignments_B << "." << endl;
+        ss << "While creating SlicedCopy, got mismatching slice sizes for src and dst. "
+           << "Size of src slice was " << n_assignments_src << ", while sice of dst slice was "
+           << n_assignments_dst << "." << endl;
         throw runtime_error(ss.str());
     }
 
-    n_assignments = n_assignments_A;
+    n_assignments = n_assignments_src;
 }
 
 void SlicedCopy::operator() (){
-    unsigned idx_A, idx_B;
-    if(seq_A.size() > 0 && seq_B.size() > 0){
+    unsigned idx_src, idx_dst;
+    if(seq_src.size() > 0 && seq_dst.size() > 0){
         if(inc){
             for(unsigned i = 0; i < n_assignments; i++){
-                idx_A = seq_A[i] % length_A;
-                idx_B = seq_B[i] % length_B;
+                idx_src = seq_src[i] % length_src;
+                idx_dst = seq_dst[i] % length_dst;
 
-                B(idx_B) += A(idx_A);
+                dst(idx_dst) += src(idx_src);
             }
         }else{
             for(unsigned i = 0; i < n_assignments; i++){
-                idx_A = seq_A[i] % length_A;
-                idx_B = seq_B[i] % length_B;
+                idx_src = seq_src[i] % length_src;
+                idx_dst = seq_dst[i] % length_dst;
 
-                B(idx_B) = A(idx_A);
+                dst(idx_dst) = src(idx_src);
             }
         }
 
-    }else if(seq_A.size() > 0){
+    }else if(seq_src.size() > 0){
         if(inc){
             for(unsigned i = 0; i < n_assignments; i++){
-                idx_A = seq_A[i] % length_A;
-                idx_B = (start_B + i * step_B) % length_B;
+                idx_src = seq_src[i] % length_src;
+                idx_dst = (start_dst + i * step_dst) % length_dst;
 
-                B(idx_B) += A(idx_A);
+                dst(idx_dst) += src(idx_src);
             }
         }else{
             for(unsigned i = 0; i < n_assignments; i++){
-                idx_A = seq_A[i] % length_A;
-                idx_B = (start_B + i * step_B) % length_B;
+                idx_src = seq_src[i] % length_src;
+                idx_dst = (start_dst + i * step_dst) % length_dst;
 
-                B(idx_B) = A(idx_A);
+                dst(idx_dst) = src(idx_src);
             }
         }
 
-    }else if(seq_B.size() > 0){
+    }else if(seq_dst.size() > 0){
         if(inc){
             for(unsigned i = 0; i < n_assignments; i++){
-                idx_A = (start_A + i * step_A) % length_A;
-                idx_B = seq_B[i] % length_B;
+                idx_src = (start_src + i * step_src) % length_src;
+                idx_dst = seq_dst[i] % length_dst;
 
-                B(idx_B) += A(idx_A);
+                dst(idx_dst) += src(idx_src);
             }
         }else{
             for(unsigned i = 0; i < n_assignments; i++){
-                idx_A = (start_A + i * step_A) % length_A;
-                idx_B = seq_B[i] % length_B;
+                idx_src = (start_src + i * step_src) % length_src;
+                idx_dst = seq_dst[i] % length_dst;
 
-                B(idx_B) = A(idx_A);
+                dst(idx_dst) = src(idx_src);
             }
         }
 
     }else{
         if(inc){
             for(unsigned i = 0; i < n_assignments; i++){
-                idx_A = (start_A + i * step_A) % length_A;
-                idx_B = (start_B + i * step_B) % length_B;
+                idx_src = (start_src + i * step_src) % length_src;
+                idx_dst = (start_dst + i * step_dst) % length_dst;
 
-                B(idx_B) += A(idx_A);
+                dst(idx_dst) += src(idx_src);
             }
         }else{
             for(unsigned i = 0; i < n_assignments; i++){
-                idx_A = (start_A + i * step_A) % length_A;
-                idx_B = (start_B + i * step_B) % length_B;
+                idx_src = (start_src + i * step_src) % length_src;
+                idx_dst = (start_dst + i * step_dst) % length_dst;
 
-                B(idx_B) = A(idx_A);
+                dst(idx_dst) = src(idx_src);
             }
         }
 
@@ -209,29 +209,29 @@ string SlicedCopy::to_string() const{
 
     stringstream out;
     out << Operator::to_string();
-    out << "A:" << endl;
-    out << signal_to_string(A) << endl;
-    out << "B:" << endl;
-    out << signal_to_string(B) << endl;
+    out << "src:" << endl;
+    out << signal_to_string(src) << endl;
+    out << "dst:" << endl;
+    out << signal_to_string(dst) << endl;
 
     out << "inc: " << inc << endl;
 
-    out << "start_A: " << start_A << endl;
-    out << "stop_A:" << stop_A << endl;
-    out << "step_A:" << step_A << endl;
+    out << "start_src: " << start_src << endl;
+    out << "stop_src:" << stop_src << endl;
+    out << "step_src:" << step_src << endl;
 
-    out << "start_B:" << start_B << endl;
-    out << "stop_B:" << stop_B << endl;
-    out << "step_B:" << step_B << endl;
+    out << "start_dst:" << start_dst << endl;
+    out << "stop_dst:" << stop_dst << endl;
+    out << "step_dst:" << step_dst << endl;
 
-    out << "seq_A: " << endl;
-    for(int i: seq_A){
+    out << "seq_src: " << endl;
+    for(int i: seq_src){
         out << i << ", ";
     }
     out << endl;
 
-    out << "seq_B: " << endl;
-    for(int i: seq_B){
+    out << "seq_dst: " << endl;
+    for(int i: seq_dst){
         out << i << ", ";
     }
     out << endl;

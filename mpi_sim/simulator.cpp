@@ -53,6 +53,10 @@ Signal Simulator::get_signal_view(string signal_string){
     return chunk->get_signal_view(signal_string);
 }
 
+Signal Simulator::get_signal(key_type key){
+    return chunk->get_signal(key);
+}
+
 void Simulator::add_pyfunc(float index, unique_ptr<Operator> pyfunc){
     chunk->add_op(index, move(pyfunc));
 }

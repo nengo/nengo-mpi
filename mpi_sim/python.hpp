@@ -33,7 +33,7 @@ Signal ndarray_to_matrix(bpyn::array a);
 Signal list_to_matrix(bpy::list l);
 
 /*
- * PythonMpiSimulator is a python-facing shell for MpiSimulator; it stores
+ * PythonMpiSimulator is a python-facing wrapper for MpiSimulator; it stores
  * an MpiSimulator, and most of its methods just call the corresponding
  * methods on that. Lets us keep all the code that requires python in one file. */
 class PythonMpiSimulator{
@@ -47,6 +47,7 @@ public:
     /* Methods for controlling simulation. */
     void run_n_steps(bpy::object steps, bpy::object progress, bpy::object log_filename);
     bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
+    bpy::object get_signal_value(bpy::object key, bpy::object make_array);
 
     void reset(bpy::object seed);
     void close();

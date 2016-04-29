@@ -1,3 +1,4 @@
+import nengo
 from nengo.simulator import ProbeDict
 from nengo.cache import get_default_decoder_cache
 import nengo.utils.numpy as npext
@@ -13,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class Simulator(object):
+class Simulator(nengo.Simulator):
     """MPI simulator for nengo 2.0."""
 
     # Only one instance of nengo_mpi.Simulator can be unclosed at any time
@@ -66,9 +67,6 @@ class Simulator(object):
                 "closed. Call `close` on existing instances before "
                 "creating new ones.")
 
-        self.n_steps = 0
-        self.dt = dt
-
         if partitioner is not None and assignments is not None:
             raise ValueError(
                 "Cannot supply both ``assignments'' and ``partitioner'' to "
@@ -86,6 +84,7 @@ class Simulator(object):
         self.n_components, self.assignments = p
 
         print "Building MPI model..."
+        dt = float(dt)
         self.model = MpiModel(
             self.n_components, self.assignments, dt=dt,
             label="%s, dt=%f" % (network, dt),
@@ -93,6 +92,8 @@ class Simulator(object):
             save_file=save_file)
 
         MpiBuilder.build(self.model, network)
+
+        self.model.decoder_cache.shrink()
 
         print "Finalizing MPI model..."
         self.model.finalize_build()
@@ -120,10 +121,54 @@ class Simulator(object):
 
         return self.model.mpi_sim
 
-    def __str__(self):
-        return self.mpi_sim.to_string()
+    @property
+    def n_steps(self):
+        """(int) The current time step of the simulator."""
+        return self.model.get_value(self.model.step)
 
-    def run_steps(self, steps, progress_bar, log_filename):
+    @property
+    def time(self):
+        """(float) The current time of the simulator."""
+        return self.model.get_value(self.model.time)
+
+    @property
+    def closed(self):
+        return self not in self._open_simulators
+
+    def close(self):
+        if self.runnable:
+            try:
+                self.mpi_sim.close()
+                self._open_simulators.remove(self)
+            except ValueError:
+                raise RuntimeError(
+                    "Attempting to close a runnable instance of "
+                    "nengo_mpi.Simulator that has already been closed.")
+
+    def reset(self, seed=None):
+        if self.closed:
+            raise SimulatorClosed("Cannot reset closed MpiSimulator.")
+
+        if seed is not None:
+            self.seed = seed
+
+        if self.runnable:
+            self.mpi_sim.reset(self.seed)
+        else:
+            raise RuntimeError(
+                "Attempting to reset a non-runnable instance of "
+                "nengo_mpi.Simulator.")
+
+        for pk in self.model.probe_keys:
+            self._probe_outputs[pk] = []
+
+    def run(self, time_in_seconds, progress_bar=True, log_filename=""):
+        """ Simulate for the given length of time. """
+
+        steps = int(np.round(float(time_in_seconds) / self.dt))
+        self.run_steps(steps, progress_bar, log_filename)
+
+    def run_steps(self, steps, progress_bar=True, log_filename=""):
         """ Simulate for the given number of `dt` steps. """
         if self.closed:
             raise SimulatorClosed(
@@ -146,74 +191,22 @@ class Simulator(object):
                 else:
                     self._probe_outputs[probe].extend(data)
 
-        self.n_steps += steps
-
         print "MPI Simulation complete."
 
     def step(self):
         """ Advance the simulator by `self.dt` seconds. """
         self.run_steps(1)
 
-    def run(self, time_in_seconds, progress_bar=True, log_filename=""):
-        """ Simulate for the given length of time. """
-
-        steps = int(np.round(float(time_in_seconds) / self.dt))
-        self.run_steps(steps, progress_bar, log_filename)
-
     def trange(self, dt=None):
         dt = self.dt if dt is None else dt
         n_steps = int(self.n_steps * (self.dt / dt))
         return dt * np.arange(1, n_steps + 1)
 
-    def reset(self, seed=None):
-        if self.closed:
-            raise SimulatorClosed("Cannot reset closed MpiSimulator.")
-
-        if seed is not None:
-            self.seed = seed
-
-        self.n_steps = 0
-
-        if self.runnable:
-            self.mpi_sim.reset(self.seed)
-        else:
-            raise RuntimeError(
-                "Attempting to reset a non-runnable instance of "
-                "nengo_mpi.Simulator.")
-
-        for pk in self.model.probe_keys:
-            self._probe_outputs[pk] = []
-
-    @property
-    def closed(self):
-        return self not in self._open_simulators
-
-    def close(self):
-        if self.runnable:
-            try:
-                self.mpi_sim.close()
-                self._open_simulators.remove(self)
-            except ValueError:
-                raise RuntimeError(
-                    "Attempting to close a runnable instance of "
-                    "nengo_mpi.Simulator that has already been closed.")
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
     @staticmethod
     @atexit.register
     def close_simulators():
-        open_simulators = Simulator._open_simulators
-        if len(open_simulators) > 1:
-            raise RuntimeError(
-                "Multiple instances of nengo_mpi.Simulator "
-                "open simulatenously.")
-        if open_simulators:
-            open_simulators[0].close()
+        for sim in Simulator._open_simulators:
+            sim.close()
 
     @staticmethod
     def all_closed():

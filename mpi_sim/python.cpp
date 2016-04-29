@@ -146,6 +146,22 @@ bpy::object PythonMpiSimulator::get_probe_data(
     return py_list;
 }
 
+bpy::object PythonMpiSimulator::get_signal_value(bpy::object key, bpy::object make_array){
+
+    key_type c_key = bpy::extract<key_type>(key);
+    Signal signal = sim->get_signal(c_key);
+    bpy::object a = make_array(
+        bpy::make_tuple(signal.shape1, signal.shape2));
+
+    for(unsigned i=0; i < signal.shape1; i++){
+        for(unsigned j=0; j < signal.shape2; j++){
+            a[i][j] = signal(i, j);
+        }
+    }
+
+    return a;
+}
+
 void PythonMpiSimulator::reset(bpy::object seed){
     unsigned c_seed = bpy::extract<unsigned>(seed);
     sim->reset(c_seed);
@@ -237,6 +253,7 @@ BOOST_PYTHON_MODULE(mpi_sim)
         .def("finalize_build", &PythonMpiSimulator::finalize_build)
         .def("run_n_steps", &PythonMpiSimulator::run_n_steps)
         .def("get_probe_data", &PythonMpiSimulator::get_probe_data)
+        .def("get_signal_value", &PythonMpiSimulator::get_signal_value)
         .def("reset", &PythonMpiSimulator::reset)
         .def("close", &PythonMpiSimulator::close)
         .def("create_PyFunc", &PythonMpiSimulator::create_PyFunc)

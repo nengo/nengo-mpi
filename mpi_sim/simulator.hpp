@@ -31,6 +31,7 @@ public:
     virtual void finalize_build();
 
     virtual Signal get_signal_view(string signal_string);
+    virtual Signal get_signal(key_type key);
     virtual void add_pyfunc(float index, unique_ptr<Operator> pyfunc);
 
     virtual void run_n_steps(int steps, bool progress, string log_filename);

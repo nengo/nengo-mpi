@@ -59,9 +59,6 @@ class TestSimulator(nengo_mpi.Simulator):
                 "creating new ones.")
 
         self.runnable = True
-        self.n_steps = 0
-        self.dt = dt
-
         assignments = defaultdict(int)
 
         print "Building MPI model..."
@@ -201,9 +198,9 @@ def test_sliced_copy_converge():
 
     ops = [
         Reset(converge, 0),
-        SlicedCopy(S1, converge, b_slice=slice(0, D), inc=True),
-        SlicedCopy(S2, converge, b_slice=slice(D, 2 * D), inc=True),
-        SlicedCopy(S3, converge, b_slice=slice(2 * D, 3 * D), inc=True)]
+        SlicedCopy(S1, converge, dst_slice=slice(0, D), inc=True),
+        SlicedCopy(S2, converge, dst_slice=slice(D, 2 * D), inc=True),
+        SlicedCopy(S3, converge, dst_slice=slice(2 * D, 3 * D), inc=True)]
 
     probes = [SignalProbe(converge)]
     with TestSimulator(ops, probes) as sim:
@@ -229,9 +226,9 @@ def test_sliced_copy_diverge():
         Reset(S1, 0),
         Reset(S2, 0),
         Reset(S3, 0),
-        SlicedCopy(diverge, S1, a_slice=slice(0, D), inc=True),
-        SlicedCopy(diverge, S2, a_slice=slice(D, 2 * D), inc=True),
-        SlicedCopy(diverge, S3, a_slice=slice(2 * D, 3 * D), inc=True)]
+        SlicedCopy(diverge, S1, src_slice=slice(0, D), inc=True),
+        SlicedCopy(diverge, S2, src_slice=slice(D, 2 * D), inc=True),
+        SlicedCopy(diverge, S3, src_slice=slice(2 * D, 3 * D), inc=True)]
 
     probes = [SignalProbe(S1), SignalProbe(S2), SignalProbe(S3)]
     with TestSimulator(ops, probes) as sim:
@@ -265,18 +262,18 @@ def test_sliced_copy():
 
     ops = [
         Reset(converge, 0),
-        SlicedCopy(S1, converge, b_slice=slice(0, D), inc=True),
-        SlicedCopy(S2, converge, b_slice=slice(D, 2 * D), inc=True),
-        SlicedCopy(S3, converge, b_slice=slice(2 * D, 3 * D), inc=True),
-        SlicedCopy(converge, out1, a_slice=slice(0, int(1.5 * D))),
-        SlicedCopy(converge, out2, a_slice=slice(int(1.5 * D), 3*D)),
+        SlicedCopy(S1, converge, dst_slice=slice(0, D), inc=True),
+        SlicedCopy(S2, converge, dst_slice=slice(D, 2 * D), inc=True),
+        SlicedCopy(S3, converge, dst_slice=slice(2 * D, 3 * D), inc=True),
+        SlicedCopy(converge, out1, src_slice=slice(0, int(1.5 * D))),
+        SlicedCopy(converge, out2, src_slice=slice(int(1.5 * D), 3*D)),
         Reset(final_out, 0),
         SlicedCopy(
-            out1, final_out, a_slice=slice(0, D, 1),
-            b_slice=slice(0, 2 * D, 2), inc=True),
+            out1, final_out, src_slice=slice(0, D, 1),
+            dst_slice=slice(0, 2 * D, 2), inc=True),
         SlicedCopy(
-            out2, final_out, a_slice=slice(0, D, 1),
-            b_slice=slice(1, 2 * D, 2), inc=True)]
+            out2, final_out, src_slice=slice(0, D, 1),
+            dst_slice=slice(1, 2 * D, 2), inc=True)]
 
     probes = [SignalProbe(final_out), SignalProbe(converge)]
     with TestSimulator(ops, probes) as sim:
@@ -316,20 +313,20 @@ def test_sliced_copy_seq():
 
     ops = [
         Reset(converge, 0),
-        SlicedCopy(S1, converge, b_slice=permutation1[:D], inc=True),
-        SlicedCopy(S2, converge, b_slice=permutation1[D:2*D], inc=True),
-        SlicedCopy(S3, converge, b_slice=permutation1[2*D:], inc=True),
+        SlicedCopy(S1, converge, dst_slice=permutation1[:D], inc=True),
+        SlicedCopy(S2, converge, dst_slice=permutation1[D:2*D], inc=True),
+        SlicedCopy(S3, converge, dst_slice=permutation1[2*D:], inc=True),
         SlicedCopy(
-            converge, out1, a_slice=permutation2[:int(1.5*D)], inc=False),
+            converge, out1, src_slice=permutation2[:int(1.5*D)], inc=False),
         SlicedCopy(
-            converge, out2, a_slice=permutation2[int(1.5*D):], inc=False),
+            converge, out2, src_slice=permutation2[int(1.5*D):], inc=False),
         Reset(final_out, 0),
         SlicedCopy(
-            out1, final_out, a_slice=permutation3,
-            b_slice=permutation5[:int(1.5*D)], inc=True),
+            out1, final_out, src_slice=permutation3,
+            dst_slice=permutation5[:int(1.5*D)], inc=True),
         SlicedCopy(
-            out2, final_out, a_slice=permutation4,
-            b_slice=permutation5[int(1.5*D):], inc=True)]
+            out2, final_out, src_slice=permutation4,
+            dst_slice=permutation5[int(1.5*D):], inc=True)]
 
     probes = [SignalProbe(final_out), SignalProbe(converge)]
     with TestSimulator(ops, probes) as sim:

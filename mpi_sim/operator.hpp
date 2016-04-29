@@ -111,36 +111,35 @@ protected:
 class SlicedCopy: public Operator{
 public:
     SlicedCopy(
-        Signal B, Signal A, bool inc,
-        int start_A, int stop_A, int step_A,
-        int start_B, int stop_B, int step_B,
-        vector<int> seq_A, vector<int> seq_B);
+        Signal src, Signal dst,
+        int start_src, int stop_src, int step_src,
+        int start_dst, int stop_dst, int step_dst,
+        vector<int> seq_src, vector<int> seq_dst, bool inc);
     virtual string classname() const { return "SlicedCopy"; }
 
     void operator()();
     virtual string to_string() const;
 
 protected:
-    Signal B;
-    Signal A;
+    Signal src;
+    Signal dst;
 
-    const unsigned length_A;
-    const unsigned length_B;
+    const unsigned length_src;
+    const unsigned length_dst;
+
+    const int start_src;
+    const int stop_src;
+    const int step_src;
+
+    const int start_dst;
+    const int stop_dst;
+    const int step_dst;
+
+    const vector<int> seq_src;
+    const vector<int> seq_dst;
 
     const bool inc;
-
     unsigned n_assignments;
-
-    const int start_A;
-    const int stop_A;
-    const int step_A;
-
-    const int start_B;
-    const int stop_B;
-    const int step_B;
-
-    const vector<int> seq_A;
-    const vector<int> seq_B;
 };
 
 
