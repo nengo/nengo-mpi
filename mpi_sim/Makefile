@@ -85,7 +85,7 @@ clean:
 # ********* nengo_cpp *************
 
 nengo_cpp: nengo_cpp.o ${MPI_OBJS} | ${BIN}
-	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS} -lopenblas
+	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5_openmpi -ldl  ${COMPRESSION_LIBS} -lcblas
 
 nengo_cpp.o: nengo_mpi.cpp simulator.hpp operator.hpp probe.hpp
 
@@ -93,7 +93,7 @@ nengo_cpp.o: nengo_mpi.cpp simulator.hpp operator.hpp probe.hpp
 # ********* nengo_mpi *************
 
 nengo_mpi: nengo_mpi.o ${MPI_OBJS} | ${BIN}
-	${MPICXX} -o ${BIN}/nengo_mpi nengo_mpi.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5 -ldl  ${COMPRESSION_LIBS} -lopenblas
+	${MPICXX} -o ${BIN}/nengo_mpi nengo_mpi.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5_openmpi -ldl  ${COMPRESSION_LIBS} -lcblas
 
 nengo_mpi.o: nengo_mpi.cpp mpi_operator.hpp probe.hpp
 
@@ -101,7 +101,7 @@ nengo_mpi.o: nengo_mpi.cpp mpi_operator.hpp probe.hpp
 # ********* mpi_sim.so *************
 
 mpi_sim.so: ${MPI_OBJS} python.o | ${BIN}
-	${MPICXX} -o ${BIN}/mpi_sim.so ${MPI_OBJS} python.o -shared ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${PYTHON_LIB} -lboost_python ${HDF5_LIB} -lhdf5 -ldl ${COMPRESSION_LIBS} -lopenblas
+	${MPICXX} -o ${BIN}/mpi_sim.so ${MPI_OBJS} python.o -shared ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${PYTHON_LIB} -lboost_python ${HDF5_LIB} -lhdf5_openmpi -ldl ${COMPRESSION_LIBS} -lcblas
 
 python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp
 

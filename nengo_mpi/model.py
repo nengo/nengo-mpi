@@ -405,8 +405,7 @@ def store_string_list(
     """ Store a list of strings as a dataset in an hdf5 file or group.
 
     In the created dataset, the strings in `strings` are separated by null
-    characters. An additional null character can optionally being
-    added at the end.
+    characters. A null character can optionally be added at the end.
 
     """
     big_string = '\0'.join(strings)
@@ -941,7 +940,6 @@ class MpiModel(Model):
                 "Copy", signal_to_string(op.dst), signal_to_string(op.src)]
 
         elif op_type == builder.operator.SlicedCopy:
-
             try:
                 seq_src = list(iter(op.src_slice))
                 start_src, stop_src, step_src = 0, 0, 0

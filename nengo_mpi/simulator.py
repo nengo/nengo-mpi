@@ -213,14 +213,14 @@ class Simulator(nengo.Simulator):
         return Simulator._open_simulators == []
 
 # Mark features as unsupported by nengo_mpi.
-# See nengo.simulator.py for info on how it is used.
+# See nengo/simulator.py for info on how it is used.
 Simulator.unsupported = [
     ('test_ensemble.test_noise_copies_ok*',
      'nengo_mpi does not support FilteredNoise.'),
     ('test_processes.test_brownnoise*',
      'nengo_mpi does not support FilteredNoise.'),
     ('test_node.test_none*',
-     'No error if nodes output None'),
+     'No error if nodes output None.'),
     ('test_node.test_unconnected_node*',
      'nengo_mpi does not support unconnected nodes.'),
     ('test_node.test_set_output*',
@@ -232,7 +232,7 @@ Simulator.unsupported = [
     ('test_cache.test_cache_works*',
      'Not set up correctly.'),
     ('test_connection.test_dist_transform',
-     'nengo_mpi does not support uses distributions for transforms.'),
+     'nengo_mpi does not support supplying distributions for transforms.'),
     ('test_simulator.test_warn_on_opensim_gc',
      'Fails for an unknown reason.'),
     ('test_processes.test_seed',

@@ -32,6 +32,7 @@ def write_metis_input_file(cluster_graph):
     -------
     filename: string
         The name of the file storing the graph.
+
     """
     f = tempfile.NamedTemporaryFile(mode='w', prefix='metis', delete=False)
 
