@@ -1,6 +1,6 @@
+from __future__ import print_function
 import os
 import pytest
-
 import numpy as np
 
 import nengo
@@ -30,7 +30,7 @@ def test_mpi_script(n_processors, script_name):
 
     """
     output, exit_code = run_python_mpi(n_processors, script_name, [])
-    print output
+    print(output)
     assert not exit_code, "Script exited with non-zero exit status."
 
 

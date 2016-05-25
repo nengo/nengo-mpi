@@ -1,6 +1,8 @@
-import nengo_mpi
-from nengo_mpi.model import MpiModel
-from nengo_mpi.spaun_mpi import SpaunStimulusOperator
+from __future__ import print_function
+import numpy as np
+from collections import defaultdict
+import logging
+import pytest
 
 import nengo
 from nengo.builder.signal import Signal
@@ -9,20 +11,16 @@ from nengo.builder.operator import Copy, SlicedCopy, TimeUpdate
 from nengo.builder.node import SimPyFunc
 from nengo.builder.neurons import SimNeurons
 from nengo.builder.processes import SimProcess
-
 from nengo.neurons import LIF, LIFRate, RectifiedLinear, Sigmoid
-
 from nengo.synapses import Lowpass  # , LinearFilter, Alpha
-
 from nengo.simulator import ProbeDict
 import nengo.utils.numpy as npext
 
-import numpy as np
-from collections import defaultdict
-import logging
-logger = logging.getLogger(__name__)
+import nengo_mpi
+from nengo_mpi.model import MpiModel
+from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 
-import pytest
+logger = logging.getLogger(__name__)
 
 
 class SignalProbe(object):
@@ -61,7 +59,7 @@ class TestSimulator(nengo_mpi.Simulator):
         self.runnable = True
         assignments = defaultdict(int)
 
-        print "Building MPI model..."
+        print("Building MPI model...")
         self.model = MpiModel(1, assignments, dt=dt, label="TestSimulator")
 
         self.model.assign_ops(0, operators)
@@ -71,7 +69,7 @@ class TestSimulator(nengo_mpi.Simulator):
 
         self.model.probes = signal_probes
 
-        print "Finalizing MPI model..."
+        print("Finalizing MPI model...")
         self.model.finalize_build()
 
         # probe -> python list
@@ -592,9 +590,9 @@ def test_spaun_stimulus():
 
     for i in compare_indices:
         if not all(ref_sim.data[ref_p][i] == sim.data[p][i]):
-            print "Mismatch between stimulus at index: ", i
-            print image_string(ref_sim.data[ref_p][i])
-            print image_string(sim.data[p][i])
+            print("Mismatch between stimulus at index: ", i)
+            print(image_string(ref_sim.data[ref_p][i]))
+            print(image_string(sim.data[p][i]))
             raise Exception()
 
 if __name__ == "__main__":

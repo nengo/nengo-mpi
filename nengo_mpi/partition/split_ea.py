@@ -1,3 +1,4 @@
+from __future__ import print_function
 """
 Contains EnsembleArraySplitter, a class that can be used to split nengo
 ensemble arrays up into a larger number of smaller ensemble arrays
@@ -7,7 +8,6 @@ number of processors to be used.
 """
 
 
-from __future__ import absolute_import
 import collections
 import numpy as np
 import logging

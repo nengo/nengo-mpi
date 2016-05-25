@@ -1,3 +1,4 @@
+from __future__ import print_function
 import inspect
 import re
 import os
@@ -125,7 +126,7 @@ def load_functions(modules, pattern='^test_', arg_pattern='^Simulator$'):
         try:
             m = __import__('.'.join(module), globals(), locals(), ['*'])
         except:
-            print "Failed to import %s." % module
+            print("Failed to import %s." % module)
             continue
 
         for k in dir(m):
