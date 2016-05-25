@@ -1,3 +1,9 @@
+import numpy as np
+import atexit
+from functools import partial
+import logging
+import time
+
 import nengo
 from nengo.simulator import ProbeDict
 from nengo.cache import get_default_decoder_cache
@@ -7,10 +13,6 @@ from nengo.exceptions import SimulatorClosed
 from nengo_mpi.model import MpiBuilder, MpiModel
 from nengo_mpi.partition import Partitioner, verify_assignments
 
-import numpy as np
-import atexit
-from functools import partial
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -58,6 +60,9 @@ class Simulator(nengo.Simulator):
             equal to the empty string, then no file is created.
 
         """
+        print "Building MPI model..."
+        then = time.time()
+
         self.runnable = not save_file
 
         if self.runnable and self._open_simulators:
@@ -83,7 +88,6 @@ class Simulator(nengo.Simulator):
 
         self.n_components, self.assignments = p
 
-        print "Building MPI model..."
         dt = float(dt)
         self.model = MpiModel(
             self.n_components, self.assignments, dt=dt,
@@ -95,7 +99,7 @@ class Simulator(nengo.Simulator):
 
         self.model.decoder_cache.shrink()
 
-        print "Finalizing MPI model..."
+        print "Finalizing build..."
         self.model.finalize_build()
 
         # probe -> list
@@ -103,13 +107,13 @@ class Simulator(nengo.Simulator):
 
         self.data = ProbeDict(self._probe_outputs)
 
-        print "MPI model ready."
-
         if self.runnable:
             self._open_simulators.append(self)
 
             seed = np.random.randint(npext.maxint) if seed is None else seed
             self.reset(seed=seed)
+
+        print "Build took %f seconds." % (time.time() - then)
 
     @property
     def mpi_sim(self):
@@ -170,6 +174,9 @@ class Simulator(nengo.Simulator):
 
     def run_steps(self, steps, progress_bar=True, log_filename=""):
         """ Simulate for the given number of `dt` steps. """
+        print "Running MPI simulation..."
+        then = time.time()
+
         if self.closed:
             raise SimulatorClosed(
                 "MpiSimulator cannot run because it is closed.")
@@ -177,6 +184,7 @@ class Simulator(nengo.Simulator):
         self.mpi_sim.run_n_steps(steps, progress_bar, log_filename)
 
         if not log_filename:
+            print "Execution complete, gathering probe data..."
             for probe, probe_key in self.model.probe_keys.items():
                 data = self.mpi_sim.get_probe_data(probe_key, np.empty)
 
@@ -191,7 +199,7 @@ class Simulator(nengo.Simulator):
                 else:
                     self._probe_outputs[probe].extend(data)
 
-        print "MPI Simulation complete."
+        print "Simulation took %f seconds." % (time.time() - then)
 
     def step(self):
         """ Advance the simulator by `self.dt` seconds. """
