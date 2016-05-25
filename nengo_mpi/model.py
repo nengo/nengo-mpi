@@ -4,19 +4,25 @@ try:
     from mpi_sim import MpiSimulator
     mpi_sim_available = True
 except ImportError:
-    print (
-        "mpi_sim.so not available. Network files may be created, "
-        "but simulations cannot be run.")
+    print("mpi_sim.so not available. Network files may be created, "
+          "but simulations cannot be run.")
     mpi_sim_available = False
 
 try:
     import h5py as h5
     h5py_available = True
 except ImportError:
-    print (
-        "h5py not available. nengo_mpi cannot be used.")
+    print("h5py not available. nengo_mpi cannot be used.")
     h5py_available = False
 
+import numpy as np
+from collections import defaultdict, OrderedDict
+import warnings
+from itertools import chain
+import os
+import tempfile
+from __future__ import print_function
+import logging
 
 import nengo
 from nengo import Probe
@@ -48,14 +54,6 @@ from nengo_mpi import PartitionError
 from nengo_mpi.spaun_mpi import SpaunStimulus, build_spaun_stimulus
 from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 
-import numpy as np
-from collections import defaultdict, OrderedDict
-import warnings
-from itertools import chain
-import os
-import tempfile
-
-import logging
 logger = logging.getLogger(__name__)
 
 OP_DELIM = ";"

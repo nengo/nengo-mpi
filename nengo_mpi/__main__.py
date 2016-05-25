@@ -5,7 +5,8 @@ process. The master process executes the script given as the first argument.
 
 Example usage: mpirun -np <np> python -m nengo_mpi <script>
 
-This code will is only executed if nengo_mpi is run as the main script with -m.
+This code is only executed if nengo_mpi is run as the main script with -m.
+
 """
 
 
@@ -18,6 +19,7 @@ import mpi_sim
 import sys
 import os
 import atexit
+from __future__ import print_function
 
 mpi_sim.mpi_init()
 
@@ -25,7 +27,7 @@ rank = mpi_sim.get_mpi_rank()
 n_procs = mpi_sim.get_mpi_n_procs()
 
 if rank == 0 and (not sys.argv[1:] or sys.argv[1] in ("--help", "-h")):
-    print "usage: mpirun -np <np> python -m nengo_mpi scriptfile [arg] ..."
+    print("usage: mpirun -np <np> python -m nengo_mpi scriptfile [arg] ...")
     sys.exit(2)
 
 if rank > 0:
@@ -34,7 +36,7 @@ else:
     # Note: Largely copied from /usr/lib/python2.7/pdb.py
     mainpyfile = sys.argv[1]     # Get script filename
     if not os.path.exists(mainpyfile):
-        print 'Error:', mainpyfile, 'does not exist'
+        print('Error:', mainpyfile, 'does not exist')
         sys.exit(1)
 
     del sys.argv[0]         # Hide "pdb.py" from argument list
@@ -61,8 +63,8 @@ else:
         exec statement in globals, locals
 
     except SystemExit:
-        print "The program exited via sys.exit(). Exit status: ",
-        print sys.exc_info()[1]
+        print("The program exited via sys.exit(). Exit status: ",)
+        print(sys.exc_info()[1])
 
     # Closes all nengo_mpi Simulator instances, since
     # nengo_mpi.Simulator.close_simulators is an atexit exitfunc.

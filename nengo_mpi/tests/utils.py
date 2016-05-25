@@ -4,6 +4,7 @@ import os
 import h5py
 import subprocess
 import numpy as np
+from __future__ import print_function
 
 
 def run_standalone_cpp(network_file, log_file, sim_time):
@@ -125,7 +126,7 @@ def load_functions(modules, pattern='^test_', arg_pattern='^Simulator$'):
         try:
             m = __import__('.'.join(module), globals(), locals(), ['*'])
         except:
-            print "Failed to import %s." % module
+            print("Failed to import %s." % module)
             continue
 
         for k in dir(m):

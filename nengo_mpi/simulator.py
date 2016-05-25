@@ -1,6 +1,7 @@
 import numpy as np
 import atexit
 from functools import partial
+from __future__ import print_function
 import logging
 import time
 
@@ -26,8 +27,7 @@ class Simulator(nengo.Simulator):
             self, network, dt=0.001, seed=None, model=None,
             partitioner=None, assignments=None, save_file=""):
         """
-        Creates a simulator for a nengo Network than can be executed
-        in parallel using MPI.
+        A simulator that can be executed in parallel using MPI.
 
         Parameters
         ----------
@@ -60,7 +60,7 @@ class Simulator(nengo.Simulator):
             equal to the empty string, then no file is created.
 
         """
-        print "Building MPI model..."
+        print("Building MPI model...")
         then = time.time()
 
         self.runnable = not save_file
@@ -83,7 +83,7 @@ class Simulator(nengo.Simulator):
             if partitioner is None:
                 partitioner = Partitioner()
 
-            print "Partitioning network..."
+            print("Partitioning network...")
             p = partitioner.partition(network)
 
         self.n_components, self.assignments = p
@@ -99,7 +99,7 @@ class Simulator(nengo.Simulator):
 
         self.model.decoder_cache.shrink()
 
-        print "Finalizing build..."
+        print("Finalizing build...")
         self.model.finalize_build()
 
         # probe -> list
@@ -113,7 +113,7 @@ class Simulator(nengo.Simulator):
             seed = np.random.randint(npext.maxint) if seed is None else seed
             self.reset(seed=seed)
 
-        print "Build took %f seconds." % (time.time() - then)
+        print("Build took %f seconds." % (time.time() - then))
 
     @property
     def mpi_sim(self):
@@ -174,7 +174,7 @@ class Simulator(nengo.Simulator):
 
     def run_steps(self, steps, progress_bar=True, log_filename=""):
         """ Simulate for the given number of `dt` steps. """
-        print "Running MPI simulation..."
+        print("Running MPI simulation...")
         then = time.time()
 
         if self.closed:
@@ -184,7 +184,7 @@ class Simulator(nengo.Simulator):
         self.mpi_sim.run_n_steps(steps, progress_bar, log_filename)
 
         if not log_filename:
-            print "Execution complete, gathering probe data..."
+            print("Execution complete, gathering probe data...")
             for probe, probe_key in self.model.probe_keys.items():
                 data = self.mpi_sim.get_probe_data(probe_key, np.empty)
 
@@ -199,7 +199,7 @@ class Simulator(nengo.Simulator):
                 else:
                     self._probe_outputs[probe].extend(data)
 
-        print "Simulation took %f seconds." % (time.time() - then)
+        print("Simulation took %f seconds." % (time.time() - then))
 
     def step(self):
         """ Advance the simulator by `self.dt` seconds. """
