@@ -6,6 +6,8 @@ ifneq (, $(findstring bgq,$(HOST)))
 	CXX=${MPICXX}
 	BOOST_INC=-I${SCINET_BOOST_INC}
 	BOOST_LIB=-L${SCINET_BOOST_LIB}
+	CBLAS_INC=
+	CBLAS_LIB=
 	PYTHON_INC=
 	PYTHON_LIB=
 	HDF5_INC=-I${SCINET_HDF5_INC}
@@ -20,6 +22,8 @@ else ifneq (, $(findstring gpc,$(HOST)))
 	CXX=${MPICXX}
 	BOOST_INC=-I${SCINET_BOOST_INC}
 	BOOST_LIB=-L${SCINET_BOOST_LIB}
+	CBLAS_INC=
+	CBLAS_LIB=
 	PYTHON_INC=-I${SCINET_PYTHON_INC}/python2.7
 	PYTHON_LIB=-L${SCINET_PYTHON_LIB}
 	HDF5_INC=-I${SCINET_HDF5_INC}
@@ -28,16 +32,36 @@ else ifneq (, $(findstring gpc,$(HOST)))
 	STD=c++11
 	CXXFLAGS= ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
 	DO_PYTHON=TRUE
+else ifneq (, $(findstring comet,$(HOST)))
+	#on gpc
+	MPICXX=mpicxx
+	CXX=${MPICXX}
+	BOOST_INC=-I${BOOST_ROOT}/include
+	BOOST_LIB=-L${BOOST_ROOT}/lib
+	CBLAS_INC=-I${ATLAS_HOME}/include
+	CBLAS_LIB=# found automatically -L${ATLAS_HOME}/lib
+	PYTHON_INC=-I${PYTHON_ROOT}/include/python2.7
+	PYTHON_LIB=# found automatically -L${PYTHON_ROOT}/include
+	HDF5_INC=-I${HDF5HOME}/include
+	HDF5_LIB=-L${HDF5HOME}/lib
+	COMPRESSION_LIBS=
+	STD=c++11
+	CXXFLAGS= ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
+	DO_PYTHON=TRUE
 else
 	#on other machine
 	MPICXX=mpicxx
 	CXX=${MPICXX}
+	BOOST_INC=-I/usr/include/boost/
+	BOOST_LIB=
+	CBLAS_INC=-I/usr/include/atlas/
+	CBLAS_LIB=-L/usr/lib/atlas-base/
 	PYTHON_INC=-I/usr/include/python2.7/
-	BOOST_INC=-I/usr/include/boost
-	HDF5_LIB=-L/usr/lib/x86_64-linux-gnu
-	HDF5_INC=-I/usr/include/hdf5/openmpi
+	PYTHON_LIB=
+	HDF5_LIB=-L/usr/lib/x86_64-linux-gnu/
+	HDF5_INC=-I/usr/include/hdf5/openmpi/
 	STD=c++11
-	CXXFLAGS= ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
+	CXXFLAGS= ${CBLAS_INC} ${PYTHON_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
 	DO_PYTHON=TRUE
 endif
 
@@ -85,7 +109,7 @@ clean:
 # ********* nengo_cpp *************
 
 nengo_cpp: nengo_cpp.o ${MPI_OBJS} | ${BIN}
-	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${MPI_OBJS} ${DEFS} -std=${STD} ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5_openmpi -ldl  ${COMPRESSION_LIBS} -lcblas
+	${CXX} -o ${BIN}/nengo_cpp nengo_cpp.o ${MPI_OBJS} ${DEFS} -std=${STD} ${CBLAS_LIB} -lcblas ${BOOST_LIB} -lm ${HDF5_LIB} -lhdf5_openmpi -ldl  ${COMPRESSION_LIBS}
 
 nengo_cpp.o: nengo_mpi.cpp simulator.hpp operator.hpp probe.hpp
 

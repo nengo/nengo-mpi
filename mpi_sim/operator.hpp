@@ -12,10 +12,18 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include <openblas/cblas.h>
+#ifdef __cplusplus
+extern "C"
+{
+#endif //__cplusplus
+
+#include <cblas.h>
+
+#ifdef __cplusplus
+}
+#endif //__cplusplus
 
 #include "signal.hpp"
-
 #include "typedef.hpp"
 #include "debug.hpp"
 
