@@ -4,9 +4,10 @@ from __future__ import print_function
 try:
     from mpi_sim import MpiSimulator
     mpi_sim_available = True
-except ImportError:
-    print("mpi_sim.so not available. Network files may be created, "
-          "but simulations cannot be run.")
+except ImportError as e:
+    print("mpi_sim.so not available. Reason:\n" +
+          ("    %s.\n" % e) +
+          "Network files may be created, but simulations cannot be run.")
     mpi_sim_available = False
 
 try:
