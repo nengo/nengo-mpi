@@ -60,12 +60,12 @@ protected:
 
 void mpi_init();
 void mpi_finalize();
-int get_mpi_rank();
-int get_mpi_n_procs();
-void wake_workers();
-void kill_workers();
-void worker_start();
-void worker_start(MPI_Comm comm);
+int mpi_get_rank();
+int mpi_get_n_procs();
+void mpi_wake_workers();
+void mpi_kill_workers();
+void mpi_worker_start();
+void mpi_worker_start(MPI_Comm comm);
 
 string recv_string(int src, int tag, MPI_Comm comm);
 void send_string(string s, int dst, int tag, MPI_Comm comm);

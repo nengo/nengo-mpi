@@ -1,1 +1,1 @@
-from nengo.tests.conftest import *  # noqa: F403
+from nengo.conftest import *  # noqa: F403

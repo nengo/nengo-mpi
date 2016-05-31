@@ -116,24 +116,24 @@ class Simulator(nengo.Simulator):
         print("Build took %f seconds." % (time.time() - then))
 
     @property
-    def mpi_sim(self):
+    def native_sim(self):
         if not self.model.runnable:
             raise Exception(
                 "Cannot access C++ simulator of MpiModel, MpiModel is "
                 "not in a runnable state. Either in save-file mode, "
                 "or the MpiModel instance has not been finalized.")
 
-        return self.model.mpi_sim
+        return self.model.native_sim
 
     @property
     def n_steps(self):
         """(int) The current time step of the simulator."""
-        return self.model.get_value(self.model.step)
+        return self.model.get_value(self.model.step)[0]
 
     @property
     def time(self):
         """(float) The current time of the simulator."""
-        return self.model.get_value(self.model.time)
+        return self.model.get_value(self.model.time)[0]
 
     @property
     def closed(self):
@@ -142,7 +142,7 @@ class Simulator(nengo.Simulator):
     def close(self):
         if self.runnable:
             try:
-                self.mpi_sim.close()
+                self.native_sim.close()
                 self._open_simulators.remove(self)
             except ValueError:
                 raise RuntimeError(
@@ -157,7 +157,7 @@ class Simulator(nengo.Simulator):
             self.seed = seed
 
         if self.runnable:
-            self.mpi_sim.reset(self.seed)
+            self.native_sim.reset(self.seed)
         else:
             raise RuntimeError(
                 "Attempting to reset a non-runnable instance of "
@@ -181,12 +181,12 @@ class Simulator(nengo.Simulator):
             raise SimulatorClosed(
                 "MpiSimulator cannot run because it is closed.")
 
-        self.mpi_sim.run_n_steps(steps, progress_bar, log_filename)
+        self.native_sim.run_n_steps(steps, progress_bar, log_filename)
 
         if not log_filename:
             print("Execution complete, gathering probe data...")
             for probe, probe_key in self.model.probe_keys.items():
-                data = self.mpi_sim.get_probe_data(probe_key, np.empty)
+                data = self.native_sim.get_probe_data(probe_key)
 
                 # The C++ code doesn't always exactly preserve the shape
                 true_shape = self.model.sig[probe]['in'].shape

@@ -36,7 +36,7 @@ const option::Descriptor serial_usage[] =
  {0,0,0,0,0,0}
 };
 
-int master_start(int argc, char **argv){
+int mpi_master_start(int argc, char **argv){
 
     argc -= (argc > 0); argv += (argc > 0); // skip program name argv[0] if present
     option::Stats  stats(serial_usage, argc, argv);
@@ -119,7 +119,7 @@ int master_start(int argc, char **argv){
     sim->run_n_steps(n_steps, show_progress, log_filename);
     sim->close();
 
-    kill_workers();
+    mpi_kill_workers();
 
     return 0;
 }
@@ -132,9 +132,9 @@ int main(int argc, char **argv){
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if(rank == 0){
-        master_start(argc, argv);
+        mpi_master_start(argc, argv);
     }else{
-        worker_start(MPI_COMM_WORLD);
+        mpi_worker_start(MPI_COMM_WORLD);
     }
 
     MPI_Finalize();

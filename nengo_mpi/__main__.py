@@ -17,22 +17,23 @@ This code is only executed if nengo_mpi is run as the main script with -m.
 import ctypes
 ctypes.CDLL("libmpi.so", mode=ctypes.RTLD_GLOBAL)
 
-import mpi_sim
 import sys
 import os
 import atexit
 
-mpi_sim.mpi_init()
+native_sim = ctypes.CDLL("mpi_sim.so")
 
-rank = mpi_sim.get_mpi_rank()
-n_procs = mpi_sim.get_mpi_n_procs()
+native_sim.init()
+
+rank = native_sim.get_rank()
+n_procs = native_sim.get_n_procs()
 
 if rank == 0 and (not sys.argv[1:] or sys.argv[1] in ("--help", "-h")):
     print("usage: mpirun -np <np> python -m nengo_mpi scriptfile [arg] ...")
     sys.exit(2)
 
 if rank > 0:
-    mpi_sim.worker_start()
+    native_sim.worker_start()
 else:
     # Note: Largely copied from /usr/lib/python2.7/pdb.py
     mainpyfile = sys.argv[1]     # Get script filename
@@ -71,6 +72,6 @@ else:
     # nengo_mpi.Simulator.close_simulators is an atexit exitfunc.
     atexit._run_exitfuncs()
 
-    mpi_sim.kill_workers()
+    native_sim.kill_workers()
 
-mpi_sim.mpi_finalize()
+native_sim.finalize()

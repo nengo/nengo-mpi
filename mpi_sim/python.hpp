@@ -1,6 +1,5 @@
 #pragma once
 
-#include <boost/python.hpp>
 #include <string>
 #include <list>
 #include <vector>
@@ -14,68 +13,56 @@
 #include "typedef.hpp"
 #include "debug.hpp"
 
-
 using namespace std;
 
-namespace bpy = boost::python;
-namespace bpyn = bpy::numeric;
+extern "C" {
 
-void python_mpi_init();
-void python_mpi_finalize();
-int python_get_mpi_rank();
-int python_get_mpi_n_procs();
-void python_kill_workers();
-void python_worker_start();
+/* Methods for controlling workers. See nengo_mpi/__main__.py. */
+void init();
+void finalize();
+int get_rank();
+int get_n_procs();
+void kill_workers();
+void worker_start();
 
-bool hasattr(bpy::object obj, string const &attrName);
+typedef void (*py_func_t)();
 
-Signal ndarray_to_matrix(bpyn::array a);
-Signal list_to_matrix(bpy::list l);
+/* Methods for building simulator. */
+void create_simulator();
+void load_network(char* filename);
+void finalize_build();
 
-/*
- * PythonMpiSimulator is a python-facing wrapper for MpiSimulator; it stores
- * an MpiSimulator, and most of its methods just call the corresponding
- * methods on that. Lets us keep all the code that requires python in one file. */
-class PythonMpiSimulator{
-public:
-    PythonMpiSimulator();
-    PythonMpiSimulator(bpy::object n_components);
+/* Methods for running simulator. */
+void run_n_steps(int n_steps, int progress, char* log_filename);
+dtype* get_probe_data(key_type probe_key, size_t* n_signals, size_t* signal_size);
+dtype* get_signal_value(key_type key, size_t* shape1, size_t* shape2);
+void free_ptr(dtype* ptr);
+void reset_simulator(unsigned seed);
+void close_simulator();
 
-    void load_network(bpy::object filename);
-    void finalize_build();
+void create_PyFunc(
+        py_func_t py_fn, char* time_string, char* input_string, char* output_string,
+        dtype* py_time, dtype* py_input, dtype* py_output, float index);
 
-    /* Methods for controlling simulation. */
-    void run_n_steps(bpy::object steps, bpy::object progress, bpy::object log_filename);
-    bpy::object get_probe_data(bpy::object probe_key, bpy::object make_array);
-    bpy::object get_signal_value(bpy::object key, bpy::object make_array);
-
-    void reset(bpy::object seed);
-    void close();
-
-    void create_PyFunc(
-        bpy::object py_fn, bpy::object t, bpy::object input,
-        bpyn::array py_input, bpy::object output, bpy::object index);
-
-    string to_string() const;
-
-private:
-    unique_ptr<Simulator> sim;
-};
+} // end extern "C"
 
 class PyFunc: public Operator{
 public:
     PyFunc(
-        bpy::object py_fn, Signal t, Signal input,
-        bpyn::array py_input, Signal output);
+        py_func_t py_fn, Signal time, Signal input, Signal output,
+        dtype* py_time, dtype* py_input, dtype* py_output);
 
     void operator()();
     virtual string to_string() const;
 
 private:
-    Signal t;
+    py_func_t py_fn;
+
+    Signal time;
     Signal input;
     Signal output;
 
-    bpy::object py_fn;
-    bpyn::array py_input;
+    dtype* py_time;
+    dtype* py_input;
+    dtype* py_output;
 };

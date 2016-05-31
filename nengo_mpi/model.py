@@ -2,15 +2,6 @@ from __future__ import print_function
 """MPIModel"""
 
 try:
-    from mpi_sim import MpiSimulator
-    mpi_sim_available = True
-except ImportError as e:
-    print("mpi_sim.so not available. Reason:\n" +
-          ("    %s.\n" % e) +
-          "Network files may be created, but simulations cannot be run.")
-    mpi_sim_available = False
-
-try:
     import h5py as h5
     h5py_available = True
 except ImportError:
@@ -49,17 +40,17 @@ from nengo.network import Network
 from nengo.connection import Connection
 from nengo.ensemble import Ensemble
 from nengo.node import Node
-from nengo.exceptions import BuildError, SimulationError
+from nengo.exceptions import BuildError
 
 from nengo_mpi import PartitionError
+from nengo_mpi.utils import (
+    OP_DELIM, PROBE_DELIM, make_key,
+    pad, signal_to_string, ndarray_to_string, get_closures)
+from nengo_mpi.native import NativeSimulator, native_sim_available
 from nengo_mpi.spaun_mpi import SpaunStimulus, build_spaun_stimulus
 from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 
 logger = logging.getLogger(__name__)
-
-OP_DELIM = ";"
-SIGNAL_DELIM = ":"
-PROBE_DELIM = "|"
 
 
 def make_builder(base_function):
@@ -71,7 +62,6 @@ def make_builder(base_function):
     objects.
 
     """
-
     def build_object(model, obj, *args, **kwargs):
         try:
             model.push_object(obj)
@@ -172,76 +162,6 @@ with warnings.catch_warnings():
     MpiBuilder.register(Network)(make_builder(mpi_build_network))
 
 
-def pyfunc_checks(val):
-    """Check a value to make sure it conforms to expectations.
-
-    If the output can possibly be treated as a scalar, convert it
-    to a python float. Otherwise, convert it to a numpy ndarray.
-
-    Parameters
-    ----------
-    val: any
-        Value to be checked.
-
-    """
-    if isinstance(val, list):
-        val = np.array(val, dtype=np.float64)
-
-    elif isinstance(val, int):
-        val = float(val)
-
-    elif isinstance(val, float):
-        if isinstance(val, np.float64):
-            val = float(val)
-
-    elif not isinstance(val, np.ndarray):
-        raise ValueError(
-            "python function returning unexpected value, %s" % str(val))
-
-    if isinstance(val, np.ndarray):
-        val = np.squeeze(val)
-
-        if val.size == 1:
-            val = float(val)
-        elif getattr(val, 'dtype', None) != np.float64:
-            val = np.asarray(val, dtype=np.float64)
-
-    return val
-
-
-def make_checked_func(func, t_in, takes_input):
-    """Create checked version of an existing function.
-
-    Returns a version of `func' whose output is first checked to make
-    sure that it conforms to expectations.
-
-    Parameters
-    ----------
-    func: function
-        Function to create checked version of.
-    t_in: bool
-        Whether the function takes the current time step as an argument.
-    takes_input: bool
-        Whether the function takes an input other than the current time step.
-
-    """
-    def f():
-        return pyfunc_checks(func())
-
-    def ft(t):
-        return pyfunc_checks(func(t))
-
-    def fit(t, i):
-        return pyfunc_checks(func(t, i))
-
-    if t_in and takes_input:
-        return fit
-    elif t_in or takes_input:
-        return ft
-    else:
-        return f
-
-
 class MpiSend(Operator):
     """ Operator that sends a Signal to a different process.
 
@@ -339,66 +259,6 @@ def split_connection(conn_ops, signal):
     return pre_ops, post_ops
 
 
-def make_key(obj):
-    """ Create a unique key for an object.
-
-    Must be reproducable (i.e. produce the same key if called with
-    the same object multiple times).
-
-    """
-    return id(obj)
-
-
-def pad(x):
-    return (
-        (1, 1) if len(x) == 0 else (
-            (x[0], 1) if len(x) == 1 else x))
-
-
-STAND_IN = "-"
-assert (
-    STAND_IN != SIGNAL_DELIM
-    and STAND_IN != OP_DELIM
-    and STAND_IN != PROBE_DELIM)
-
-
-def sanitize_label(s):
-    s = s.replace(SIGNAL_DELIM, STAND_IN)
-    s = s.replace(OP_DELIM, STAND_IN)
-    s = s.replace(PROBE_DELIM, STAND_IN)
-
-    return s
-
-
-def signal_to_string(signal):
-    """ Convert a signal to a string.
-
-    The format of the returned string is:
-        signal_key:label:ndim:shape0,shape1:stride0,stride1:offset
-
-    """
-    shape = pad(signal.shape)
-    stride = pad(signal.elemstrides)
-
-    signal_args = [
-        make_key(signal.base),
-        sanitize_label(signal.name),
-        signal.ndim,
-        "%d,%d" % (shape[0], shape[1]),
-        "%d,%d" % (stride[0], stride[1]),
-        signal.elemoffset
-    ]
-
-    signal_string = SIGNAL_DELIM.join(map(str, signal_args))
-    return signal_string
-
-
-def ndarray_to_string(a):
-    s = "%d,%d," % np.atleast_2d(a).shape
-    s += ",".join([str(n) for n in a.flatten()])
-    return s
-
-
 def store_string_list(
         h5_file, dset_name, strings, final_null=True, compression='gzip'):
     """ Store a list of strings as a dataset in an hdf5 file or group.
@@ -417,12 +277,6 @@ def store_string_list(
         dset_name, data=data, dtype='S1', compression=compression)
 
     dset.attrs['n_strings'] = len(strings)
-
-
-# Stole this from nengo_ocl
-def get_closures(f):
-    return OrderedDict(zip(
-        f.__code__.co_freevars, (c.cell_contents for c in f.__closure__)))
 
 
 class MpiModel(Model):
@@ -481,26 +335,6 @@ class MpiModel(Model):
         self.n_components = n_components
         self.assignments = assignments
 
-        if not save_file and not mpi_sim_available:
-            raise ValueError(
-                "mpi_sim.so is unavailable, so nengo_mpi can only save "
-                "network files (cannot run simulations). However, save_file "
-                "argument was empty.")
-
-        # Only create a working simulator if our goal is not to simply
-        # save the network to a file
-        self.mpi_sim = MpiSimulator() if not save_file else None
-
-        self.h5_compression = 'gzip'
-        self.op_strings = defaultdict(list)
-        self.probe_strings = defaultdict(list)
-        self.all_probe_strings = []
-
-        if not save_file:
-            save_file = tempfile.mktemp()
-
-        self.save_file_name = save_file
-
         # for each component, stores the keys of the signals that have
         # to be sent and received, respectively
         self.send_signals = defaultdict(list)
@@ -508,6 +342,36 @@ class MpiModel(Model):
 
         self.base_signals = defaultdict(OrderedDict)
         self.total_base_signal_size = defaultdict(int)
+
+        self.sig = defaultdict(dict)
+        self.sig['common'][0] = Signal(0., readonly=True, name='ZERO')
+        self.sig['common'][1] = Signal(1., readonly=True, name='ONE')
+        self.sig['common']['NULL'] = Signal(1., readonly=False, name='NULL')
+
+        for component in range(n_components):
+            self.assign_signal(component, self.sig['common'][0])
+            self.assign_signal(component, self.sig['common'][1])
+            self.assign_signal(component, self.sig['common']['NULL'])
+
+        self.step = Signal(np.array(0, dtype=np.int64), name='step')
+        self.time = Signal(np.array(0, dtype=np.float64), name='time')
+        self.time_update = TimeUpdate(self.step, self.time)
+
+        if not save_file and not native_sim_available():
+            raise ValueError(
+                "mpi_sim.so is unavailable, so nengo_mpi can only save "
+                "network files (cannot run simulations). However, save_file "
+                "argument was empty.")
+
+        # Only create a working simulator if necessary.
+        self.native_sim = NativeSimulator(self.sig) if not save_file else None
+
+        self.save_file = save_file if save_file else tempfile.mktemp()
+
+        self.h5_compression = 'gzip'
+        self.op_strings = defaultdict(list)
+        self.probe_strings = defaultdict(list)
+        self.all_probe_strings = []
 
         # component index (int) -> list of operators
         # stores the operators for each component
@@ -525,22 +389,8 @@ class MpiModel(Model):
 
         self._mpi_tag = 0
 
-        self.pyfunc_args = []
+        self.pyfunc_ops = []
         self.probed_connections = set()
-
-        self.sig = defaultdict(dict)
-        self.sig['common'][0] = Signal(0., readonly=True, name='ZERO')
-        self.sig['common'][1] = Signal(1., readonly=True, name='ONE')
-        self.sig['common']['NULL'] = Signal(1., readonly=False, name='NULL')
-
-        for component in range(n_components):
-            self.assign_signal(component, self.sig['common'][0])
-            self.assign_signal(component, self.sig['common'][1])
-            self.assign_signal(component, self.sig['common']['NULL'])
-
-        self.step = Signal(np.array(0, dtype=np.int64), name='step')
-        self.time = Signal(np.array(0, dtype=np.float64), name='time')
-        self.time_update = TimeUpdate(self.step, self.time)
 
     def __str__(self):
         return "MpiModel: %s" % self.label
@@ -554,14 +404,13 @@ class MpiModel(Model):
         self.finalize_build has been called and completed successfully.
 
         """
-        return self.mpi_sim is not None
+        return self.native_sim is not None
 
     def get_value(self, signal):
         if not self.runnable:
             return 0
-        value = self.mpi_sim.get_signal_value(
-            make_key(signal), np.empty)
-        return value[0]
+        value = self.native_sim.get_signal_value(make_key(signal))
+        return value
 
     def build(self, obj, *args, **kwargs):
         """ Overrides Model.build """
@@ -708,8 +557,8 @@ class MpiModel(Model):
         Called once the MpiBuilder has finished running. Finalizes
         operators and probes, converting them to strings. Then writes
         all relevant information (signals, ops and probes for each component)
-        to an HDF5 file. Then, if self.mpi_sim is not None (so we want to
-        create a runnable MPI simulator), calls self.mpi_sim.load_file, which
+        to an HDF5 file. Then, if self.native_sim is not None (so we want to
+        create a runnable MPI simulator), calls self.native_sim.load_file which
         tells the C++ code to load the HDF5 file we have just written and
         create a working simulator.
 
@@ -732,7 +581,7 @@ class MpiModel(Model):
         self._finalize_ops()
         self._finalize_probes()
 
-        with h5.File(self.save_file_name, 'w') as save_file:
+        with h5.File(self.save_file, 'w') as save_file:
             save_file.attrs['dt'] = self.dt
             save_file.attrs['n_components'] = self.n_components
 
@@ -821,14 +670,14 @@ class MpiModel(Model):
                 save_file, 'probe_info', self.all_probe_strings,
                 compression=self.h5_compression)
 
-        if self.mpi_sim is not None:
-            self.mpi_sim.load_network(self.save_file_name)
-            os.remove(self.save_file_name)
+        if self.native_sim is not None:
+            self.native_sim.load_network(self.save_file)
+            os.remove(self.save_file)
 
-            for args in self.pyfunc_args:
-                self.mpi_sim.create_PyFunc(*args)
+            for op in self.pyfunc_ops:
+                self.native_sim.create_PyFunc(op, self.global_ordering[op])
 
-            self.mpi_sim.finalize_build()
+            self.native_sim.finalize_build()
 
     def _finalize_ops(self):
         """ Finalize operators.
@@ -899,9 +748,7 @@ class MpiModel(Model):
                             "Cannot add SimPyFunc operator on any "
                             "component other than component 0.")
 
-                    pyfunc_args = self._make_pyfunc_args(op)
-                    self.pyfunc_args.append(
-                        pyfunc_args + [self.global_ordering[op]])
+                    self.pyfunc_ops.append(op)
                 else:
                     op_string = self._op_to_string(op)
 
@@ -1217,49 +1064,6 @@ class MpiModel(Model):
 
         op_string = OP_DELIM.join(map(str, op_args))
         return op_string
-
-    def _make_pyfunc_args(self, op):
-        fn = op.fn
-        pass_time = op.t is not None
-        pass_input = op.x is not None
-        return_output = op.output is not None
-
-        def pyfunc(time, x):
-            args = (x,) if pass_input else ()
-            y = fn(time, *args) if pass_time else fn(*args)
-            if return_output and y is None:
-                # required since Numpy turns None into NaN
-                raise SimulationError(
-                    "Function %r returned None" % fn.__name__)
-
-            if y is None:
-                y = np.array([0.0])
-
-            try:
-                float(y[0])
-            except:
-                try:
-                    y = np.array([float(y)])
-                except:
-                    raise Exception("Cannot use %s as output of Node." % y)
-            return y
-
-        t = op.t if pass_time else self.sig['common'][0]
-        x = op.x if pass_input else self.sig['common'][0]
-
-        if not x.shape:
-            input_array = np.array([0.0])
-        else:
-            input_array = x.initial_value.copy()
-
-        output = (
-            op.output if return_output
-            else self.sig['common']['NULL'])
-
-        pyfunc_args = [
-            pyfunc, signal_to_string(t), signal_to_string(x),
-            input_array, signal_to_string(output)]
-        return pyfunc_args
 
     def _finalize_probes(self):
         """ Finalize probes.

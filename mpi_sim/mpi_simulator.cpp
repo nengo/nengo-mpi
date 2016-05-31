@@ -18,7 +18,7 @@ MpiSimulator::MpiSimulator(bool mpi_merged, bool collect_timings)
     cout << "Master rank in merged communicator: " << rank << " (should be 0)." << endl;
     cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
-    wake_workers();
+    mpi_wake_workers();
     bcast_send_int(mpi_merged ? 1 : 0, comm);
     bcast_send_int(collect_timings ? 1 : 0, comm);
 
@@ -93,7 +93,7 @@ void MpiSimulator::run_n_steps(int steps, bool progress, string log_filename){
     }
 
     cout << "Master sending signal to run the simulation for " << steps
-         << " to " << n_processors - 1 << " workers." << endl;
+         << " steps to " << n_processors - 1 << " workers." << endl;
     MPI_Bcast(&steps, 1, MPI_INT, 0, comm);
 
     cout << "Master starting simulation: " << steps << " steps." << endl;
@@ -188,6 +188,23 @@ string MpiSimulator::to_string() const{
     return out.str();
 }
 
+void MpiSimulator::write_to_time_file(char* filename, double delta){
+    if(filename){
+        ofstream f(filename, ios::app);
+
+        if(f.good()){
+            if(f.tellp() == 0){
+                // Write the header
+                f << "seconds,nprocs,label" << endl;
+            }
+
+            f << delta << "," << n_processors << "," << label << endl;
+        }
+
+        f.close();
+    }
+}
+
 void mpi_init(){
     int argc = 0;
     char** argv;
@@ -201,34 +218,34 @@ void mpi_finalize(){
     MPI_Finalize();
 }
 
-int get_mpi_rank(){
+int mpi_get_rank(){
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     return rank;
 };
 
-int get_mpi_n_procs(){
+int mpi_get_n_procs(){
     return n_processors_available;
 }
 
-void wake_workers(){
+void mpi_wake_workers(){
     int kill = 0;
     MPI_Bcast(&kill, 1, MPI_INT, 0, MPI_COMM_WORLD);
 }
 
-void kill_workers(){
+void mpi_kill_workers(){
     int kill = 1;
     MPI_Bcast(&kill, 1, MPI_INT, 0, MPI_COMM_WORLD);
 }
 
-void worker_start(){
-    worker_start(MPI_COMM_WORLD);
+void mpi_worker_start(){
+    mpi_worker_start(MPI_COMM_WORLD);
 }
 
 // comm: The communicator for the worker to communicate on. Must
 // be an intracommunicator involving all processes, with the master
 // process having rank 0.
-void worker_start(MPI_Comm comm){
+void mpi_worker_start(MPI_Comm comm){
 
     int rank, n_processors;
     MPI_Comm_rank(comm, &rank);
@@ -339,23 +356,6 @@ void worker_start(MPI_Comm comm){
                 break;
             }
         }
-    }
-}
-
-void MpiSimulator::write_to_time_file(char* filename, double delta){
-    if(filename){
-        ofstream f(filename, ios::app);
-
-        if(f.good()){
-            if(f.tellp() == 0){
-                // Write the header
-                f << "seconds,nprocs,label" << endl;
-            }
-
-            f << delta << "," << n_processors << "," << label << endl;
-        }
-
-        f.close();
     }
 }
 

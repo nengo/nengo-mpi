@@ -989,11 +989,12 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
 }
 
 void MpiSimulatorChunk::add_op(float index, unique_ptr<Operator> op){
+    build_dbg(
+        "At index " << index << ", adding op:" << endl << *(op.get()));
+
     operator_list.push_back(op.get());
     op->set_index(index);
     operator_store.push_back(move(op));
-    build_dbg("At index " << index << ", adding op:");
-    build_dbg(*(op.get()));
 }
 
 void MpiSimulatorChunk::add_time_update(float index, unique_ptr<TimeUpdate> time_update_){
