@@ -9,6 +9,7 @@ import logging
 from nengo import Direct, Node, Ensemble, Connection, Probe
 from nengo.base import ObjView
 from nengo.ensemble import Neurons
+from nengo.connection import LearningRule
 from nengo.utils.builder import find_all_io
 from nengo.utils.compat import is_iterable, itervalues
 
@@ -325,6 +326,82 @@ class NengoObjectCluster(object):
         return True
 
 
+class ClusterGraph(object):
+
+    def __init__(self, network, can_cross_boundary=None):
+
+        if can_cross_boundary is None:
+            can_cross_boundary = make_boundary_predicate(network)
+        self.can_cross_boundary = can_cross_boundary
+
+        self.network = network
+
+        # A mapping from each nengo object to the cluster it is a member of.
+        self._map = {
+            obj: NengoObjectCluster(obj) for obj
+            in network.all_nodes + network.all_ensembles}
+
+    def __getitem__(self, key):
+        """ Keys are nengo objects. """
+        return self._map[neurons2ensemble(key)]
+
+    @property
+    def clusters(self):
+        return list(set(self._map.values()))
+
+    def process_conn(self, conn):
+        pre_cluster = self[conn.pre_obj]
+        post_cluster = self[conn.post_obj]
+
+        if self.can_cross_boundary(conn):
+            pre_cluster.add_output(conn)
+            post_cluster.add_input(conn)
+        else:
+            self.merge_clusters(pre_cluster, post_cluster, conn)
+
+    def merge_clusters(self, a, b, conn=None):
+        if a.merge(b):
+            for obj in b.objects:
+                self._map[obj] = a
+
+            del b
+
+        if conn is not None:
+            a.connections.append(conn)
+
+            if conn.learning_rule is not None:
+                self._map[conn.learning_rule] = a
+
+        return a
+
+    def as_nx_graph(self, use_weights=True):
+        G = nx.Graph()
+        G.add_nodes_from(self.clusters)
+
+        boundary_connections = filter(
+            self.can_cross_boundary, self.network.all_connections)
+
+        for conn in boundary_connections:
+            pre_cluster = self[conn.pre_obj]
+            post_cluster = self[conn.post_obj]
+
+            if pre_cluster != post_cluster:
+                weight = conn.size_mid if use_weights else 1.0
+
+                if G.has_edge(pre_cluster, post_cluster):
+                    G[pre_cluster][post_cluster]['weight'] += weight
+                    G[pre_cluster][post_cluster]['connections'].append(conn)
+                else:
+                    G.add_edge(
+                        pre_cluster, post_cluster,
+                        weight=weight, connections=[conn])
+        return G
+
+
+def neurons2ensemble(e):
+    return e.ensemble if isinstance(e, Neurons) else e
+
+
 def network_to_cluster_graph(
         network, can_cross_boundary=None,
         use_weights=True, merge_nengo_nodes=True):
@@ -338,16 +415,13 @@ def network_to_cluster_graph(
     ----------
     network: nengo.Network
         The network whose cluster graph we want to construct.
-
     can_cross_boundary: function
-        A function which accepts a Connection, and returns a boolean specifying
+        A function which accepts a Connection, and returns a bool specifying
         whether the Connection is allowed to cross component boundaries.
-
     use_weights: boolean
         Whether edges in the cluster graph should be weighted by the
-        ``size_mid`` attribute of the connection. If not, then all connections
+        ``size_mid`` attribute of the connection. Otherwise, all connections
         are weighted equally.
-
     merge_nengo_nodes: boolean
         If True, then clusters which would consist entirely of nengo Nodes are
         merged with a neighboring cluster. This is done because it is typically
@@ -367,112 +441,69 @@ def network_to_cluster_graph(
         in ``cluster_graph``.
 
     """
-    def merge_clusters(cluster_map, a, b, conn=None):
-        if a.merge(b):
-            for obj in b.objects:
-                cluster_map[obj] = a
 
-            del b
+    cluster_graph = ClusterGraph(network, can_cross_boundary)
 
-        if conn is not None:
-            a.connections.append(conn)
-
-        return a
-
-    if can_cross_boundary is None:
-        can_cross_boundary = make_boundary_predicate(network)
-
-    # A mapping from each nengo object to the cluster it is a member of
-    cluster_map = {
-        obj: NengoObjectCluster(obj) for obj
-        in network.all_nodes + network.all_ensembles}
-
+    deferred = []
     for conn in network.all_connections:
-        pre_obj = neurons2ensemble(conn.pre_obj)
-        pre_cluster = cluster_map[pre_obj]
+        if (isinstance(conn.pre_obj, LearningRule) or
+                isinstance(conn.post_obj, LearningRule)):
+            deferred.append(conn)
+            continue
 
-        post_obj = neurons2ensemble(conn.post_obj)
-        post_cluster = cluster_map[post_obj]
+        cluster_graph.process_conn(conn)
 
-        if can_cross_boundary(conn):
-            pre_cluster.add_output(conn)
-            post_cluster.add_input(conn)
-        else:
-            merge_clusters(cluster_map, pre_cluster, post_cluster, conn)
-
-    all_clusters = list(set(cluster_map.values()))
+    for conn in deferred:
+        cluster_graph.process_conn(conn)
 
     _, outputs = find_all_io(network.all_connections)
 
     # merge together all clusters that have to go on component 0
     component0 = filter(
-        lambda x: for_component0(x, outputs), all_clusters)
+        lambda x: for_component0(x, outputs), cluster_graph.clusters)
 
     if component0:
-        all_clusters = filter(lambda x: x not in component0[1:], all_clusters)
         component0 = reduce(
-            lambda u, v: merge_clusters(cluster_map, u, v), component0)
+            lambda u, v: cluster_graph.merge_clusters(u, v), component0)
     else:
         component0 = None
 
-    any_neurons = any(cluster.n_neurons > 0 for cluster in all_clusters)
+    # Check whether there are any neurons in the network.
+    any_neurons = any(
+        cluster.n_neurons > 0 for cluster in cluster_graph.clusters)
+
     if merge_nengo_nodes and any_neurons:
         # For each cluster which does not contain any neurons, merge the
         # cluster with another cluster which *does* contain neurons,
         # and which the original cluster communicates strongly with.
 
-        without_neurons = filter(lambda c: c.n_neurons == 0, all_clusters)
+        without_neurons = filter(
+            lambda c: c.n_neurons == 0, cluster_graph.clusters)
+        with_neurons = filter(
+            lambda c: c.n_neurons > 0, cluster_graph.clusters)
 
         for cluster in without_neurons:
             # figure out which cluster would be most beneficial to merge with.
             counts = defaultdict(int)
 
             for i in cluster.inputs:
-                pre_obj = neurons2ensemble(i.pre_obj)
-                pre_cluster = cluster_map[pre_obj]
+                pre_cluster = cluster_graph[i.pre_obj]
                 if pre_cluster.n_neurons > 0:
                     counts[pre_cluster] += i.size_mid
 
             for o in cluster.outputs:
-                post_obj = neurons2ensemble(o.post_obj)
-                post_cluster = cluster_map[post_obj]
+                post_cluster = cluster_graph[o.post_obj]
                 if post_cluster.n_neurons > 0:
                     counts[post_cluster] += o.size_mid
 
             if counts:
                 best_cluster = max(counts, key=counts.__getitem__)
             else:
-                best_cluster = (
-                    n for n in all_clusters if n.n_neurons > 0).next()
+                best_cluster = with_neurons[0]
+            cluster_graph.merge_clusters(best_cluster, cluster)
 
-            merge_clusters(cluster_map, best_cluster, cluster)
-            all_clusters.remove(cluster)
-
-    G = nx.Graph()
-    G.add_nodes_from(all_clusters)
-
-    boundary_connections = filter(can_cross_boundary, network.all_connections)
-
-    for conn in boundary_connections:
-        pre_cluster = cluster_map[neurons2ensemble(conn.pre_obj)]
-        post_cluster = cluster_map[neurons2ensemble(conn.post_obj)]
-
-        if pre_cluster != post_cluster:
-            weight = conn.size_mid if use_weights else 1.0
-
-            if G.has_edge(pre_cluster, post_cluster):
-                G[pre_cluster][post_cluster]['weight'] += weight
-                G[pre_cluster][post_cluster]['connections'].append(conn)
-            else:
-                G.add_edge(
-                    pre_cluster, post_cluster,
-                    weight=weight, connections=[conn])
-
+    G = cluster_graph.as_nx_graph(use_weights)
     return component0, G
-
-
-def neurons2ensemble(e):
-    return e.ensemble if isinstance(e, Neurons) else e
 
 
 def for_component0(cluster, outputs):
