@@ -36,7 +36,7 @@ def pad(x):
             (x[0], 1) if len(x) == 1 else x))
 
 
-def signal_to_string(signal):
+def signal_to_string(signal, debug=False):
     """ Convert a signal to a string.
 
     The format of the returned string is:
@@ -48,7 +48,7 @@ def signal_to_string(signal):
 
     signal_args = [
         make_key(signal.base),
-        sanitize_label(signal.name),
+        sanitize_label(signal.name) if debug else '',
         signal.ndim,
         "%d,%d" % (shape[0], shape[1]),
         "%d,%d" % (stride[0], stride[1]),

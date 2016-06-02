@@ -45,7 +45,8 @@ from nengo.exceptions import BuildError
 from nengo_mpi import PartitionError
 from nengo_mpi.utils import (
     OP_DELIM, PROBE_DELIM, make_key,
-    pad, signal_to_string, ndarray_to_string, get_closures)
+    pad, ndarray_to_string, get_closures)
+from nengo_mpi.utils import signal_to_string as _signal_to_string
 from nengo_mpi.native import NativeSimulator, native_sim_available
 from nengo_mpi.spaun_mpi import SpaunStimulus, build_spaun_stimulus
 from nengo_mpi.spaun_mpi import SpaunStimulusOperator
@@ -306,15 +307,19 @@ class MpiModel(Model):
         provided, then instead of creating a runnable simulator, the result
         of building the model is saved to a file which can be loaded by
         the executables bin/nengo_mpi and bin/nengo_cpp to run simulations.
+    debug: bool
+        Whether to run in debug mode. In debug mode, labels of operators and
+        strings are passed to C++.
 
     """
     def __init__(
             self, n_components, assignments, dt=0.001, label=None,
-            decoder_cache=NoDecoderCache(), save_file=""):
+            decoder_cache=NoDecoderCache(), save_file="", debug=False):
 
         self.dt = dt
         self.label = label
         self.decoder_cache = decoder_cache
+        self.debug = debug
 
         # We want to keep track of the toplevel network
         self.toplevel = None
@@ -517,7 +522,7 @@ class MpiModel(Model):
         key = make_key(base)
 
         if key not in self.base_signals[component]:
-            logger.info(
+            logger.debug(
                 "Component %d: Adding signal %s with key: %s",
                 component, signal, key)
 
@@ -649,7 +654,11 @@ class MpiModel(Model):
                     dtype='int64', compression=self.h5_compression)
 
                 # base signal labels
-                signal_labels = [sig.name for sig in base_signals.values()]
+                if self.debug:
+                    signal_labels = [sig.name for sig in base_signals.values()]
+                else:
+                    signal_labels = ['' for sig in base_signals.values()]
+
                 store_string_list(
                     component_group, 'signal_labels', signal_labels,
                     compression=self.h5_compression)
@@ -753,11 +762,14 @@ class MpiModel(Model):
                     op_string = self._op_to_string(op)
 
                     if op_string:
-                        logger.info(
+                        logger.debug(
                             "Component %d: Adding operator with string: %s",
                             component, op_string)
 
                         self.op_strings[component].append(op_string)
+
+    def signal_to_string(self, signal):
+        return _signal_to_string(signal, self.debug)
 
     def _op_to_string(self, op):
         """ Convert operator to a string.
@@ -772,6 +784,7 @@ class MpiModel(Model):
 
         """
         op_type = type(op)
+        signal_to_string = self.signal_to_string
 
         if op_type == builder.operator.TimeUpdate:
             op_args = [
@@ -1033,7 +1046,7 @@ class MpiModel(Model):
                 op.learning_rate, self.dt]
 
         elif op_type == builder.operator.PreserveValue:
-            logger.info(
+            logger.debug(
                 "Skipping PreserveValue, operator: %s, signal: %s",
                 str(op.dst), signal_to_string(op.dst))
 
@@ -1081,7 +1094,7 @@ class MpiModel(Model):
             self.probe_keys[probe] = probe_key
 
             signal = self.sig[probe]['in']
-            signal_string = signal_to_string(signal)
+            signal_string = self.signal_to_string(signal)
 
             component = self.assignments[probe]
 
