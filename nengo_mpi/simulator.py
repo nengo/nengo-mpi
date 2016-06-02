@@ -244,4 +244,7 @@ Simulator.unsupported = [
     ('test_simulator.test_warn_on_opensim_gc',
      'Fails for an unknown reason.'),
     ('test_processes.test_seed',
-     'nengo_mpi cannot seed processes properly.')]
+     'nengo_mpi cannot seed processes properly.'),
+    ('test_connection.test_prepost_errors',
+     'nengo_mpi gives a different error than nengo.')
+    ]

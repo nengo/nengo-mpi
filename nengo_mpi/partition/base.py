@@ -81,7 +81,7 @@ def verify_assignments(network, assignments):
     n_components = max(assignments.values()) + 1
 
     can_cross_boundary = make_boundary_predicate(network)
-    propogate_assignments(network, assignments, can_cross_boundary)
+    propagate_assignments(network, assignments, can_cross_boundary)
 
     if n_components > 1:
         component0, cluster_graph = network_to_cluster_graph(
@@ -220,7 +220,7 @@ class Partitioner(object):
             for cluster, component in cluster_assignments.iteritems():
                 cluster.assign_to_component(object_assignments, component)
 
-        propogate_assignments(network, object_assignments, can_cross_boundary)
+        propagate_assignments(network, object_assignments, can_cross_boundary)
 
         if self.n_components > 1:
             evaluate_partition(
@@ -247,14 +247,20 @@ class NengoObjectCluster(object):
         The initial nengo object stored in the node.
 
     """
+    _idx = 0
+
     def __init__(self, obj):
         self.objects = set()
         self.inputs = set()
         self.outputs = set()
         self._n_neurons = 0
         self.connections = []
+        self.head = obj
 
         self.add_object(obj)
+
+        self._idx = NengoObjectCluster._idx
+        NengoObjectCluster._idx += 1
 
     @property
     def n_neurons(self):
@@ -276,10 +282,7 @@ class NengoObjectCluster(object):
         return len(self.objects) == 0
 
     def __str__(self):
-        s = (
-            "<NengoObjectCluster: "
-            + ", ".join(str(o) for o in self.objects) + ">")
-        return s
+        return "<NengoObjectCluster: idx=%d, head=%s>" % (self._idx, self.head)
 
     def __repr__(self):
         return str(self)
@@ -323,6 +326,12 @@ class NengoObjectCluster(object):
 
         self.connections.extend(other.connections)
 
+        other.objects = set()
+        other.inputs = set()
+        other.outputs = set()
+        other.connections = []
+        other._n_neurons = 0
+
         return True
 
 
@@ -361,20 +370,41 @@ class ClusterGraph(object):
 
     def merge_clusters(self, a, b, conn=None):
         if a.merge(b):
-            for obj in b.objects:
+            for obj in a.objects:
                 self._map[obj] = a
 
             del b
 
         if conn is not None:
             a.connections.append(conn)
-
             if conn.learning_rule is not None:
                 self._map[conn.learning_rule] = a
 
         return a
 
+    def check_overlap(self):
+        clusters = self.clusters
+        for c1 in clusters:
+            for c2 in clusters:
+                if c1 != c2:
+                    intersection = c1.objects & c2.objects
+                    if intersection:
+                        raise PartitionError(
+                            "Components %s and %s have %d objects "
+                            "in common." % (c1, c2, len(intersection)))
+
+    def check_validity(self):
+        for cluster in self.clusters:
+            for obj in cluster.objects:
+                if self[obj] != cluster:
+                    raise PartitionError(
+                        "Mapping out of synch with clusters. Object "
+                        "%s is in cluster %s, but maps to "
+                        "cluster %s." % (obj, cluster, self[obj]))
+
     def as_nx_graph(self, use_weights=True):
+        self.check_overlap()
+        self.check_validity()
         G = nx.Graph()
         G.add_nodes_from(self.clusters)
 
@@ -441,7 +471,6 @@ def network_to_cluster_graph(
         in ``cluster_graph``.
 
     """
-
     cluster_graph = ClusterGraph(network, can_cross_boundary)
 
     deferred = []
@@ -576,16 +605,16 @@ def duplicate_spaun_stim(network):
                 assert remove_from_network(network, node)
 
 
-def propogate_assignments(network, assignments, can_cross_boundary):
+def propagate_assignments(network, assignments, can_cross_boundary):
     """ Assign every object in ``network`` to a component.
 
-    Propogates the component assignments stored in the dict ``assignments``
+    Propagates the component assignments stored in the dict ``assignments``
     (which only needs to contain assignments for top level Networks, Nodes and
     Ensembles) down to objects that are contained in those top-level objects.
     If assignments is empty, then all objects will be assigned to the 1st
     component, which has index 0. The intent is to have some partitioning
     algorithm determine some of the assignments before this function is called,
-    and then have this function propogate those assignments.
+    and then have this function propagate those assignments.
 
     Also does validation, making sure that connections that cross component
     boundaries have certain properties (see ``can_cross_boundary``) and making
@@ -667,52 +696,46 @@ def propogate_assignments(network, assignments, can_cross_boundary):
 
     _, outputs = find_all_io(network.all_connections)
 
-    try:
-        helper(network, assignments, outputs)
+    helper(network, assignments, outputs)
 
-        # Assign learning rules
-        for conn in network.all_connections:
-            if conn.learning_rule is not None:
-                rule = conn.learning_rule
-                if is_iterable(rule):
-                    rule = itervalues(rule) if isinstance(rule, dict) else rule
-                    for r in rule:
-                        assignments[r] = assignments[conn.pre_obj]
-                elif rule is not None:
-                    assignments[rule] = assignments[conn.pre_obj]
+    # Assign learning rules
+    for conn in network.all_connections:
+        if conn.learning_rule is not None:
+            rule = conn.learning_rule
+            if is_iterable(rule):
+                rule = itervalues(rule) if isinstance(rule, dict) else rule
+                for r in rule:
+                    assignments[r] = assignments[conn.pre_obj]
+            elif rule is not None:
+                assignments[rule] = assignments[conn.pre_obj]
 
-        # Check for connections erroneously crossing component boundaries
-        non_crossing = [
-            conn for conn in network.all_connections
-            if not can_cross_boundary(conn)]
+    # Check for connections erroneously crossing component boundaries
+    non_crossing = [
+        conn for conn in network.all_connections
+        if not can_cross_boundary(conn)]
 
-        for conn in non_crossing:
-            pre_component = assignments[conn.pre_obj]
-            post_component = assignments[conn.post_obj]
+    for conn in non_crossing:
+        pre_component = assignments[conn.pre_obj]
+        post_component = assignments[conn.post_obj]
 
-            if pre_component != post_component:
-                raise PartitionError(
-                    "Connection %s crosses a component "
-                    "boundary, but it is not permitted to. "
-                    "Pre-object assigned to %d, post-object "
-                    "assigned to %d." % (conn, pre_component, post_component))
+        if pre_component != post_component:
+            raise PartitionError(
+                "Connection %s crosses a component "
+                "boundary, but it is not permitted to. "
+                "Pre-object assigned to %d, post-object "
+                "assigned to %d." % (conn, pre_component, post_component))
 
-        # Assign probes
-        for probe in network.all_probes:
-            target = (
-                probe.target.obj
-                if isinstance(probe.target, ObjView)
-                else probe.target)
+    # Assign probes
+    for probe in network.all_probes:
+        target = (
+            probe.target.obj
+            if isinstance(probe.target, ObjView)
+            else probe.target)
 
-            if isinstance(target, Connection):
-                target = target.pre_obj
+        if isinstance(target, Connection):
+            target = target.pre_obj
 
-            assignments[probe] = assignments[target]
-
-    except KeyError as e:
-        # Nengo tests require a value error to be raised in these cases.
-        msg = "Invalid Partition. KeyError: %s" % e.message,
-        raise ValueError(msg)
+        assignments[probe] = assignments[target]
 
     nodes = network.all_nodes
     nodes_in = all([node in assignments for node in nodes])
