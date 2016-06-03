@@ -35,7 +35,6 @@ from nengo.synapses import LinearFilter, Triangle
 from nengo.processes import (
     WhiteNoise, FilteredNoise, BrownNoise, WhiteSignal, PresentInput)
 from nengo.utils.graphs import toposort
-from nengo.utils.builder import full_transform
 from nengo.utils.simulator import operator_depencency_graph
 from nengo.cache import NoDecoderCache
 from nengo.network import Network
@@ -105,66 +104,7 @@ with warnings.catch_warnings():
 
     MpiBuilder.register(SpaunStimulus)(make_builder(build_spaun_stimulus))
 
-    def mpi_build_network(model, network):
-        """ Build a nengo Network for nengo_mpi.
-
-        This function replaces nengo.builder.network.build_network.
-
-        For each connection that emenates from a Node, has a non-None
-        pre-slice, AND has no function attached to it, we replace it
-        with a Connection that is functionally equivalent, but has
-        the slicing moved into the transform. This is done because
-        in some such cases, the refimpl nengo builder will implement the
-        slicing using a python function, which we want to avoid in nengo_mpi.
-
-        Also records which Connections have probes attached to them.
-
-        Parameters
-        ----------
-        model: MpiModel
-            The model to which created components will be added.
-        network: nengo.Network
-            The network to be built.
-
-        """
-        remove_conns = []
-
-        for conn in network.connections:
-            replace_connection = (
-                isinstance(conn.pre_obj, Node)
-                and conn.pre_slice != slice(None)
-                and conn.function is None)
-
-            if replace_connection:
-                transform = full_transform(conn)
-
-                with network:
-                    Connection(
-                        conn.pre_obj, conn.post_obj,
-                        synapse=conn.synapse,
-                        transform=transform, solver=conn.solver,
-                        learning_rule_type=conn.learning_rule_type,
-                        eval_points=conn.eval_points,
-                        scale_eval_points=conn.scale_eval_points,
-                        seed=conn.seed)
-
-                remove_conns.append(conn)
-
-        if remove_conns:
-            network.objects[Connection] = [
-                c for c in network.connections if c not in remove_conns]
-
-            network.connections = network.objects[Connection]
-
-        probed_connections = []
-        for probe in network.probes:
-            if isinstance(probe.target, Connection):
-                probed_connections.append(probe.target)
-        model.probed_connections |= set(probed_connections)
-
-        return build_network(model, network)
-
-    MpiBuilder.register(Network)(make_builder(mpi_build_network))
+    MpiBuilder.register(Network)(make_builder(build_network))
 
 
 class MpiSend(Operator):
