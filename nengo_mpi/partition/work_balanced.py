@@ -1,4 +1,5 @@
 from heapq import heapify, heappush, heappop
+from six import iteritems
 
 
 def work_balanced_partitioner(cluster_graph, n_components):
@@ -59,7 +60,7 @@ class PriorityDict(dict):
         self._rebuild_heap()
 
     def _rebuild_heap(self):
-        self._heap = [(v, k) for k, v in self.iteritems()]
+        self._heap = [(v, k) for k, v in iteritems(self)]
         heapify(self._heap)
 
     def smallest(self):

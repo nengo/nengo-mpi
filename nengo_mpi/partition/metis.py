@@ -2,6 +2,7 @@ from __future__ import print_function
 import subprocess
 import tempfile
 import os
+from six import iteritems
 
 _metis_available = True
 
@@ -58,7 +59,7 @@ def write_metis_input_file(cluster_graph):
 
             f.write("%d" % vertex_weight)
 
-            for v, weight_dict in cluster_graph[u].iteritems():
+            for v, weight_dict in iteritems(cluster_graph[u]):
                 f.write(" %d %d" % (indices[v], weight_dict['weight']))
 
     return f.name

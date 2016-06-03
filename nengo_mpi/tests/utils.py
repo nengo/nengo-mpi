@@ -5,6 +5,7 @@ import os
 import h5py
 import subprocess
 import numpy as np
+from six import iteritems
 
 
 def run_standalone_cpp(network_file, log_file, sim_time):
@@ -22,7 +23,7 @@ def run_standalone_cpp(network_file, log_file, sim_time):
 
         with h5py.File(log_file, 'r') as results:
             probe_dict = {}
-            for probe_key, probe_data in results.iteritems():
+            for probe_key, probe_data in iteritems(results):
                 probe_dict[probe_key] = np.array(probe_data, copy=True)
 
         return probe_dict
@@ -48,7 +49,7 @@ def run_standalone_mpi(network_file, log_file, n_processors, sim_time):
 
         with h5py.File(log_file, 'r') as results:
             probe_dict = {}
-            for probe_key, probe_data in results.iteritems():
+            for probe_key, probe_data in iteritems(results):
                 probe_dict[probe_key] = np.array(probe_data, copy=True)
 
         return probe_dict

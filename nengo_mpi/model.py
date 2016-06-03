@@ -14,7 +14,9 @@ import warnings
 from itertools import chain
 import os
 import tempfile
+import sys
 import logging
+import six
 
 import nengo
 from nengo import Probe
@@ -52,6 +54,8 @@ from nengo_mpi.spaun_mpi import SpaunStimulus, build_spaun_stimulus
 from nengo_mpi.spaun_mpi import SpaunStimulusOperator
 
 logger = logging.getLogger(__name__)
+if sys.version_info > (3,):
+    long = int
 
 
 def make_builder(base_function):
@@ -147,8 +151,8 @@ with warnings.catch_warnings():
                 remove_conns.append(conn)
 
         if remove_conns:
-            network.objects[Connection] = filter(
-                lambda c: c not in remove_conns, network.connections)
+            network.objects[Connection] = [
+                c for c in network.connections if c not in remove_conns]
 
             network.connections = network.objects[Connection]
 
@@ -229,33 +233,29 @@ def split_connection(conn_ops, signal):
     post_ops: A list of the ops that come after the updated signal.
 
     """
+    post_ops = conn_ops[:]
     pre_ops = []
 
-    for op in conn_ops:
+    for op in post_ops:
         if signal in op.updates:
             pre_ops.append(op)
 
     assert len(pre_ops) == 1
 
     reads = pre_ops[0].reads
-
-    post_ops = filter(
-        lambda op: op not in pre_ops, conn_ops)
+    post_ops.remove(pre_ops[0])
 
     changed = True
     while changed:
-        changed = []
-
-        for op in post_ops:
+        changed = False
+        for op in post_ops[:]:
             writes = set(op.incs) | set(op.sets)
 
             if writes & set(reads):
                 pre_ops.append(op)
                 reads.extend(op.reads)
-                changed.append(op)
-
-        post_ops = filter(
-            lambda op: op not in changed, post_ops)
+                post_ops.remove(op)
+                changed = True
 
     return pre_ops, post_ops
 
@@ -273,7 +273,10 @@ def store_string_list(
     if final_null:
         big_string += '\0'
 
-    data = np.array(list(big_string))
+    if isinstance(big_string, six.text_type):
+        big_string = big_string.encode('ascii')
+
+    data = np.fromstring(big_string, dtype='S1')
     dset = h5_file.create_dataset(
         dset_name, data=data, dtype='S1', compression=compression)
 
@@ -460,7 +463,6 @@ class MpiModel(Model):
         if not isinstance(obj, Connection):
             component = self.assignments[obj]
             self.assign_ops(component, self.object_ops[obj])
-
             return
 
         conn = obj
@@ -482,9 +484,9 @@ class MpiModel(Model):
                     "must not be probed.")
 
             try:
-                synapse_op = (
+                synapse_op = next(
                     op for op in self.object_ops[conn]
-                    if isinstance(op, builder.processes.SimProcess)).next()
+                    if isinstance(op, builder.processes.SimProcess))
             except StopIteration:
                 raise PartitionError(
                     "A Connection crossing a component boundary "

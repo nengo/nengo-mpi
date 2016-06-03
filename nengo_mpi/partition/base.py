@@ -5,6 +5,7 @@ import warnings
 import networkx as nx
 import numpy as np
 import logging
+from six import iteritems
 
 from nengo import Direct, Node, Ensemble, Connection, Probe
 from nengo.base import ObjView
@@ -208,16 +209,16 @@ class Partitioner(object):
 
             if component0:
                 # Assign the objects in ``component0`` to component 0
-                on_zero = filter(
-                    lambda n: cluster_assignments[n] == 0, cluster_assignments)
+                on_zero = [
+                    n for n, v in iteritems(cluster_assignments) if v == 0]
                 c = cluster_assignments[component0]
-                on_c = filter(
-                    lambda n: cluster_assignments[n] == c, cluster_assignments)
+                on_c = [
+                    n for n, v in iteritems(cluster_assignments) if v == c]
 
                 cluster_assignments.update({cluster: c for cluster in on_zero})
                 cluster_assignments.update({cluster: 0 for cluster in on_c})
 
-            for cluster, component in cluster_assignments.iteritems():
+            for cluster, component in iteritems(cluster_assignments):
                 cluster.assign_to_component(object_assignments, component)
 
         propagate_assignments(network, object_assignments, can_cross_boundary)
@@ -408,8 +409,9 @@ class ClusterGraph(object):
         G = nx.Graph()
         G.add_nodes_from(self.clusters)
 
-        boundary_connections = filter(
-            self.can_cross_boundary, self.network.all_connections)
+        boundary_connections = [
+            c for c in self.network.all_connections
+            if self.can_cross_boundary(c)]
 
         for conn in boundary_connections:
             pre_cluster = self[conn.pre_obj]
@@ -488,12 +490,14 @@ def network_to_cluster_graph(
     _, outputs = find_all_io(network.all_connections)
 
     # merge together all clusters that have to go on component 0
-    component0 = filter(
-        lambda x: for_component0(x, outputs), cluster_graph.clusters)
+    component0 = (
+        x for x in cluster_graph.clusters
+        if for_component0(x, outputs))
 
-    if component0:
-        component0 = reduce(
-            lambda u, v: cluster_graph.merge_clusters(u, v), component0)
+    first = next(component0, None)
+    if first is not None:
+        for c in component0:
+            cluster_graph.merge_clusters(first, c)
     else:
         component0 = None
 
@@ -506,10 +510,9 @@ def network_to_cluster_graph(
         # cluster with another cluster which *does* contain neurons,
         # and which the original cluster communicates strongly with.
 
-        without_neurons = filter(
-            lambda c: c.n_neurons == 0, cluster_graph.clusters)
-        with_neurons = filter(
-            lambda c: c.n_neurons > 0, cluster_graph.clusters)
+        clusters = cluster_graph.clusters
+        without_neurons = [c for c in clusters if c.n_neurons == 0]
+        with_neurons = [c for c in clusters if c.n_neurons > 0]
 
         for cluster in without_neurons:
             # figure out which cluster would be most beneficial to merge with.

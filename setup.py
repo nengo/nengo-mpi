@@ -46,11 +46,13 @@ setup(
     # See https://github.com/nengo/nengo/issues/508 for details.
     setup_requires=[
         "numpy>=1.6",
-        "h5py"
+        "h5py",
+        "networkx"
     ],
     install_requires=[
         "numpy>=1.6",
-        "h5py"
+        "h5py",
+        "networkx"
     ],
     extras_require={},
     tests_require=['pytest>=2.3'],

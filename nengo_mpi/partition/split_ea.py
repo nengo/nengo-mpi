@@ -11,6 +11,7 @@ number of processors to be used.
 import collections
 import numpy as np
 import logging
+from six import iteritems
 
 import nengo
 from nengo.utils.builder import full_transform
@@ -69,9 +70,7 @@ def find_object_location(network, obj):
     Returns an empty list if ``obj`` not found in ``network`` at any level.
     """
 
-    cls = filter(
-        lambda cls: cls in network.objects, obj.__class__.__mro__)
-
+    cls = [c for c in obj.__class__.__mro__ if c in network.objects]
     if cls and obj in network.objects[cls[0]]:
         return [network]
 
@@ -181,8 +180,8 @@ class EnsembleArraySplitter(object):
         self.probe_map = collections.defaultdict(list)
 
         for node in self.node_map:
-            probes_targeting_node = filter(
-                lambda p: p.target is node, network.all_probes)
+            probes_targeting_node = [
+                p for p in network.all_probes if p.target is node]
 
             for probe in probes_targeting_node:
                 assert remove_from_network(network, probe)
@@ -410,9 +409,9 @@ class EnsembleArraySplitter(object):
 
             output_sizes = []
             for ensemble in array.ensembles:
-                conn = filter(
-                    lambda c: old_output.label in str(c.post),
-                    outputs[ensemble])[0]
+                conn = next(
+                    c for c in outputs[ensemble]
+                    if old_output.label in str(c.post))
                 output_sizes.append(conn.size_out)
 
             # make new output nodes
@@ -511,7 +510,7 @@ class EnsembleArraySplitter(object):
 
         handled_ids = []
 
-        for probe_id, p_ids in self.probe_map.iteritems():
+        for probe_id, p_ids in iteritems(self.probe_map):
             new_data[probe_id] = np.concatenate(
                 [simulator.data[i] for i in p_ids], axis=1)
 

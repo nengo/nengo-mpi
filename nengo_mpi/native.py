@@ -223,6 +223,13 @@ class NativeSimulator(object):
         c_func = SIMPLE_PYFUNC(py_func)
         self.callbacks.append(c_func)
 
+        if isinstance(t, six.text_type):
+            t = t.encode('ascii')
+        if isinstance(input, six.text_type):
+            input = input.encode('ascii')
+        if isinstance(output, six.text_type):
+            output = output.encode('ascii')
+
         mpi_sim_so.create_PyFunc(
             c_func, t, input, output,
             c_time, c_input, c_output, c_float(index))
