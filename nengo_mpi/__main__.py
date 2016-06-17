@@ -12,14 +12,15 @@ This code is only executed if nengo_mpi is run as the main script with -m.
 """
 
 
+import sys
+import os
+import atexit
+import six
+
 # cargo cult to get around errors. See
 # https://xrunhprof.wordpress.com/2014/11/04/an-openmpi-python-and-dlopen-issue/
 import ctypes
 ctypes.CDLL("libmpi.so", mode=ctypes.RTLD_GLOBAL)
-
-import sys
-import os
-import atexit
 
 native_sim = ctypes.CDLL("mpi_sim.so")
 
@@ -58,11 +59,11 @@ else:
             "__name__": "__main__",
             "__file__": mainpyfile,
             "__builtins__": __builtins__}
-        statement = 'execfile(%r)\n' % mainpyfile
+        statement = 'exec(open(%r).read())\n' % mainpyfile
         locals = globals
         statement += '\n'
 
-        exec statement in globals, locals
+        six.exec_(statement, globals, locals)
 
     except SystemExit:
         print("The program exited via sys.exit(). Exit status: ",)

@@ -26,8 +26,7 @@ class Simulator(nengo.Simulator):
     def __init__(
             self, network, dt=0.001, seed=None, model=None,
             partitioner=None, assignments=None, save_file=""):
-        """
-        A simulator that can be executed in parallel using MPI.
+        """ A simulator that can be executed in parallel using MPI.
 
         Parameters
         ----------
@@ -44,15 +43,15 @@ class Simulator(nengo.Simulator):
             Usually the simulator will build this model for you; however,
             if you want to build the network manually, or to inject some
             build artifacts in the Model before building the network,
-            then you can pass in an instance of ``MpiModel'' instance
+            then you can pass in an instance of ``MpiModel`` instance
             or a ``nengo.builder.Model`` instance. If the latter, it
-            will be converted into an ``MpiModel''.
+            will be converted into an ``MpiModel``.
         partitioner: Partitioner
             Specifies how to assign nengo objects to MPI processes.
-            ``partitioner'' and ``assignment'' cannot both be supplied.
+            ``partitioner`` and ``assignment`` cannot both be supplied.
         assignments: dict
             Dictionary mapping from nengo objects to indices of
-            partitions components. ``partitioner'' and ``assignment''
+            partition components. ``partitioner`` and ``assignment``
             cannot both be supplied.
         save_file: string
             Name of file that will store all data added to the simulator.
