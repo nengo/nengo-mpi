@@ -1,4 +1,5 @@
 from __future__ import print_function
+from plot import plot_measures
 import os
 import re
 import subprocess
@@ -17,9 +18,9 @@ import seaborn
 seaborn.set(style="white")
 seaborn.set_context(rc={'lines.markeredgewidth': 0.1})
 
-from plot import plot_measures
-
 VERBOSE = False
+MAX_PROCS = np.inf
+DO_REFIMPL = True
 RNG = np.random.RandomState()
 maxint = np.iinfo(np.int32).max
 
@@ -47,7 +48,8 @@ def extract_timing(text):
         assert len(sim_matches) == 1
         output['simulate'] = float(sim_matches[0].split(' ')[-1])
 
-    total_matches = re.findall('Total time for running script was \d+\.\d+', text)
+    total_matches = re.findall(
+        'Total time for running script was \d+\.\d+', text)
     if total_matches:
         assert len(total_matches) == 1
         output['total'] = float(total_matches[0].split(' ')[-1])
@@ -117,7 +119,7 @@ def build(filename, scripts, t):
                 zip(script.x_var_values, script.x_var_max_procs))
 
             for n_procs, r, (x, max_procs) in iterator:
-                if n_procs > max_procs:
+                if n_procs > max_procs or n_procs > MAX_PROCS:
                     continue
 
                 seed = RNG.randint(maxint)
@@ -155,6 +157,9 @@ def build(filename, scripts, t):
                         os.path.join(base_dirname, network_filename))
                     os.remove(network_filename)
                 else:
+                    if not DO_REFIMPL:
+                        continue
+
                     command += ' -t %f' % t
 
                     print("Building and simulating non-mpi network "
@@ -281,12 +286,15 @@ def full(directory, scripts, t):
             zip(script.x_var_values, script.x_var_max_procs))
 
         for n_procs, r, (x, max_procs) in iterator:
-            if n_procs > max_procs:
+            if n_procs > max_procs or n_procs > MAX_PROCS:
                 continue
 
             seed = RNG.randint(maxint)
 
             if n_procs <= 1:
+                if not DO_REFIMPL:
+                    continue
+
                 command = (
                     "python " + script.command_template +
                     " -t {t}").format(x=x, n_procs=n_procs, t=t, seed=seed)
@@ -439,6 +447,14 @@ if __name__ == "__main__":
         '--size', type=str, choices=['big', 'medium', 'small'],
         default='medium', help='Maximum size of networks to benchmark on.')
 
+    parser.add_argument(
+        '--no-ref', action='store_true',
+        help='Do not run the reference implementation.')
+
+    parser.add_argument(
+        '--max-procs', type=int, default=np.inf,
+        help='Maximum number of processors to use.')
+
     args = parser.parse_args()
     print(args)
 
@@ -449,6 +465,8 @@ if __name__ == "__main__":
         else len(filenames) == 1)
     t = args.t
     VERBOSE = args.v
+    MAX_PROCS = args.max_procs
+    DO_REFIMPL = not args.no_ref
     if args.seed >= 0:
         RNG = np.random.RandomState(args.seed)
 
@@ -498,7 +516,7 @@ if __name__ == "__main__":
             command_template=(
                 "random_graph.py -n 8 -d 4 --npd 50 -q {x} "
                 "-p {n_procs} --seed {seed} "
-                "--pfunc metis --probes 0.2 --ea"),
+                "--pfunc metis --probes 0.2 --fake --ea"),
             x_var_name="q",
             x_var_values=np.linspace(0.25, 1.0, 5),
             x_var_max_procs=[8]*5,
@@ -507,28 +525,28 @@ if __name__ == "__main__":
     else:
         grid = ScriptInfo(
             name='grid',
-            n_procs=[0, 1, 2, 4, 8],
+            n_procs=[0, 1, 2, 4, 8, 16, 32, 64, 128],
             command_template=(
                 "grid.py --n-ensembles {x} -d 4 --npd 50 "
                 "-p {n_procs} --seed {seed} --pfunc metis"),
             x_var_name="n_ensembles",
-            x_var_values=[16, 32],
-            x_var_max_procs=[16, 32],
-            n_rounds=2)
+            x_var_values=[16, 32, 64, 128],
+            x_var_max_procs=[16, 32, 64, 128],
+            n_rounds=5)
 
         random_graph = ScriptInfo(
             name='random_graph',
             n_procs=[0, 1, 2, 4, 8],
             command_template=(
-                "random_graph.py -n 32 -d 4 --npd 50 -q {x} "
+                "random_graph.py -n 64 -d 4 --npd 50 -q {x} "
                 "-p {n_procs} --seed {seed} "
-                "--pfunc metis --probes 0.2 --ea"),
+                "--pfunc metis --probes 0.2 --fake --ea"),
             x_var_name="q",
-            x_var_values=np.linspace(0.01, 0.2, 5),
-            x_var_max_procs=[32]*3,
-            n_rounds=2)
+            x_var_values=np.linspace(0.01, 0.1, 10),
+            x_var_max_procs=[64]*10,
+            n_rounds=5)
 
-    scripts = [grid]#, random_graph]
+    scripts = [grid, random_graph]
 
     if task == 'full':
         full(filenames[0], scripts, t)
