@@ -2,16 +2,15 @@ import logging
 import argparse
 import numpy as np
 import time
-import os
 
 import nengo
 import nengo_mpi
 from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
 from nengo_mpi.partition import random_partitioner, EnsembleArraySplitter
-from utils import write_to_csv
 
 logger = logging.getLogger(__name__)
-nengo.log(debug=False)
+
+then_total = time.time()
 
 parser = argparse.ArgumentParser(description="A grid network.")
 
@@ -24,6 +23,11 @@ parser.add_argument(
     help='Length of each stream.')
 
 parser.add_argument(
+    '--n-ensembles', type=int, default=-1,
+    help='Number of ensembles. If supplied, overrides both sl and ns. '
+         'If not a square root, will be round up to the nearest square root.')
+
+parser.add_argument(
     '-d', type=int, default=1,
     help='Number of dimensions in each neural ensemble.')
 
@@ -34,9 +38,6 @@ parser.add_argument(
 parser.add_argument(
     '-t', type=float, default=1.0,
     help='Length of the simulation in seconds.')
-
-parser.add_argument(
-    '--mpi', type=int, default=1, help='Whether to use MPI.')
 
 parser.add_argument(
     '-p', type=int, default=1,
@@ -90,16 +91,17 @@ seed = args.seed
 
 n_streams = args.ns
 stream_length = args.sl
+n_ensembles = args.n_ensembles
 
-n_processors = args.p
+if n_ensembles != -1:
+    assert n_ensembles > 0, "Positive number of ensembles required."
+    n_streams = stream_length = int(np.ceil(np.sqrt(n_ensembles)))
+
+n_procs = args.p
+use_mpi = n_procs > 0
 use_ea = args.ea
 split_ea = args.split_ea
 
-use_mpi = args.mpi
-
-bench_home = os.getenv("NENGO_MPI_BENCH_HOME")
-build_times = os.path.join(bench_home, 'grid/buildtimes.db')
-run_times = os.path.join(bench_home, 'grid/runtimes.db')
 
 save_file = args.save
 if save_file == 'grid':
@@ -124,18 +126,18 @@ partitioner = args.pfunc
 
 if not partitioner:
     partitioner = None
-    denom = int(np.ceil(float(stream_length) / n_processors))
+    denom = int(np.ceil(float(stream_length) / n_procs))
 else:
     fmap = {
         'default': None,
         'metis': metis_partitioner, 'random': random_partitioner,
         'work': work_balanced_partitioner}
 
-    partitioner = nengo_mpi.Partitioner(n_processors, func=fmap[partitioner])
+    partitioner = nengo_mpi.Partitioner(n_procs, func=fmap[partitioner])
 
 assert n_streams > 0
 assert stream_length > 0
-assert n_processors >= 1
+assert n_procs >= 0
 assert sim_time > 0
 
 n_neurons = N * D * n_streams * stream_length
@@ -170,7 +172,7 @@ with m:
                 else:
                     nengo.Connection(input_node, ensemble)
 
-            if n_processors > 1 and partitioner is None:
+            if n_procs > 1 and partitioner is None:
                 assignments[ensemble] = j / denom
 
             ensembles[-1].append(ensemble)
@@ -194,7 +196,6 @@ if use_ea and split_ea > 1:
     max_neurons = np.ceil(float(D) / split_ea) * N
     splitter.split(m, max_neurons)
 
-t0 = time.time()
 if use_mpi:
     if partitioner is not None:
         sim = nengo_mpi.Simulator(
@@ -206,24 +207,19 @@ if use_mpi:
     if save_file:
         print "Saved network to", save_file
 else:
+    then = time.time()
     sim = nengo.Simulator(m, dt=0.001)
-
-t1 = time.time()
-
-vals = vars(args).copy()
-vals['buildtime'] = t1 - t0
-vals['n_neurons'] = n_neurons
-write_to_csv(build_times, vals)
+    print "Building network took %f seconds." % (time.time() - then)
 
 if not save_file:
-    t0 = time.time()
-
     if use_mpi:
         sim.run(sim_time, progress_bar, mpi_log)
     else:
+        then = time.time()
         sim.run(sim_time, progress_bar)
-
-    t1 = time.time()
+        print "Loading network from file took 0.0 seconds."
+        print "Simulating %d steps took %f seconds." % (
+            sim.n_steps, (time.time() - then))
 
     if not mpi_log:
         print "Input node result: "
@@ -233,11 +229,7 @@ if not save_file:
             print "Stream %d result: " % i
             print sim.data[p][-10:]
 
-    print "Total simulation time:", t1 - t0, "seconds"
     print "Parameters were: ", args
     print "Number of neurons in simulations: ", n_neurons
 
-    vals = vars(args).copy()
-    vals['runtime'] = t1 - t0
-    vals['n_neurons'] = n_neurons
-    write_to_csv(run_times, vals)
+print "Total time for running script was %f seconds." % (time.time() - then_total)

@@ -112,7 +112,7 @@ class Simulator(nengo.Simulator):
             seed = np.random.randint(npext.maxint) if seed is None else seed
             self.reset(seed=seed)
 
-        print("Build took %f seconds." % (time.time() - then))
+        print("Building network took %f seconds." % (time.time() - then))
 
     @property
     def native_sim(self):
@@ -174,7 +174,6 @@ class Simulator(nengo.Simulator):
     def run_steps(self, steps, progress_bar=True, log_filename=""):
         """ Simulate for the given number of `dt` steps. """
         print("Running MPI simulation...")
-        then = time.time()
 
         if self.closed:
             raise SimulatorClosed(
@@ -197,8 +196,6 @@ class Simulator(nengo.Simulator):
                     self._probe_outputs[probe] = data
                 else:
                     self._probe_outputs[probe].extend(data)
-
-        print("Simulation took %f seconds." % (time.time() - then))
 
     def step(self):
         """ Advance the simulator by `self.dt` seconds. """

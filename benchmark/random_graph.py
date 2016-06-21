@@ -1,7 +1,6 @@
 import argparse
-import time
 from collections import defaultdict
-import os
+import time
 
 import numpy as np
 import pandas as pd
@@ -13,7 +12,7 @@ import nengo_mpi
 from nengo_mpi.partition import metis_partitioner, work_balanced_partitioner
 from nengo_mpi.partition import random_partitioner, EnsembleArraySplitter
 
-from utils import write_to_csv
+maxint = np.iinfo(np.int32).max
 
 
 class FakeSolver(Solver):
@@ -26,7 +25,7 @@ class FakeSolver(Solver):
         return self.mul_encoders(X, E), info
 
 
-def default_generator(n_nodes, q, rng=None):
+def default_generator(n_nodes, q, rng):
     assert n_nodes > 0
     assert q >= 0 and q <= 1
 
@@ -36,8 +35,6 @@ def default_generator(n_nodes, q, rng=None):
     n_cur_edges = 0
     adj_list = defaultdict(list)
     edges = []
-
-    rng = np.random.RandomState(seed)
 
     while n_cur_edges < n_edges:
         A = rng.choice(n_nodes)
@@ -56,12 +53,14 @@ def default_generator(n_nodes, q, rng=None):
 
 def nengo_network_from_graph(
         label, n_nodes, edges, use_ea=True, fake=False,
-        dim=1, npd=30, pct_probed=0.0, seed=None):
+        dim=1, npd=30, pct_probed=0.0, rng=None):
+
+    if rng is None:
+        rng = rng.random.RandomState()
 
     assert pct_probed >= 0 and pct_probed <= 1
 
-    model = nengo.Network(label=label, seed=seed)
-    rng = np.random.RandomState(seed)
+    model = nengo.Network(label=label, seed=rng.randint(maxint))
 
     with model:
         model.config[nengo.Ensemble].neuron_type = nengo.LIF()
@@ -112,6 +111,8 @@ def nengo_network_from_graph(
 
 
 if __name__ == "__main__":
+    then_total = time.time()
+
     parser = argparse.ArgumentParser(
         description="Benchmarking script for nengo_mpi. "
                     "Network takes the form of a randomly generated graph, "
@@ -132,9 +133,6 @@ if __name__ == "__main__":
     parser.add_argument(
         '--npd', type=int, default=50,
         help='Number of neurons per dimension in each neural ensemble.')
-
-    parser.add_argument(
-        '--mpi', type=int, default=1, help='Whether to use MPI.')
 
     parser.add_argument(
         '-p', type=int, default=1,
@@ -205,18 +203,13 @@ if __name__ == "__main__":
 
     n_nodes = args.n
     q = args.q
-    n_processors = args.p
+    n_procs = args.p
+    use_mpi = n_procs > 0
     pct_probed = args.probes
     use_ea = args.ea
     split_ea = args.split_ea
 
     gen_model = args.gen
-
-    use_mpi = args.mpi
-
-    bench_home = os.getenv("NENGO_MPI_BENCH_HOME")
-    build_times = os.path.join(bench_home, 'random/buildtimes.db')
-    run_times = os.path.join(bench_home, 'random/runtimes.db')
 
     save_file = args.save
     if save_file == 'random_graph':
@@ -245,15 +238,15 @@ if __name__ == "__main__":
 
     fake = args.fake
 
-    assert n_processors >= 1
+    assert n_procs >= 0
     assert sim_time > 0
 
     if gen_model == "default":
-        edges = default_generator(n_nodes, q, rng.randint(2000))
+        edges = default_generator(n_nodes, q, rng)
     elif gen_model == "ba":
         from networkx.generators import barabasi_albert_graph
         m = int(q * n_nodes)
-        g1 = barabasi_albert_graph(n_nodes, m, rng.randint(2000))
+        g1 = barabasi_albert_graph(n_nodes, m, rng.randint(maxint))
         edges1 = g1.edges()
 
         g2 = barabasi_albert_graph(n_nodes, m)
@@ -275,62 +268,49 @@ if __name__ == "__main__":
 
     model, probes = nengo_network_from_graph(
         name, n_nodes, edges, use_ea, fake, dim,
-        npd, pct_probed, rng.randint(2000))
+        npd, pct_probed, rng)
 
     if use_ea and split_ea > 1:
         splitter = EnsembleArraySplitter()
         max_neurons = np.ceil(float(dim) / split_ea) * npd
         splitter.split(model, max_neurons)
 
-    t0 = time.time()
     if use_mpi:
         fmap = {
             'default': None, '': None,
             'metis': metis_partitioner, 'random': random_partitioner,
             'work': work_balanced_partitioner}
 
-        partitioner = nengo_mpi.Partitioner(
-            n_processors, func=fmap[partitioner])
+        partitioner = nengo_mpi.Partitioner(n_procs, func=fmap[partitioner])
         sim = nengo_mpi.Simulator(
             model, dt=0.001, partitioner=partitioner, save_file=save_file)
 
         if save_file:
             print "Saved network to", save_file
     else:
+        then = time.time()
         sim = nengo.Simulator(model, dt=0.001)
-
-    t1 = time.time()
+        print "Building network took %f seconds." % (time.time() - then)
 
     n_neurons = npd * dim * n_nodes
 
-    vals = vars(args).copy()
-    vals['buildtime'] = t1 - t0
-    vals['n_neurons'] = n_neurons
-    write_to_csv(build_times, vals)
-
-    print "BUILD TIME: %f" % (t1 - t0)
-
     if not save_file:
-        t0 = time.time()
-
         if use_mpi:
             sim.run(sim_time, progress_bar, mpi_log)
         else:
+            then = time.time()
             sim.run(sim_time, progress_bar)
-
-        t1 = time.time()
+            print "Loading network from file took 0.0 seconds."
+            print "Simulating %d steps took %f seconds." % (
+                sim.n_steps, (time.time() - then))
 
         if not mpi_log:
             for i, p in enumerate(probes):
                 print "Result from %s: " % p
                 print sim.data[p][-10:]
 
-        print "Total simulation time: %g seconds" % (t1 - t0)
         print "Parameters were: ", args
         print "Number of neurons in network: ", n_neurons
         print "Number of nodes in network: ", n_nodes
 
-        vals = vars(args).copy()
-        vals['runtime'] = t1 - t0
-        vals['n_neurons'] = n_neurons
-        write_to_csv(run_times, vals)
+    print "Total time for running script was %f seconds." % (time.time() - then_total)
