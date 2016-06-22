@@ -136,7 +136,7 @@ class MpiRecv(Operator):
 
     """
 
-    def __init__(self, src, tag, signal):
+    def __init__(self, src, tag, signal, is_update):
         self.sets = []
         self.incs = []
         self.reads = []
@@ -145,6 +145,7 @@ class MpiRecv(Operator):
         self.src = src
         self.tag = tag
         self.signal = signal
+        self.is_update = is_update
 
 
 def split_connection(conn_ops, signal):
@@ -671,7 +672,7 @@ class MpiModel(Model):
                 component_ops.append(mpi_send)
 
             for signal, tag, src in recv_signals:
-                mpi_recv = MpiRecv(src, tag, signal)
+                mpi_recv = MpiRecv(src, tag, signal, True)
 
                 assert len(signal.read_by) > 0
 
@@ -1000,7 +1001,8 @@ class MpiModel(Model):
 
         elif op_type == MpiRecv:
             signal_key = make_key(op.signal.base)
-            op_args = ["MpiRecv", op.src, op.tag, signal_key]
+            op_args = [
+                "MpiRecv", op.src, op.tag, signal_key, int(op.is_update)]
 
         elif op_type == SpaunStimulusOperator:
             output = signal_to_string(op.output)

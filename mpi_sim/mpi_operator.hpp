@@ -21,7 +21,10 @@ public:
 
     virtual void operator() () = 0;
     virtual string to_string() const = 0;
-    void complete(){ MPI_Wait(&request, &status); }
+
+    virtual void reset(unsigned seed){first_call = true;}
+
+    virtual void complete(){ MPI_Wait(&request, &status); }
     void set_communicator(MPI_Comm comm){ this->comm = comm; }
 
 protected:
@@ -42,73 +45,29 @@ public:
     MPISend(int dst, int tag, Signal content);
     string classname() const { return "MPISend"; }
 
-    void operator()();
+    virtual void operator()();
     virtual string to_string() const;
 
 private:
+    int dst;
     Signal content;
     dtype* content_data;
-
-    int dst;
 };
 
 class MPIRecv: public MPIOperator{
 
 public:
-    MPIRecv(int src, int tag, Signal content);
+    MPIRecv(int src, int tag, Signal content, bool is_update);
     string classname() const { return "MPIRecv"; }
 
-    void operator()();
+    virtual void operator()();
+    void init();
+    virtual void complete();
     virtual string to_string() const;
 
 private:
+    int src;
     Signal content;
     dtype* content_data;
-
-    int src;
-};
-
-// *************************************
-// Merged operators, used in MERGED mode.
-// MERGED makes an effort to reduce the number of messages that
-// are sent per time step. Each component should only be sending one large
-// message to each component that it has to communicate with. That message
-// will contain all data from all signals that have to be sent. The default
-// (i.e. non-merged) mode instead sends one message per signal which can
-// introduce significant overhead.
-class MergedMPISend: public MPIOperator{
-
-public:
-    // `buffer` will be a pointer into a buffer mainted by the chunk
-    MergedMPISend(int dst, int tag, vector<Signal> content);
-
-    string classname() const { return "MergedMPISend"; }
-
-    void operator()();
-    virtual string to_string() const;
-
-private:
-    vector<Signal> content;
-    vector<int> sizes;
-    vector<dtype*> content_data;
-
-    int dst;
-};
-
-class MergedMPIRecv: public MPIOperator{
-
-public:
-    MergedMPIRecv(int src, int tag, vector<Signal> content);
-
-    string classname() const { return "MergedMPIRecv"; }
-
-    void operator()();
-    virtual string to_string() const;
-
-private:
-    vector<Signal> content;
-    vector<int> sizes;
-    vector<dtype*> content_data;
-
-    int src;
+    bool is_update;
 };

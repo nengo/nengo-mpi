@@ -129,7 +129,7 @@ void ParallelSimulationLog::write_file(
     MPI_File_open(comm, c_filename, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
 
     MPI_Offset offset = max_buffer_size * rank * sizeof(char);
-    MPI_File_set_view(fh, offset, MPI_CHAR, MPI_CHAR, "native", MPI_INFO_NULL);
+    MPI_File_set_view(fh, offset, MPI_CHAR, MPI_CHAR, (char*)"native", MPI_INFO_NULL);
 
     char c_data[data.length() + 1];
     strcpy(c_data, data.c_str());

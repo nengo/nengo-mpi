@@ -3,8 +3,8 @@
 int n_processors_available = 1;
 
 // This constructor assumes that MPI_Initialize has already been called.
-MpiSimulator::MpiSimulator(bool mpi_merged, bool collect_timings)
-:Simulator(collect_timings), comm(MPI_COMM_WORLD), mpi_merged(mpi_merged){
+MpiSimulator::MpiSimulator(bool collect_timings)
+:Simulator(collect_timings), comm(MPI_COMM_WORLD){
     MPI_Comm_size(comm, &n_processors);
 
     int buflen = 512;
@@ -19,11 +19,10 @@ MpiSimulator::MpiSimulator(bool mpi_merged, bool collect_timings)
     cout << "Master detected " << n_processors << " processor(s) in total." << endl;
 
     mpi_wake_workers();
-    bcast_send_int(mpi_merged ? 1 : 0, comm);
     bcast_send_int(collect_timings ? 1 : 0, comm);
 
     chunk = unique_ptr<MpiSimulatorChunk>(
-        new MpiSimulatorChunk(0, n_processors, mpi_merged, collect_timings));
+        new MpiSimulatorChunk(0, n_processors, collect_timings));
 }
 
 MpiSimulator::~MpiSimulator(){
@@ -270,9 +269,6 @@ void mpi_worker_start(MPI_Comm comm){
 
         MPI_Status status;
 
-        dbg("Reading merged...");
-        int mpi_merged = bcast_recv_int(comm);
-
         dbg("Reading collect_timings...");
         int collect_timings = bcast_recv_int(comm);
 
@@ -280,7 +276,7 @@ void mpi_worker_start(MPI_Comm comm){
         string filename = recv_string(0, setup_tag, comm);
 
         dbg("Creating chunk...");
-        MpiSimulatorChunk chunk(rank, n_processors, bool(mpi_merged), bool(collect_timings));
+        MpiSimulatorChunk chunk(rank, n_processors, bool(collect_timings));
 
         // Use parallel property lists
         hid_t file_plist = H5Pcreate(H5P_FILE_ACCESS);

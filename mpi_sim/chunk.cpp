@@ -4,14 +4,12 @@
 #define MAX_RUNTIME_OUTPUT_SIZE 5000
 
 MpiSimulatorChunk::MpiSimulatorChunk(bool collect_timings)
-:dt(0.001), rank(0), n_processors(1),
-mpi_merged(false), collect_timings(collect_timings){
+:dt(0.001), rank(0), n_processors(1), collect_timings(collect_timings){
 
 }
 
-MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged, bool collect_timings)
-:dt(0.001), rank(rank), n_processors(n_processors),
-mpi_merged(mpi_merged), collect_timings(collect_timings){
+MpiSimulatorChunk::MpiSimulatorChunk(int rank, int n_processors, bool collect_timings)
+:dt(0.001), rank(rank), n_processors(n_processors), collect_timings(collect_timings){
     stringstream ss;
     ss << "Chunk " << rank;
     label = ss.str();
@@ -307,56 +305,6 @@ void MpiSimulatorChunk::finalize_build(MPI_Comm comm){
         sim_log = unique_ptr<SimulationLog>(new SimulationLog(probe_info, dt));
     }
 
-    if(mpi_merged){
-        for(auto& kv : merged_sends){
-
-            int dst = kv.first;
-            vector<pair<int, Signal>> content = kv.second;
-
-            stable_sort(
-                content.begin(), content.end(),
-                compare_first_lt<int, Signal>);
-
-            vector<Signal> signals_only;
-            for(auto& p : content){
-                signals_only.push_back(p.second);
-            }
-
-            int tag = send_tags[dst];
-
-            // Create the merged op, put it in the op list
-            auto merged_send = unique_ptr<MPIOperator>(
-                new MergedMPISend(dst, tag, signals_only));
-
-            operator_list.push_back((Operator*) merged_send.get());
-            mpi_sends.push_back(move(merged_send));
-        }
-
-        for(auto& kv : merged_recvs){
-
-            int src = kv.first;
-            vector<pair<int, Signal>> content = kv.second;
-
-            stable_sort(
-                content.begin(), content.end(),
-                compare_first_lt<int, Signal>);
-
-            vector<Signal> signals_only;
-            for(auto& p : content){
-                signals_only.push_back(p.second);
-            }
-
-            int tag = recv_tags[src];
-
-            // Create the merged op, put it in the op list
-            auto merged_recv = unique_ptr<MPIOperator>(
-                new MergedMPIRecv(src, tag, signals_only));
-
-            operator_list.push_back((Operator*) merged_recv.get());
-            mpi_recvs.push_back(move(merged_recv));
-        }
-    }
-
     for(auto& send: mpi_sends){
         send->set_communicator(comm);
     }
@@ -381,19 +329,13 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
         sim_log->prep_for_simulation();
     }
 
-    int flush_every;
-    if(sim_log->is_ready()){
-        flush_every = FLUSH_PROBES_EVERY;
-    }else{
-        flush_every = 0;
-    }
+    int flush_every = sim_log->is_ready() ? FLUSH_PROBES_EVERY : 0;
 
     for(auto& kv: probe_map){
         (kv.second)->init_for_simulation(steps, flush_every);
     }
 
     ez::ezETAProgressBar eta(steps);
-
     if(progress){
         eta.start();
     }
@@ -401,23 +343,27 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
     map<string, double> per_class_average_timings;
     double per_op_timings[operator_list.size()];
     fill_n(per_op_timings, operator_list.size(), 0.0);
-
     vector<double> step_times;
+
     int n_steps = 0;
+
+    for(auto& recv: mpi_recvs){
+        recv->init();
+    }
 
     for(unsigned step = 0; step < steps; ++step){
         clock_t begin = clock();
-
-        if(step % FLUSH_PROBES_EVERY == 0 && step != 0){
-            dbg("Rank " << rank << " beginning step: " << step << ", flushing probes." << endl);
-            flush_probes();
-        }
 
         if(!progress && rank == 0 && step % 100 == 0){
             cout << "Master beginning step: " << step << endl;
         }
 
-        dbg("Rank " << rank << " beginning step: " << step << endl);
+        dbg("Beginning step: " << step << endl);
+
+        if(step % FLUSH_PROBES_EVERY == 0 && step != 0){
+            dbg("Flushing probes." << endl);
+            flush_probes();
+        }
 
         if(collect_timings){
             int op_index = 0;
@@ -458,7 +404,7 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
 
     flush_probes();
 
-    for(auto& send: mpi_sends){
+    for(auto& send : mpi_sends){
         send->complete();
     }
 
@@ -469,78 +415,8 @@ void MpiSimulatorChunk::run_n_steps(int steps, bool progress){
     clsdbgfile();
 
     if(collect_timings){
-        // Handle timing data
-        double sum = std::accumulate(step_times.begin(), step_times.end(), 0.0);
-        double mean = sum / step_times.size();
-
-        vector<double> diff(step_times.size());
-        transform(step_times.begin(), step_times.end(), diff.begin(),
-                       bind2nd(minus<double>(), mean));
-        double sq_sum = inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
-        double stdev = sqrt(sq_sum / step_times.size());
-
-        map<string, double> class_average;
-        map<string, double> class_count;
-        map<string, double> class_slowest;
-        map<string, Operator*> class_slowest_op;
-        map<string, double> class_cumulative;
-
-        int op_index = 0;
-        for(auto& op: operator_list){
-            string class_name = op->classname();
-
-            class_count[class_name] += 1;
-
-            if(class_slowest[class_name] < per_op_timings[op_index]){
-                class_slowest[class_name] = per_op_timings[op_index];
-                class_slowest_op[class_name] = op;
-            }
-
-            class_cumulative[class_name] += per_op_timings[op_index];
-
-            op_index++;
-        }
-
-        stringstream runtimes_ss;
-        string delim = ",";
-
-        runtimes_ss << endl << "Rank " << rank << " runtimes." << endl;
-        runtimes_ss << "Mean seconds-per-step: " << mean << ", stdev: " << stdev << endl;
-
-        for(auto& p : class_cumulative){
-            string class_name = p.first;
-            double value = p.second / class_count[class_name] / double(n_steps);
-            runtimes_ss << class_name << "_average" << delim << value << endl;
-
-            value = p.second / double(n_steps);
-            runtimes_ss << class_name << "_cumulative" << delim << value << endl;
-
-            value = class_slowest[class_name] / double(n_steps);
-            runtimes_ss << class_name << "_slowest" << delim << value << endl;
-            runtimes_ss << class_name << "_slowest_op" << delim << endl << *class_slowest_op[class_name] << endl;
-        }
-
-        vector<pair<double, Operator*>> op_runtimes;
-
-        op_index = 0;
-        for(auto op: operator_list){
-            op_runtimes.push_back({per_op_timings[op_index], op});
-            op_index++;
-        }
-
-        int n_show = 10;
-        partial_sort(
-            op_runtimes.begin(), op_runtimes.begin()+n_show,
-            op_runtimes.end(), compare_first_gt<double, Operator*>);
-
-        runtimes_ss << n_show << " slowest operators: " << endl;
-        for(int i = 0; i < n_show; i++){
-            runtimes_ss << "OPERATOR " << i << endl;
-            runtimes_ss << "Seconds per step: " << op_runtimes[i].first / double(n_steps) << endl;
-            runtimes_ss << *(op_runtimes[i].second) << endl;
-        }
-
-        sim_log->write_file("_runtimes", rank, MAX_RUNTIME_OUTPUT_SIZE, runtimes_ss.str());
+        process_timing_data(
+            n_steps, per_class_average_timings, per_op_timings, step_times);
     }
 }
 
@@ -937,8 +813,9 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
                     int tag = boost::lexical_cast<int>(args[1]);
                     key_type signal_key = boost::lexical_cast<key_type>(args[2]);
                     Signal content = get_signal(signal_key);
+                    bool is_update = bool(boost::lexical_cast<int>(args[3]));
 
-                    add_mpi_recv(index, src, tag, content);
+                    add_mpi_recv(index, src, tag, content, is_update);
                 }
             }
 
@@ -1006,45 +883,17 @@ void MpiSimulatorChunk::add_time_update(float index, unique_ptr<TimeUpdate> time
 }
 
 void MpiSimulatorChunk::add_mpi_send(float index, int dst, int tag, Signal content){
-
-    if(mpi_merged){
-        if(merged_sends.find(dst) == merged_sends.end()){
-            send_indices[dst] = index;
-            send_tags[dst] = tag;
-        }else{
-            send_indices[dst] = max(send_indices[dst], index);
-            send_tags[dst] = min(send_tags[dst], tag);
-        }
-
-        merged_sends[dst].push_back({tag, content});
-
-    }else{
-        auto mpi_send = unique_ptr<MPIOperator>(new MPISend(dst, tag, content));
-        operator_list.push_back((Operator *) mpi_send.get());
-        mpi_send->set_index(index);
-        mpi_sends.push_back(move(mpi_send));
-    }
+    auto mpi_send = unique_ptr<MPISend>(new MPISend(dst, tag, content));
+    operator_list.push_back((Operator *) mpi_send.get());
+    mpi_send->set_index(index);
+    mpi_sends.push_back(move(mpi_send));
 }
 
-void MpiSimulatorChunk::add_mpi_recv(float index, int src, int tag, Signal content){
-
-    if(mpi_merged){
-        if(merged_recvs.find(src) == merged_recvs.end()){
-            recv_indices[src] = index;
-            recv_tags[src] = tag;
-        }else{
-            recv_indices[src] = min(recv_indices[src], index);
-            recv_tags[src] = min(recv_tags[src], tag);
-        }
-
-        merged_recvs[src].push_back({tag, content});
-
-    }else{
-        auto mpi_recv = unique_ptr<MPIOperator>(new MPIRecv(src, tag, content));
-        operator_list.push_back((Operator *) mpi_recv.get());
-        mpi_recv->set_index(index);
-        mpi_recvs.push_back(move(mpi_recv));
-    }
+void MpiSimulatorChunk::add_mpi_recv(float index, int src, int tag, Signal content, bool is_update){
+    auto mpi_recv = unique_ptr<MPIRecv>(new MPIRecv(src, tag, content, is_update));
+    operator_list.push_back((Operator *) mpi_recv.get());
+    mpi_recv->set_index(index);
+    mpi_recvs.push_back(move(mpi_recv));
 }
 
 void MpiSimulatorChunk::add_probe(ProbeSpec ps){
@@ -1085,6 +934,83 @@ void MpiSimulatorChunk::flush_probes(){
             }
         }
     }
+}
+
+void MpiSimulatorChunk::process_timing_data(
+        int n_steps, const map<string, double>& per_class_average_timings,
+        const double per_op_timings[], const vector<double>& step_times){
+
+    double sum = std::accumulate(step_times.begin(), step_times.end(), 0.0);
+    double mean = sum / step_times.size();
+
+    vector<double> diff(step_times.size());
+    transform(step_times.begin(), step_times.end(), diff.begin(),
+                   bind2nd(minus<double>(), mean));
+    double sq_sum = inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+    double stdev = sqrt(sq_sum / step_times.size());
+
+    map<string, double> class_average;
+    map<string, double> class_count;
+    map<string, double> class_slowest;
+    map<string, Operator*> class_slowest_op;
+    map<string, double> class_cumulative;
+
+    int op_index = 0;
+    for(auto& op: operator_list){
+        string class_name = op->classname();
+
+        class_count[class_name] += 1;
+
+        if(class_slowest[class_name] < per_op_timings[op_index]){
+            class_slowest[class_name] = per_op_timings[op_index];
+            class_slowest_op[class_name] = op;
+        }
+
+        class_cumulative[class_name] += per_op_timings[op_index];
+
+        op_index++;
+    }
+
+    stringstream runtimes_ss;
+    string delim = ",";
+
+    runtimes_ss << endl << "Rank " << rank << " runtimes." << endl;
+    runtimes_ss << "Mean seconds-per-step: " << mean << ", stdev: " << stdev << endl;
+
+    for(auto& p : class_cumulative){
+        string class_name = p.first;
+        double value = p.second / class_count[class_name] / double(n_steps);
+        runtimes_ss << class_name << "_average" << delim << value << endl;
+
+        value = p.second / double(n_steps);
+        runtimes_ss << class_name << "_cumulative" << delim << value << endl;
+
+        value = class_slowest[class_name] / double(n_steps);
+        runtimes_ss << class_name << "_slowest" << delim << value << endl;
+        runtimes_ss << class_name << "_slowest_op" << delim << endl << *class_slowest_op[class_name] << endl;
+    }
+
+    vector<pair<double, Operator*>> op_runtimes;
+
+    op_index = 0;
+    for(auto op: operator_list){
+        op_runtimes.push_back({per_op_timings[op_index], op});
+        op_index++;
+    }
+
+    int n_show = 10;
+    partial_sort(
+        op_runtimes.begin(), op_runtimes.begin()+n_show,
+        op_runtimes.end(), compare_first_gt<double, Operator*>);
+
+    runtimes_ss << n_show << " slowest operators: " << endl;
+    for(int i = 0; i < n_show; i++){
+        runtimes_ss << "OPERATOR " << i << endl;
+        runtimes_ss << "Seconds per step: " << op_runtimes[i].first / double(n_steps) << endl;
+        runtimes_ss << *(op_runtimes[i].second) << endl;
+    }
+
+    sim_log->write_file("_runtimes", rank, MAX_RUNTIME_OUTPUT_SIZE, runtimes_ss.str());
 }
 
 string MpiSimulatorChunk::to_string() const{

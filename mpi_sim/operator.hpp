@@ -15,13 +15,13 @@
 #ifdef __cplusplus
 extern "C"
 {
-#endif //__cplusplus
+#endif
 
 #include <cblas.h>
 
 #ifdef __cplusplus
 }
-#endif //__cplusplus
+#endif
 
 #include "signal.hpp"
 #include "typedef.hpp"

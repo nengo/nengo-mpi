@@ -30,7 +30,7 @@ void create_simulator(){
     if(n_processors_available == 1){
         simulator = unique_ptr<Simulator>(new Simulator(false));
     }else{
-        simulator = unique_ptr<Simulator>(new MpiSimulator(false, false));
+        simulator = unique_ptr<Simulator>(new MpiSimulator(false));
     }
 }
 

@@ -64,7 +64,7 @@ else
 	NENGO_MPI_LIBS=${CBLAS_LIB} ${BOOST_LIB} ${HDF5_LIB} -ldl -lm
 	MPI_SIM_SO_LIBS=${CBLAS_LIB} ${BOOST_LIB} ${HDF5_LIB} -ldl -lm
 	STD=c++11
-	CXXFLAGS= ${CBLAS_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD}
+	CXXFLAGS= ${CBLAS_INC} ${BOOST_INC} ${HDF5_INC} ${DEFS} -fPIC -std=${STD} -Wno-literal-suffix
 	DO_PYTHON=TRUE
 endif
 

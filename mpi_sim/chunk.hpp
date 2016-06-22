@@ -37,8 +37,8 @@ class MpiSimulatorChunk{
 
 public:
     MpiSimulatorChunk(bool collect_timings);
-    MpiSimulatorChunk(int rank, int n_processors, bool mpi_merged, bool collect_timings);
-    const string classname() { return "MpiSimulatorChunk"; }
+    MpiSimulatorChunk(int rank, int n_processors, bool collect_timings);
+    string classname() const { return "MpiSimulatorChunk"; }
 
     /* Add simulation objects to the chunk from an HDF5 file. */
     void from_file(string filename, hid_t file_plist, hid_t read_plist);
@@ -122,7 +122,7 @@ public:
      * because we need to initialize them in a special way before the
      * simulation begins. */
     void add_mpi_send(float index, int dst, int tag, Signal content);
-    void add_mpi_recv(float index, int src, int tag, Signal content);
+    void add_mpi_recv(float index, int src, int tag, Signal content, bool is_update);
 
     // *** Probes ***
 
@@ -140,6 +140,10 @@ public:
 
     void flush_probes();
     size_t get_num_probes(){return probe_map.size();}
+
+    void process_timing_data(
+        int n_steps, const map<string, double>& per_class_average_timings,
+        const double per_op_timings[], const vector<double>& step_times);
 
     string to_string() const;
 
@@ -171,24 +175,12 @@ private:
     // operate_store contains only non-mpi operators
     list<unique_ptr<Operator>> operator_store;
 
-    list<unique_ptr<MPIOperator>> mpi_sends;
-    list<unique_ptr<MPIOperator>> mpi_recvs;
+    list<unique_ptr<MPISend>> mpi_sends;
+    list<unique_ptr<MPIRecv>> mpi_recvs;
 
     unique_ptr<TimeUpdate> time_update;
 
-    bool mpi_merged;
     bool collect_timings;
-
-    // Used at build time to construct the merged mpi operators if mpi_merged is true
-    map<int, vector<pair<int, Signal>>> merged_sends;
-    map<int, vector<pair<int, Signal>>> merged_recvs;
-    map<int, int> send_tags;
-    map<int, int> recv_tags;
-
-    // Iterators pointing to locations in operator_list
-    // where the merged mpi ops should be added.
-    map<int, float> send_indices;
-    map<int, float> recv_indices;
 };
 
 template <class A, class B> inline bool compare_first_lt(const pair<A, B> &left, const pair<A, B> &right){

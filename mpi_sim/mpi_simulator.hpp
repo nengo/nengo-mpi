@@ -26,7 +26,7 @@ extern int n_processors_available;
 
 class MpiSimulator: public Simulator{
 public:
-    MpiSimulator(bool mpi_merged, bool collect_timings);
+    MpiSimulator(bool collect_timings);
     ~MpiSimulator();
 
     void from_file(string filename) override;
@@ -50,7 +50,6 @@ public:
 
 protected:
     int n_processors;
-    bool mpi_merged;
 
     MPI_Comm comm;
 

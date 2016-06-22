@@ -12,7 +12,7 @@
 
 using namespace std;
 
-enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, TIMING, LOG, SEED, MERGED};
+enum serialOptionIndex {UNKNOWN, HELP, NO_PROG, TIMING, LOG, SEED};
 
 const option::Descriptor serial_usage[] =
 {
@@ -29,7 +29,6 @@ const option::Descriptor serial_usage[] =
                                                                "If not specified, the log filename is the same as the "
                                                                "name of the network file, but with the .h5 extension."},
  {SEED,     0, "",  "seed",     option::Arg::Numeric, "  --seed  \tSeed for stochastic processes in the network."},
- {MERGED,   0, "",  "merged",   option::Arg::None, "  --merged  \tSupply to use merged communication mode."},
  {UNKNOWN,  0, "" , ""   ,      option::Arg::None, "\nExamples:\n"
                                                    "  nengo_mpi --noprog basal_ganglia.net 1.0\n"
                                                    "  nengo_mpi --log ~/spaun_results.h5 spaun.net 7.5\n" },
@@ -84,9 +83,6 @@ int mpi_master_start(int argc, char **argv){
     bool collect_timings = bool(options[TIMING]);
     cout << "Collect timing info: " << collect_timings << endl;
 
-    bool mpi_merged = bool(options[MERGED]);
-    cout << "Merged communication mode: " << mpi_merged << endl;
-
     string log_filename;
     if(options[LOG]){
         log_filename = options[LOG].arg;
@@ -103,7 +99,7 @@ int mpi_master_start(int argc, char **argv){
     cout << endl;
 
     cout << "Building network..." << endl;
-    auto sim = unique_ptr<MpiSimulator>(new MpiSimulator(mpi_merged, collect_timings));
+    auto sim = unique_ptr<MpiSimulator>(new MpiSimulator(collect_timings));
     sim->from_file(net_filename);
     sim->finalize_build();
 
