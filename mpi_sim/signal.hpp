@@ -60,7 +60,6 @@ struct Signal {
     string label;
 
     unsigned ndim;
-
     unsigned size;
 
     unsigned shape1;
@@ -78,7 +77,7 @@ struct Signal {
     shared_ptr<dtype> data;
 
     // A pointer to the location in the base array where the current signal starts.
-    // i.e. roughly equivalent to ``data.get() + offset``.
+    // Roughly equivalent to ``data.get() + offset``.
     dtype* raw_data;
 
     friend ostream& operator << (ostream &out, const Signal &sv){

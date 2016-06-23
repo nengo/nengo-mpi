@@ -148,25 +148,24 @@ class MpiRecv(Operator):
         self.is_update = is_update
 
 
-def split_connection(conn_ops, signal):
+def split_connection(conn_ops, signal, is_update):
     """ Split up the operators implementing a Connection.
 
-    Split the operators belonging to a connection into a
-    ``pre'' group and a ``post'' group. The connection is assumed
-    to contain exactly 1 operation performing an update, which
-    is assigned to the pre group. All ops that write to signals
-    which are read by this updating op are assumed to belong to
-    the pre group (as are all ops that write to signals which
-    *those* ops read from, etc.). The remaining ops are assigned
-    to the post group.
+    Split the operators belonging to a connection into a "pre" group and a
+    "post" group. If ``is_update`` is True, then ``signal`` is assumed to
+    be updated by exactly one operator in ``conn_ops``. All ops that write
+    to ``signal``, or write to signals which are read by ops which write to
+    ``signal``, (etc.) are assigned to the pre group. The remaining ops
+    are assigned to the post group.
 
     Parameters
     ----------
     conn_ops: list
         List of operators implementing a Connection.
     signal: Signal
-        The signal where the connection will be split. Must be a
-        signal that is updated by one of the operators in `conn_ops`.
+        The signal where the connection will be split.
+    is_update: bool
+        Whether ``signal`` is updated (as opposed to set and inc-ed).
 
     Returns
     -------
@@ -177,25 +176,33 @@ def split_connection(conn_ops, signal):
     post_ops = conn_ops[:]
     pre_ops = []
 
-    for op in post_ops:
-        if signal in op.updates:
+    for op in post_ops[:]:
+        writes_signal = signal in op.updates
+        if not is_update:
+            writes_signal |= signal in op.incs
+            writes_signal |= signal in op.sets
+
+        if writes_signal:
             pre_ops.append(op)
+            post_ops.remove(op)
 
-    assert len(pre_ops) == 1
+    if is_update:
+        assert len(pre_ops) == 1
+    else:
+        assert len(pre_ops) >= 1
 
-    reads = pre_ops[0].reads
-    post_ops.remove(pre_ops[0])
+    reads = set([sig for op in pre_ops for sig in op.reads])
 
     changed = True
     while changed:
         changed = False
         for op in post_ops[:]:
-            writes = set(op.incs) | set(op.sets)
+            writes = set(op.incs) | set(op.sets) | set(op.updates)
 
-            if writes & set(reads):
+            if writes & reads:
                 pre_ops.append(op)
-                reads.extend(op.reads)
                 post_ops.remove(op)
+                reads |= set(op.reads)
                 changed = True
 
     return pre_ops, post_ops
@@ -424,25 +431,17 @@ class MpiModel(Model):
                     "A Connection crossing a component boundary "
                     "must not be probed.")
 
-            try:
-                synapse_op = next(
-                    op for op in self.object_ops[conn]
-                    if isinstance(op, builder.processes.SimProcess))
-            except StopIteration:
-                raise PartitionError(
-                    "A Connection crossing a component boundary "
-                    "must have a synapse so that it contains an `update` "
-                    "operation.")
+            signal = self.sig[conn]['weighted']
+            is_update = conn.synapse is not None
+            pre_ops, post_ops = split_connection(
+                self.object_ops[conn], signal, is_update)
 
-            signal = synapse_op.output
             tag = self._next_mpi_tag()
 
             self.send_signals[pre_component].append(
                 (signal, tag, post_component))
             self.recv_signals[post_component].append(
-                (signal, tag, pre_component))
-
-            pre_ops, post_ops = split_connection(self.object_ops[conn], signal)
+                (signal, tag, pre_component, is_update))
 
             self.assign_ops(pre_component, pre_ops)
             self.assign_ops(post_component, post_ops)
@@ -636,10 +635,10 @@ class MpiModel(Model):
 
         Main jobs are to create MpiSend and MpiRecv operators based on
         send_signals and recv_signals, and to turn all ops belonging to
-        the each component into strings, which are then stored in
+        each component into strings, which are then stored in
         self.op_strings. PyFunc ops are the only exception, as it is
         not generally possible to encode an arbitrary python function
-        as a string.
+        (and all its context) as a string.
 
         """
         for component in range(self.n_components):
@@ -647,38 +646,36 @@ class MpiModel(Model):
             recv_signals = self.recv_signals[component]
             component_ops = self.component_ops[component]
 
-            # Store some info to make the next two loops faster
-            for i, op in enumerate(component_ops):
-                for sig in op.updates:
-                    if not hasattr(sig, 'updated_by'):
-                        sig.updated_by = []
+            written_by, read_by = defaultdict(list), defaultdict(list)
 
-                    sig.updated_by.append(op)
+            # Store info to make the next two loops faster
+            for i, op in enumerate(component_ops):
+                for sig in op.updates + op.incs + op.sets:
+                    written_by[sig].append(op)
 
                 for sig in op.reads:
-                    if not hasattr(sig, 'read_by'):
-                        sig.read_by = []
+                    read_by[sig].append(op)
 
-                    sig.read_by.append(op)
+            for sig, tag, dst in send_signals:
+                mpi_send = MpiSend(dst, tag, sig)
 
-            for signal, tag, dst in send_signals:
-                mpi_send = MpiSend(dst, tag, signal)
+                assert len(written_by[sig]) > 0
 
-                assert len(signal.updated_by) == 1
-
-                # Put the send after the op that updates the signal.
-                self.global_ordering[mpi_send] = (
-                    self.global_ordering[signal.updated_by[0]] + 0.5)
+                # Put the send after the last op that writes to the signal.
+                max_index = max(
+                    self.global_ordering[op] for op in written_by[sig])
+                self.global_ordering[mpi_send] = max_index + 0.5
                 component_ops.append(mpi_send)
 
-            for signal, tag, src in recv_signals:
-                mpi_recv = MpiRecv(src, tag, signal, True)
+            for sig, tag, src, is_update in recv_signals:
+                mpi_recv = MpiRecv(src, tag, sig, is_update)
 
-                assert len(signal.read_by) > 0
+                assert len(read_by[sig]) > 0
 
                 # Put the recv in front of the first op that reads the signal.
-                self.global_ordering[mpi_recv] = (
-                    self.global_ordering[signal.read_by[0]] - 0.5)
+                min_index = min(
+                    self.global_ordering[op] for op in read_by[sig])
+                self.global_ordering[mpi_recv] = min_index - 0.5
                 component_ops.append(mpi_recv)
 
             # Sort to make the ordering take effect.

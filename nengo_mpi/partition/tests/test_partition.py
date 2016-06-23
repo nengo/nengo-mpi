@@ -8,7 +8,7 @@ from nengo_mpi import Simulator
 from nengo_mpi import Partitioner, PartitionError
 from nengo_mpi.partition import work_balanced_partitioner
 from nengo_mpi.partition import metis_available, metis_partitioner
-from nengo_mpi.partition.base import network_to_cluster_graph
+from nengo_mpi.partition.base import network_to_cluster_graph, make_boundary_predicate
 
 
 @pytest.fixture
@@ -36,7 +36,8 @@ def test_default(simple_network, n_components):
     # Save the network to a file so that an MpiSimulator is not created.
     save_file = 'test.net'
 
-    component0, cluster_graph = network_to_cluster_graph(simple_network)
+    bp = make_boundary_predicate(simple_network)
+    component0, cluster_graph = network_to_cluster_graph(simple_network, bp)
 
     partitioner = Partitioner(n_components)
 
@@ -165,7 +166,8 @@ def test_insufficient_chunks(simple_network):
     specified number of components.
     """
 
-    component0, cluster_graph = network_to_cluster_graph(simple_network)
+    bp = make_boundary_predicate(simple_network)
+    component0, cluster_graph = network_to_cluster_graph(simple_network, bp)
 
     partitioner = Partitioner(len(cluster_graph) + 10)
 
@@ -194,22 +196,24 @@ def test_cluster_graph():
         nengo.Connection(node, A)
         nengo.Connection(A, B)
 
-    component0, cluster_graph = network_to_cluster_graph(network)
+    bp = make_boundary_predicate(network)
+
+    component0, cluster_graph = network_to_cluster_graph(network, bp)
     assert len(cluster_graph) == 2
 
     component0, cluster_graph = network_to_cluster_graph(
-        network, merge_nengo_nodes=False)
+        network, bp, merge_nengo_nodes=False)
     assert len(cluster_graph) == 3
 
     with network:
         node = nengo.Node(lambda x: 0.5, label='Node 1')
 
-    component0, cluster_graph = network_to_cluster_graph(network)
+    component0, cluster_graph = network_to_cluster_graph(network, bp)
     assert len(cluster_graph) == 2
     assert component0 is not None
 
     component0, cluster_graph = network_to_cluster_graph(
-        network, merge_nengo_nodes=False)
+        network, bp, merge_nengo_nodes=False)
     assert len(cluster_graph) == 4
     assert component0 is not None
 
@@ -217,22 +221,22 @@ def test_cluster_graph():
         node = nengo.Node(lambda x: 0.7, label='Node 2')
         nengo.Connection(node, A, synapse=None)
 
-    component0, cluster_graph = network_to_cluster_graph(network)
+    component0, cluster_graph = network_to_cluster_graph(network, bp)
     assert len(cluster_graph) == 2
 
     component0, cluster_graph = network_to_cluster_graph(
-        network, merge_nengo_nodes=False)
+        network, bp, merge_nengo_nodes=False)
     assert len(cluster_graph) == 3
 
     with network:
         C = nengo.Ensemble(100, 1, label='C')
         nengo.Connection(C, A)
 
-    component0, cluster_graph = network_to_cluster_graph(network)
+    component0, cluster_graph = network_to_cluster_graph(network, bp)
     assert len(cluster_graph) == 3
 
     component0, cluster_graph = network_to_cluster_graph(
-        network, merge_nengo_nodes=False)
+        network, bp, merge_nengo_nodes=False)
     assert len(cluster_graph) == 4
 
 

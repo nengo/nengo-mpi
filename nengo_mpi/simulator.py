@@ -59,7 +59,7 @@ class Simulator(nengo.Simulator):
             equal to the empty string, then no file is created.
 
         """
-        print("Building MPI model...")
+        print("Beginning build of MPI model...")
         then = time.time()
 
         self.runnable = not save_file
@@ -82,7 +82,7 @@ class Simulator(nengo.Simulator):
             if partitioner is None:
                 partitioner = Partitioner()
 
-            print("Partitioning network...")
+            print("    Partitioning network...")
             p = partitioner.partition(network)
 
         self.n_components, self.assignments = p
@@ -94,11 +94,12 @@ class Simulator(nengo.Simulator):
             decoder_cache=get_default_decoder_cache(),
             save_file=save_file)
 
+        print("    Calling build...")
         MpiBuilder.build(self.model, network)
 
         self.model.decoder_cache.shrink()
 
-        print("Finalizing build...")
+        print("    Finalizing build...")
         self.model.finalize_build()
 
         # probe -> list
@@ -182,7 +183,6 @@ class Simulator(nengo.Simulator):
         self.native_sim.run_n_steps(steps, progress_bar, log_filename)
 
         if not log_filename:
-            print("Execution complete, gathering probe data...")
             for probe, probe_key in self.model.probe_keys.items():
                 data = self.native_sim.get_probe_data(probe_key)
 

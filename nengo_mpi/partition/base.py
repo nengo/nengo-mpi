@@ -41,10 +41,15 @@ def get_probed_connections(network):
     return probed_connections
 
 
-def _can_cross_boundary(conn, probed_connections, max_size=np.inf):
+def _can_cross_boundary(
+        conn, probed_connections, cross_at_updates, max_size):
     """ Return whether ``conn`` is allowed to cross component boundaries. """
 
-    can_cross = conn.synapse is not None
+    can_cross = True
+
+    if cross_at_updates:
+        can_cross &= conn.synapse is not None
+
     can_cross &= conn.size_mid <= max_size
     can_cross &= conn not in probed_connections
     can_cross &= not conn.learning_rule_type
@@ -52,17 +57,18 @@ def _can_cross_boundary(conn, probed_connections, max_size=np.inf):
     return can_cross
 
 
-def make_boundary_predicate(network, max_size=np.inf):
+def make_boundary_predicate(network, cross_at_updates=True, max_size=np.inf):
     probed_connections = set(get_probed_connections(network))
     predicate = partial(
         _can_cross_boundary,
+        cross_at_updates=cross_at_updates,
         probed_connections=probed_connections,
         max_size=max_size)
 
     return predicate
 
 
-def verify_assignments(network, assignments):
+def verify_assignments(network, assignments, cross_at_updates=True):
     """ Propagate the assignments given in ``assignments``.
 
     This is used when an assignment of objects to components is supplied
@@ -77,11 +83,15 @@ def verify_assignments(network, assignments):
         A mapping from each nengo object in the network to an integer
         specifying which component of the partition the object is assigned
         to. Component 0 is simulated by the master process.
+    cross_at_updates: bool
+        Whether to require that Connections crossing component boundaries
+        contain an update operator (effectively requiring the Connection to
+        have a synapse).
 
     """
     n_components = max(assignments.values()) + 1
 
-    can_cross_boundary = make_boundary_predicate(network)
+    can_cross_boundary = make_boundary_predicate(network, cross_at_updates)
     propagate_assignments(network, assignments, can_cross_boundary)
 
     if n_components > 1:
@@ -111,6 +121,11 @@ class Partitioner(object):
             cluster_graph
             n_components
 
+    cross_at_updates: bool
+        Whether to require that Connections crossing component boundaries
+        contain an update operator (effectively requiring the Connection to
+        have a synapse).
+
     use_weights: boolean (optional)
         Whether to use the size_mid attribute of connections to weight the
         edges in the graph that we partition. If False, then all edges have
@@ -128,8 +143,9 @@ class Partitioner(object):
 
     """
     def __init__(
-            self, n_components=1, func=None, use_weights=True,
-            straddle_conn_max_size=np.inf, *args, **kwargs):
+            self, n_components=1, func=None, cross_at_updates=True,
+            use_weights=True, straddle_conn_max_size=np.inf,
+            *args, **kwargs):
 
         self.n_components = n_components
 
@@ -137,6 +153,7 @@ class Partitioner(object):
             func = self.default_partition_func
         self.func = func
 
+        self.cross_at_updates = cross_at_updates
         self.straddle_conn_max_size = straddle_conn_max_size
         self.args = args
         self.kwargs = kwargs
@@ -188,7 +205,7 @@ class Partitioner(object):
         duplicate_spaun_stim(network)
 
         can_cross_boundary = make_boundary_predicate(
-            network, self.straddle_conn_max_size)
+            network, self.cross_at_updates, self.straddle_conn_max_size)
 
         if self.n_components > 1:
             # component0 is also in the cluster graph
@@ -228,6 +245,7 @@ class Partitioner(object):
                 network, self.n_components, object_assignments,
                 cluster_graph, can_cross_boundary)
 
+        self.object_assignments = object_assignments
         return self.n_components, object_assignments
 
 
@@ -338,12 +356,9 @@ class NengoObjectCluster(object):
 
 class ClusterGraph(object):
 
-    def __init__(self, network, can_cross_boundary=None):
+    def __init__(self, network, can_cross_boundary):
 
-        if can_cross_boundary is None:
-            can_cross_boundary = make_boundary_predicate(network)
         self.can_cross_boundary = can_cross_boundary
-
         self.network = network
 
         # A mapping from each nengo object to the cluster it is a member of.
@@ -435,7 +450,7 @@ def neurons2ensemble(e):
 
 
 def network_to_cluster_graph(
-        network, can_cross_boundary=None,
+        network, can_cross_boundary,
         use_weights=True, merge_nengo_nodes=True):
     """ Create a cluster graph from a nengo Network.
 
