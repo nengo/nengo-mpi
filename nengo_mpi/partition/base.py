@@ -513,6 +513,7 @@ def network_to_cluster_graph(
     if first is not None:
         for c in component0:
             cluster_graph.merge_clusters(first, c)
+        component0 = first
     else:
         component0 = None
 
@@ -548,6 +549,9 @@ def network_to_cluster_graph(
             else:
                 best_cluster = with_neurons[0]
             cluster_graph.merge_clusters(best_cluster, cluster)
+
+            if cluster is component0:
+                component0 = best_cluster
 
     G = cluster_graph.as_nx_graph(use_weights)
     return component0, G
