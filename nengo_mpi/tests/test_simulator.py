@@ -14,6 +14,32 @@ all_neurons = [
     AdaptiveLIF, AdaptiveLIFRate]  # Izhikevich]
 
 
+def test_doc_example(Simulator):
+    with nengo.Network(seed=1) as m:
+        sin_input = nengo.Node(output=0.5)
+
+        sin_ens = nengo.Ensemble(n_neurons=100, dimensions=1)
+        nengo.Connection(sin_input, sin_ens)
+
+        sin_squared = nengo.Ensemble(n_neurons=100, dimensions=1)
+        nengo.Connection(sin_ens, sin_squared, function=np.square)
+
+        squared_probe = nengo.Probe(sin_squared, synapse=0.01)
+
+    sim_time = 1.0
+
+    refimpl_sim = nengo.Simulator(m)
+    refimpl_sim.run(sim_time)
+
+    mpi_sim = Simulator(m)
+    mpi_sim.run(sim_time)
+
+    mpi_squared = mpi_sim.data[squared_probe]
+    ref_squared = refimpl_sim.data[squared_probe]
+
+    assert np.allclose(ref_squared, mpi_squared, atol=0.00001, rtol=0.00)
+
+
 @pytest.mark.parametrize("neuron_type", all_neurons)
 @pytest.mark.parametrize("synapse", [None, 0.0, 0.02, 0.05])
 def test_exact_match(Simulator, neuron_type, synapse):
