@@ -254,8 +254,8 @@ def test_sliced_copy():
 
     converge = Signal(np.zeros(3 * D), 'converge')
 
-    out1 = Signal(np.zeros(1.5 * D), 'out1')
-    out2 = Signal(np.zeros(1.5 * D), 'out2')
+    out1 = Signal(np.zeros(int(1.5 * D)), 'out1')
+    out2 = Signal(np.zeros(int(1.5 * D)), 'out2')
     final_out = Signal(np.zeros(2 * D), 'final_out')
 
     ops = [
@@ -305,8 +305,8 @@ def test_sliced_copy_seq():
 
     converge = Signal(np.zeros(3 * D), 'converge')
 
-    out1 = Signal(np.zeros(1.5 * D), 'out1')
-    out2 = Signal(np.zeros(1.5 * D), 'out2')
+    out1 = Signal(np.zeros(int(1.5 * D)), 'out1')
+    out2 = Signal(np.zeros(int(1.5 * D)), 'out2')
     final_out = Signal(np.zeros(3 * D), 'final_out')
 
     ops = [
