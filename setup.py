@@ -2,6 +2,7 @@
 import imp
 import io
 import os
+import sys
 
 try:
     from setuptools import setup
@@ -24,6 +25,8 @@ def read(*filenames, **kwargs):
 root = os.path.dirname(os.path.realpath(__file__))
 version_module = imp.load_source(
     'version', os.path.join(root, 'nengo_mpi', 'version.py'))
+testing = 'test' in sys.argv or 'pytest' in sys.argv
+
 description = (
     "An MPI backend for the nengo python package. Supports running "
     "nengo simulations in parallel, using MPI as the communication protocol.")
@@ -38,23 +41,18 @@ setup(
     packages=find_packages(),
     scripts=[],
     data_files=[],
-    url="https://github.com/e2crawfo/nengo_mpi",
+    url="https://github.com/nengo/nengo_mpi",
     license="See LICENSE.rst",
     description=description,
     long_description=long_description,
     # Without this, `setup.py install` fails to install NumPy.
     # See https://github.com/nengo/nengo/issues/508 for details.
-    setup_requires=[
-        "numpy>=1.6",
-        "h5py",
-        "networkx"
-    ],
+    setup_requires=[],
     install_requires=[
-        "numpy>=1.6",
+        "nengo==2.1",
         "h5py",
-        "networkx"
-    ],
-    extras_require={},
-    tests_require=['pytest>=2.3'],
+        "networkx",
+        "pytest>=2.3",
+        "matplotlib>=1.4"],
     zip_safe=False,
 )
