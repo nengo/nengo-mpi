@@ -10,21 +10,22 @@ class DummyRequest(object):
     pass
 
 
-def test_random_graph():
-    request = DummyRequest()
-    request.param = nengo.LIF
+request = DummyRequest()
+request.param = nengo.LIF
 
-    m, refimpl_sim, sim_time = refimpl_results(request)
+m, refimpl_sim, sim_time = refimpl_results(request)
 
-    partitioner = nengo_mpi.Partitioner(4)
-    sim = nengo_mpi.Simulator(m, partitioner=partitioner)
+partitioner = nengo_mpi.Partitioner(4)
+sim = nengo_mpi.Simulator(m, partitioner=partitioner)
 
-    for p in m.probes:
-        assert np.allclose(
-            refimpl_sim.data[p], sim.data[p],
-            atol=0.00001, rtol=0.00)
+sim.run(sim_time)
 
-    for p in m.probes:
-        assert np.allclose(
-            refimpl_sim.data[p], sim.data[p],
-            atol=0.00001, rtol=0.00)
+for p in m.probes:
+    assert np.allclose(
+        refimpl_sim.data[p], sim.data[p],
+        atol=0.00001, rtol=0.00)
+
+for p in m.probes:
+    assert np.allclose(
+        refimpl_sim.data[p], sim.data[p],
+        atol=0.00001, rtol=0.00)

@@ -31,6 +31,27 @@ def test_mpi_script(n_processors, script_name):
     """
     output, exit_code = run_python_mpi(n_processors, script_name, [])
     print(output)
+
+    if n_processors > 1:
+        # Test for the presence of these strings so that we know its actually
+        # doing inter-process communication.
+        test_strings = [
+            "Master host:",
+            "Master rank in merged communicator: 0 (should be 0).",
+            "Master detected {0} processor(s) in total.".format(n_processors),
+            "Running MPI simulation...",
+            "Master sending signal to run the simulation for ",
+            "steps to {0} workers.".format(n_processors-1),
+            "Master starting simulation: ",
+            "Master gathering probe data from workers...",
+            "Master done gathering probe data from workers.",
+            "Master sending signal to close the simulator to {0} workers.".format(n_processors-1)]
+
+        for ts in test_strings:
+            if ts not in output:
+                raise Exception(
+                    "The following string was not in the output "
+                    "but should be:\n    {0}".format(ts))
     assert not exit_code, "Script exited with non-zero exit status."
 
 

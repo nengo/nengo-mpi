@@ -33,11 +33,13 @@ class SignalProbe(object):
         return self._signal
 
 
-class TestSimulator(nengo_mpi.Simulator):
+class _TestSimulator(nengo_mpi.Simulator):
     """ Simulator for testing C++ operators.
 
     Note that this Simulator does not need to be closed as
     nengo_mpi.Simulator does.
+
+    Leading underscore ensures pytest doesn't think its a test.
 
     Parameters
     ----------
@@ -51,7 +53,7 @@ class TestSimulator(nengo_mpi.Simulator):
 
         if self._open_simulators:
             raise RuntimeError(
-                "Attempting to create active instance of TestSimulator "
+                "Attempting to create active instance of _TestSimulator "
                 "while another instance exists that has not been "
                 "closed. Call `close` on existing instances before "
                 "creating new ones.")
@@ -60,7 +62,7 @@ class TestSimulator(nengo_mpi.Simulator):
         assignments = defaultdict(int)
 
         print("Building MPI model...")
-        self.model = MpiModel(1, assignments, dt=dt, label="TestSimulator")
+        self.model = MpiModel(1, assignments, dt=dt, label="_TestSimulator")
 
         self.model.assign_ops(0, operators)
 
@@ -86,24 +88,24 @@ class TestSimulator(nengo_mpi.Simulator):
 
         if progress_bar:
             raise Exception(
-                "TestSimulator does not allow showing the progress bar.")
+                "_TestSimulator does not allow showing the progress bar.")
 
         if log_filename:
-            raise Exception("TestSimulator cannot use log-files.")
+            raise Exception("_TestSimulator cannot use log-files.")
 
-        super(TestSimulator, self).run_steps(steps, False, "")
+        super(_TestSimulator, self).run_steps(steps, False, "")
 
     def run(self, time_in_seconds, progress_bar=False, log_filename=""):
         """Simulate for the given length of time."""
 
         if progress_bar:
             raise Exception(
-                "TestSimulator does not allow showing the progress bar.")
+                "_TestSimulator does not allow showing the progress bar.")
 
         if log_filename:
-            raise Exception("TestSimulator cannot use log-files.")
+            raise Exception("_TestSimulator cannot use log-files.")
 
-        super(TestSimulator, self).run(time_in_seconds, False, "")
+        super(_TestSimulator, self).run(time_in_seconds, False, "")
 
 
 def test_dot_inc():
@@ -119,7 +121,7 @@ def test_dot_inc():
     ops = [Reset(Y), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
 
-    with TestSimulator(ops, probes) as sim:
+    with _TestSimulator(ops, probes) as sim:
         sim.run(0.01)
 
     assert np.allclose(
@@ -141,7 +143,7 @@ def test_random_dot_inc():
         ops = [Reset(Y), DotInc(A, X, Y)]
         probes = [SignalProbe(Y)]
 
-        with TestSimulator(ops, probes) as sim:
+        with _TestSimulator(ops, probes) as sim:
             sim.run(0.01)
 
         assert np.allclose(
@@ -159,7 +161,7 @@ def test_reset():
 
     ops = [Reset(Y, reset_val), DotInc(A, X, Y)]
     probes = [SignalProbe(Y)]
-    with TestSimulator(ops, probes) as sim:
+    with _TestSimulator(ops, probes) as sim:
         sim.run(0.05)
 
     assert np.allclose(
@@ -173,7 +175,7 @@ def test_copy():
     B = Signal(np.zeros(D), 'B')
     ops = [Copy(A, B)]
     probes = [SignalProbe(B)]
-    with TestSimulator(ops, probes) as sim:
+    with _TestSimulator(ops, probes) as sim:
         sim.run(0.05)
 
     assert np.allclose(
@@ -201,7 +203,7 @@ def test_sliced_copy_converge():
         SlicedCopy(S3, converge, dst_slice=slice(2 * D, 3 * D), inc=True)]
 
     probes = [SignalProbe(converge)]
-    with TestSimulator(ops, probes) as sim:
+    with _TestSimulator(ops, probes) as sim:
         sim.run(0.05)
 
     ground_truth = np.array(list(data1) + list(data2) + list(data3))
@@ -229,7 +231,7 @@ def test_sliced_copy_diverge():
         SlicedCopy(diverge, S3, src_slice=slice(2 * D, 3 * D), inc=True)]
 
     probes = [SignalProbe(S1), SignalProbe(S2), SignalProbe(S3)]
-    with TestSimulator(ops, probes) as sim:
+    with _TestSimulator(ops, probes) as sim:
         sim.run(0.05)
 
     assert np.allclose(
@@ -274,7 +276,7 @@ def test_sliced_copy():
             dst_slice=slice(1, 2 * D, 2), inc=True)]
 
     probes = [SignalProbe(final_out), SignalProbe(converge)]
-    with TestSimulator(ops, probes) as sim:
+    with _TestSimulator(ops, probes) as sim:
         sim.run(0.05)
 
     ground_truth = np.zeros(2*D)
@@ -327,7 +329,7 @@ def test_sliced_copy_seq():
             dst_slice=permutation5[int(1.5*D):], inc=True)]
 
     probes = [SignalProbe(final_out), SignalProbe(converge)]
-    with TestSimulator(ops, probes) as sim:
+    with _TestSimulator(ops, probes) as sim:
         sim.run(0.05)
 
     data = np.hstack((data1, data2, data3))
@@ -375,7 +377,7 @@ def test_lif():
 
     probes = [SignalProbe(output)]
 
-    with TestSimulator([op, input_func], probes) as sim:
+    with _TestSimulator([op, input_func], probes) as sim:
         sim.run(1.0)
 
     spikes = sim.data[probes[0]] / (1.0 / sim.dt)
@@ -407,7 +409,7 @@ def test_stateless_neurons(neuron_type):
 
     probes = [SignalProbe(output)]
 
-    with TestSimulator([op, input_func], probes) as sim:
+    with _TestSimulator([op, input_func], probes) as sim:
         sim.run(0.2)
 
     sim_rates = sim.data[probes[0]]
@@ -432,7 +434,7 @@ def test_filter():
 
     probes = [SignalProbe(output)]
 
-    with TestSimulator(
+    with _TestSimulator(
             [synapse, input_func, time_update], probes) as sim:
         sim.run(0.2)
 
@@ -444,82 +446,82 @@ def test_element_wise_inc():
     A = Signal(2 * np.ones((M, 1)), 'A')
     X = Signal(3 * np.ones(1), 'X')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones(1), 'A')
     X = Signal(3 * np.ones((M, 1)), 'X')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((1, N)), 'A')
     X = Signal(3 * np.ones(1), 'X')
     Y = Signal(np.zeros((1, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones(1), 'A')
     X = Signal(3 * np.ones((1, N)), 'X')
     Y = Signal(np.zeros((1, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((M, 1)), 'A')
     X = Signal(3 * np.ones((M, 1)), 'X')
     Y = Signal(np.zeros((M, 1)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((1, N)), 'A')
     X = Signal(3 * np.ones((1, N)), 'X')
     Y = Signal(np.zeros((1, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((M, N)), 'A')
     X = Signal(3 * np.ones(1), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones(1), 'A')
     X = Signal(3 * np.ones((M, N)), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((M, N)), 'A')
     X = Signal(3 * np.ones((M, N)), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((1, N)), 'A')
     X = Signal(3 * np.ones((M, 1)), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((M, 1)), 'A')
     X = Signal(3 * np.ones((1, N)), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((M, N)), 'A')
     X = Signal(3 * np.ones((M, 1)), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((M, 1)), 'A')
     X = Signal(3 * np.ones((M, N)), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((M, N)), 'A')
     X = Signal(3 * np.ones((1, N)), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((1, N)), 'A')
     X = Signal(3 * np.ones((M, N)), 'X')
     Y = Signal(np.zeros((M, N)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
     A = Signal(2 * np.ones((1, 1)), 'A')
     X = Signal(3 * np.ones((1, 1)), 'X')
     Y = Signal(np.zeros((1, 1)), 'Y')
-    ewi_helper(TestSimulator, A, X, Y, 6)
+    ewi_helper(_TestSimulator, A, X, Y, 6)
 
 
 def ewi_helper(Simulator, A, X, Y, reference):
@@ -552,7 +554,7 @@ def test_spaun_stimulus():
     operators = [spaun_stim]
 
     run_time = spaun_stimulus.get_est_runtime()
-    with TestSimulator(operators, probes) as sim:
+    with _TestSimulator(operators, probes) as sim:
         sim.run(run_time)
 
     def image_string(image):
