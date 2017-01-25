@@ -529,8 +529,7 @@ void MpiSimulatorChunk::add_op(OpSpec op_spec){
             Signal dst = get_signal_view(args[0]);
             Signal src = get_signal_view(args[1]);
 
-            Operator* op = new Copy(dst, src);
-            add_op(index, unique_ptr<Operator>(op));
+            add_op(index, unique_ptr<Operator>(new Copy(dst, src)));
 
         }else if(type_string.compare("SlicedCopy") == 0){
             Signal src = get_signal_view(args[0]);

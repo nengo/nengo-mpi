@@ -49,10 +49,10 @@ nengo_mpi.o: nengo_mpi.cpp mpi_operator.hpp probe.hpp
 
 
 # ********* mpi_sim.so *************
-mpi_sim.so: $(MPI_OBJS) python.o
-	$(MPICXX) -o $(LIB_DEST)/mpi_sim.so $(MPI_OBJS) python.o -shared $(DEFS) -std={std} {includes} {mpi_sim_libs}
+mpi_sim.so: $(MPI_OBJS) _mpi_sim.o
+	$(MPICXX) -o $(LIB_DEST)/mpi_sim.so $(MPI_OBJS) _mpi_sim.o -shared $(DEFS) -std={std} {includes} {mpi_sim_libs}
 
-python.o: python.cpp python.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp
+_mpi_sim.o: _mpi_sim.cpp _mpi_sim.hpp simulator.hpp chunk.hpp operator.hpp mpi_operator.hpp probe.hpp
 
 
 # ********* common to all *************

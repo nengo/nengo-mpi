@@ -35,7 +35,6 @@ import shutil
 from glob import glob
 from contextlib import contextmanager
 import subprocess
-from future.utils import iteritems
 
 try:
     import setuptools
@@ -47,8 +46,10 @@ except ImportError:
 from setuptools import find_packages, setup  # noqa: F811
 from distutils.util import split_quoted
 from distutils import log
-from distutils import sysconfig
 from distutils.cmd import Command
+from distutils.sysconfig import get_python_inc
+
+from mpi_config import get_configuration, configure_compiler, ConfigTest
 
 
 def import_command(cmd):
@@ -65,6 +66,7 @@ def import_command(cmd):
 _config = import_command('config').config
 _build = import_command('build').build
 _install = import_command('install').install
+_develop = import_command('develop').develop
 _clean = import_command('clean').clean
 
 
@@ -167,139 +169,6 @@ metadata = {
 
 metadata['provides'] = ['nengo_mpi']
 
-
-def fix_compiler_cmd(cc, mpicc):
-    if not mpicc: return
-    i = 0
-    while os.path.basename(cc[i]) == 'env':
-        i = i + 1
-        while '=' in cc[i]:
-            i = i + 1
-    while os.path.basename(cc[i]) == 'ccache':
-        i = i + 1
-    cc[i:i+1] = split_quoted(mpicc)
-
-
-def fix_linker_cmd(ld, mpild):
-    if not mpild: return
-    i = 0
-    if (sys.platform.startswith('aix') and
-        os.path.basename(ld[i]) == 'ld_so_aix'):
-        i = 1
-    while os.path.basename(ld[i]) == 'env':
-        i = i + 1
-        while '=' in ld[i]:
-            i = i + 1
-    while os.path.basename(ld[i]) == 'ccache':
-        del ld[i]
-    ld[i:i+1] = split_quoted(mpild)
-
-
-from mpiconfig import Config
-
-
-def configuration(command_obj, verbose=True):
-    config = Config()
-    config.setup(command_obj)
-    if verbose:
-        if config.section and config.filename:
-            log.info("MPI configuration: [%s] from '%s'",
-                     config.section, ','.join(config.filename))
-            config.info(log)
-    return config
-
-
-def configure_compiler(compiler, config, lang=None):
-    """ Uses config to customize compiler, and sets certain other flags. """
-
-    mpicc = config.get('mpicc')
-    mpicxx = config.get('mpicxx')
-    mpild = config.get('mpild')
-    if not mpild and (mpicc or mpicxx):
-        if lang == 'c': mpild = mpicc
-        if lang == 'c++': mpild = mpicxx
-        if not mpild: mpild = mpicc or mpicxx
-
-    customize_compiler(compiler, lang,
-                       mpicc=mpicc, mpicxx=mpicxx, mpild=mpild)
-
-    for k, v in config.get('define_macros', []):
-        compiler.define_macro(k, v)
-    for v in config.get('undef_macros', []):
-        compiler.undefine_macro(v)
-    for v in config.get('include_dirs', []):
-        compiler.add_include_dir(v)
-    for v in config.get('libraries', []):
-        compiler.add_library(v)
-    for v in config.get('library_dirs', []):
-        compiler.add_library_dir(v)
-    for v in config.get('runtime_library_dirs', []):
-        compiler.add_runtime_library_dir(v)
-    for v in config.get('extra_objects', []):
-        compiler.add_link_object(v)
-
-    cc_args = config.get('extra_compile_args', [])
-    ld_args = config.get('extra_link_args', [])
-    compiler.compiler += cc_args
-    compiler.compiler_so += cc_args
-    compiler.compiler_cxx += cc_args
-    compiler.linker_so += ld_args
-    compiler.linker_exe += ld_args
-
-    return compiler
-
-
-def customize_compiler(compiler, lang=None, mpicc=None, mpicxx=None, mpild=None):
-    """ Implements the compiler configuration. """
-
-    # Unix specific compilation customization
-    assert compiler.compiler_type == 'unix'
-
-    sysconfig.customize_compiler(compiler)
-
-    ld = compiler.linker_exe
-    for envvar in ('LDFLAGS', 'CFLAGS', 'CPPFLAGS'):
-        if envvar in os.environ:
-            ld += split_quoted(os.environ[envvar])
-
-    # Compiler command overriding
-    if mpicc:
-        fix_compiler_cmd(compiler.compiler, mpicc)
-        if lang in ('c', None):
-            fix_compiler_cmd(compiler.compiler_so, mpicc)
-
-    if mpicxx:
-        fix_compiler_cmd(compiler.compiler_cxx, mpicxx)
-        if lang == 'c++':
-            fix_compiler_cmd(compiler.compiler_so, mpicxx)
-
-    if mpild:
-        for ld in [compiler.linker_so, compiler.linker_exe]:
-            fix_linker_cmd(ld, mpild)
-
-    badcxxflags = ['-Wimplicit', '-Wstrict-prototypes']
-    for flag in badcxxflags:
-        while flag in compiler.compiler_cxx:
-            compiler.compiler_cxx.remove(flag)
-        if lang == 'c++':
-            while flag in compiler.compiler_so:
-                compiler.compiler_so.remove(flag)
-
-
-# A minimal MPI program
-
-ConfigTest = """\
-int main(int argc, char **argv)
-{
-  int ierr;
-  (void)argc; (void)argv;
-  ierr = MPI_Init(&argc, &argv);
-  if (ierr) return -1;
-  ierr = MPI_Finalize();
-  if (ierr) return -1;
-  return 0;
-}
-"""
 
 class config(_config):
     user_options = [('target=', None, "Target to build. If not supplied, all targets are built.")]
@@ -414,7 +283,7 @@ class config(_config):
     check_sym  = check_symbol
 
     def run(self):
-        config = configuration(self, verbose=True)
+        config = get_configuration(self, verbose=True)
 
         # test MPI C compiler
         self.compiler = getattr(
@@ -435,7 +304,7 @@ class config(_config):
             template = f.read()
 
         # TODO: read from mpi.cfg file
-        includes = "-I/usr/include/hdf5/openmpi"
+        includes = "-I/usr/include/hdf5/openmpi -I{0}".format(get_python_inc())
         libs = "-ldl -lm -lcblas -lhdf5_openmpi"
 
         final = template.format(
@@ -478,6 +347,8 @@ class build(_build):
             makefile_name=MAKEFILE_CONFIGURED)
 
 class install_mpi(Command):
+    user_options = []
+
     def initialize_options (self):
         pass
 
@@ -519,6 +390,15 @@ class install_mpi(Command):
 
 class install(_install):
     sub_commands = _install.sub_commands[:] + [('install_mpi', lambda *a, **k: True)]
+
+    def run(self):
+        _install.run(self)
+
+
+class develop(_develop):
+    def run(self):
+        _develop.run(self)
+        self.run_command('install_mpi')
 
 
 class clean(_clean):
@@ -575,7 +455,7 @@ def run_make(target, directory, assignments=None, makefile_name=None):
             command.extend("-f {0}".format(makefile_name).split(' '))
 
         assignments = assignments or {}
-        for k, v in iteritems(assignments):
+        for k, v in assignments.items():
             command.append("{0}={1}".format(k, v))
 
         process = None
@@ -631,62 +511,16 @@ def configure_dl(ext, config_cmd):
         ext.define_macros += [('HAVE_DLOPEN', 1)]
 
 
-def configure_mpi_sim(ext, config_cmd):
-    from textwrap import dedent
-    from distutils import log
-    from distutils.errors import DistutilsPlatformError
-    headers = ['stdlib.h', 'mpi.h']
-
-    log.info("checking for MPI compile and link ...")
-    ConfigTest = dedent("""\
-    int main(int argc, char **argv)
-    {
-      (void)MPI_Init(&argc, &argv);
-      (void)MPI_Finalize();
-      return 0;
-    }
-    """)
-
-    errmsg = "Cannot %s MPI programs. Check your configuration!!!"
-
-    ok = config_cmd.try_compile(ConfigTest, headers=headers)
-    if not ok:
-        raise DistutilsPlatformError(errmsg % "compile")
-
-    ok = config_cmd.try_link(ConfigTest, headers=headers)
-    if not ok:
-        raise DistutilsPlatformError(errmsg % "link")
-
-    log.info("checking for missing MPI functions/symbols ...")
-    tests = ["defined(%s)" % macro for macro in
-             ("OPEN_MPI", "MPICH2", "DEINO_MPI", "MSMPI_VER",)]
-    tests += ["(defined(MPICH_NAME)&&(MPICH_NAME==3))"]
-    ConfigTest = dedent("""\
-    #if !(%s)
-    #error "Unknown MPI implementation"
-    #endif
-    """) % "||".join(tests)
-    ok = config_cmd.try_compile(ConfigTest, headers=headers)
-    if not ok:
-        from mpidistutils import ConfigureMPI
-        configure = ConfigureMPI(config_cmd)
-        results = configure.run()
-        configure.dump(results)
-        ext.define_macros += [('HAVE_CONFIG_H', 1)]
-
-    if os.name == 'posix':
-        configure_dl(ext, config_cmd)
-
-
 def run_setup():
     """ Call setup(*args, **kargs) """
     setup_args = metadata.copy()
     setup_args['zip_safe'] = False
 
-    setup(packages=['nengo_mpi'],
+    setup(packages=find_packages(),
           cmdclass={'config': config,
                     'build': build,
                     'install': install,
+                    'develop': develop,
                     'install_mpi': install_mpi,
                     'clean': clean},
           **setup_args)

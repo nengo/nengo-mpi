@@ -44,6 +44,15 @@ using namespace std;
 class Operator{
 
 public:
+    Operator(){};
+
+    // Operators are neither copy-able nor move-able as we generally
+    // manipulate them through unique_ptrs.
+    Operator(const Operator&) = delete;
+    Operator& operator= (const Operator&) = delete;
+    Operator(const Operator&&) = delete;
+    Operator& operator= (const Operator&&) = delete;
+
     virtual string classname() const { return "Operator"; }
 
     virtual void operator() () = 0;
