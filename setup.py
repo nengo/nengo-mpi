@@ -47,7 +47,6 @@ from setuptools import find_packages, setup  # noqa: F811
 from distutils.util import split_quoted
 from distutils import log
 from distutils.cmd import Command
-from distutils.sysconfig import get_python_inc
 
 root = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(root, 'conf'))  # To have access to the contents of dir ``conf``
@@ -298,11 +297,18 @@ class config(_config):
         with open(os.path.join('mpi_sim', MAKEFILE_TEMPLATE), 'r') as f:
             template = f.read()
 
+        from distutils.sysconfig import get_python_inc
+        from numpy.distutils.misc_util import get_numpy_include_dirs
+
         include_dirs = ["-I{0}".format(p) for p in
-                        config.library_info["include_dirs"] + [get_python_inc()]]
+                        config.library_info["include_dirs"] +
+                        [get_python_inc()] +
+                        get_numpy_include_dirs()]
         include_dirs = ' '.join(include_dirs)
+
         libs = ["-l{0}".format(p) for p in config.library_info["libraries"]]
         libs = ' '.join(libs)
+
         mpicxx = config.compiler_info["mpicxx"]
 
         final = template.format(

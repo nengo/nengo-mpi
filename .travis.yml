@@ -27,14 +27,14 @@ branches:
 git:
   depth: 3
 
-# cache:
-#   apt: true
+cache:
+  apt: true
 
 before_install:
   - sh conf/travis-install-mpi.sh $MPI
 
 install:
-  - pip -vvv install .
+  - pip install .
 
 script:
-  - pytest
+  - py.test -v --duration 20
