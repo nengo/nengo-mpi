@@ -1,0 +1,39 @@
+notifications:
+  email:
+    - eric.crawford@mail.mcgill.ca
+
+language: python
+python:
+  - 2.7
+    #   - 3.3
+    #   - 3.4
+    #   - 3.5
+    #   - 3.6
+    #   - 3.7-dev
+
+env:
+  - MPI=mpich
+  - MPI=openmpi
+
+os: linux
+dist: trusty
+sudo: required
+
+branches:
+  only:
+    - master
+
+git:
+  depth: 3
+
+# cache:
+#   apt: true
+
+before_install:
+  - sh conf/travis-install-mpi.sh $MPI
+
+install:
+  - pip -vvv install .
+
+script:
+  - pytest

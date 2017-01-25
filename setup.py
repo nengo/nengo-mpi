@@ -49,7 +49,15 @@ from distutils import log
 from distutils.cmd import Command
 from distutils.sysconfig import get_python_inc
 
+root = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(root, 'conf'))  # To have access to the contents of dir ``conf``
+
 from mpi_config import get_configuration, configure_compiler, ConfigTest
+
+__doc__ = """ MPI backend for the nengo neural simulator """
+
+MAKEFILE_TEMPLATE = 'Makefile.template'
+MAKEFILE_CONFIGURED = 'Makefile.configured'
 
 
 def import_command(cmd):
@@ -58,10 +66,12 @@ def import_command(cmd):
     except ImportError:
         import_module = lambda n:  __import__(n, fromlist=[None])
     try:
-        if not setuptools: raise ImportError
+        if not setuptools:
+            raise ImportError
         return import_module('setuptools.command.' + cmd)
     except ImportError:
         return import_module('distutils.command.' + cmd)
+
 
 _config = import_command('config').config
 _build = import_command('build').build
@@ -69,23 +79,11 @@ _install = import_command('install').install
 _develop = import_command('develop').develop
 _clean = import_command('clean').clean
 
-
-__doc__ = """ MPI backend for the nengo neural simulator """
-
 pyver = sys.version_info[:2]
 if pyver < (2, 6) or (3, 0) <= pyver < (3, 2):
     raise RuntimeError("Python version 2.7 or >= 3.2 required")
 if (hasattr(sys, 'pypy_version_info') and sys.pypy_version_info[:2] < (2, 0)):
     raise RuntimeError("PyPy version >= 2.0 required")
-
-
-MAKEFILE_TEMPLATE = 'Makefile.template'
-MAKEFILE_CONFIGURED = 'Makefile.configured'
-
-
-# --------------------------------------------------------------------
-# Metadata
-# --------------------------------------------------------------------
 
 
 def read(*filenames, **kwargs):
@@ -97,9 +95,6 @@ def read(*filenames, **kwargs):
             buf.append(f.read())
     return sep.join(buf)
 
-
-root = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(root, 'conf'))  # To have access to the contents of dir ``conf``
 
 version_module = imp.load_source(
     'version', os.path.join(root, 'nengo_mpi', 'version.py'))
@@ -303,13 +298,16 @@ class config(_config):
         with open(os.path.join('mpi_sim', MAKEFILE_TEMPLATE), 'r') as f:
             template = f.read()
 
-        # TODO: read from mpi.cfg file
-        includes = "-I/usr/include/hdf5/openmpi -I{0}".format(get_python_inc())
-        libs = "-ldl -lm -lcblas -lhdf5_openmpi"
+        include_dirs = ["-I{0}".format(p) for p in
+                        config.library_info["include_dirs"] + [get_python_inc()]]
+        include_dirs = ' '.join(include_dirs)
+        libs = ["-l{0}".format(p) for p in config.library_info["libraries"]]
+        libs = ' '.join(libs)
+        mpicxx = config.compiler_info["mpicxx"]
 
         final = template.format(
-            std="c++11", defs="", cxx="mpicxx.openmpi", mpicxx="mpicxx.openmpi",
-            nengo_mpi_libs=libs, nengo_cpp_libs=libs, mpi_sim_libs=libs, includes=includes)
+            defs="", cxx=mpicxx, mpicxx=mpicxx, include_dirs=include_dirs,
+            nengo_mpi_libs=libs, nengo_cpp_libs=libs, mpi_sim_libs=libs)
 
         concrete_makefile = os.path.join('mpi_sim', MAKEFILE_CONFIGURED)
         print("Creating concrete makefile: {0}".format(concrete_makefile))
@@ -398,6 +396,7 @@ class install(_install):
 class develop(_develop):
     def run(self):
         _develop.run(self)
+        self.run_command('build')
         self.run_command('install_mpi')
 
 
