@@ -22,6 +22,7 @@ sudo: required
 branches:
   only:
     - master
+    - maint
 
 git:
   depth: 3
