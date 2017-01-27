@@ -73,9 +73,9 @@ def run_python_mpi(n_processors, script_name, script_args):
         output = subprocess.check_output([
             'mpirun', '-np', str(n_processors), 'python',
             '-m', 'nengo_mpi', script_name] + script_args)
-        return output, 0
+        return output.decode('utf-8'), 0
     except subprocess.CalledProcessError as e:
-        return e.output, e.returncode
+        return e.output.decode('utf-8'), e.returncode
 
 
 # Note: Copied this from nengo_ocl.

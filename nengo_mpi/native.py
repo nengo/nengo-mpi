@@ -42,9 +42,8 @@ class NativeSimulator(object):
         mpi_sim.create_simulator()
 
     def load_network(self, filename):
-        if isinstance(filename, six.text_type):
-            filename = filename.encode('ascii')
-        assert isinstance(filename, six.binary_type)
+        assert isinstance(filename,
+                          six.text_type if six.PY3 else six.binary_type)
         mpi_sim.load_network(filename)
 
     def finalize_build(self):
@@ -53,10 +52,8 @@ class NativeSimulator(object):
     def run_n_steps(self, n_steps, progress, log_filename):
         assert isinstance(n_steps, int) and n_steps >= 0
         assert isinstance(progress, bool)
-
-        if isinstance(log_filename, six.text_type):
-            log_filename = log_filename.encode('ascii')
-        assert isinstance(log_filename, six.binary_type)
+        assert isinstance(log_filename,
+                          six.text_type if six.PY3 else six.binary_type)
 
         mpi_sim.run_n_steps(n_steps, int(progress), log_filename)
 
@@ -84,14 +81,14 @@ class NativeSimulator(object):
         # Handle time.
         pass_time = op.t is not None
         t_signal = op.t if pass_time else self.sig['common'][0]
-        t = signal_to_string(t_signal)
+        t_string = signal_to_string(t_signal)
         time_buffer = np.array([22.0])
         self.time_buffers.append(time_buffer)
 
         # Handle input.
         pass_input = op.x is not None
         input_signal = op.x if pass_input else self.sig['common'][0]
-        input = signal_to_string(input_signal)
+        input_string = signal_to_string(input_signal)
         if not input_signal.shape:
             input_buffer = np.array([0.0])
         else:
@@ -102,7 +99,7 @@ class NativeSimulator(object):
         return_output = op.output is not None
         output_signal = (
             op.output if return_output else self.sig['common']['NULL'])
-        output = signal_to_string(output_signal)
+        output_string = signal_to_string(output_signal)
         if not output_signal:
             output_buffer = np.array([0.0])
         else:
@@ -141,14 +138,9 @@ class NativeSimulator(object):
         # Need to store a handle for the callback so that
         # it doesn't get garbage collected.
         self.callbacks.append(py_func)
-
-        if isinstance(t, six.text_type):
-            t = t.encode('ascii')
-        if isinstance(input, six.text_type):
-            input = input.encode('ascii')
-        if isinstance(output, six.text_type):
-            output = output.encode('ascii')
+        for s in [t_string, input_string, output_string]:
+            assert isinstance(s, six.text_type if six.PY3 else six.binary_type)
 
         mpi_sim.create_PyFunc(
-            py_func, t, input, output,
+            py_func, t_string, input_string, output_string,
             time_buffer, input_buffer, output_buffer, index)

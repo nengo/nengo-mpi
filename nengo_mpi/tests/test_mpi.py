@@ -51,8 +51,10 @@ def test_mpi_script(n_processors, script_name):
             if ts not in output:
                 raise Exception(
                     "The following string was not in the output "
-                    "but should be:\n    {0}".format(ts))
-    assert not exit_code, "Script exited with non-zero exit status."
+                    "but should be:\n    {0}.\n\nOutput:\n{1}".format(ts, output))
+        assert not exit_code, (
+            "Script exited with non-zero exit status."
+            "\n\nOutput:\n" + output)
 
 
 all_neurons = [

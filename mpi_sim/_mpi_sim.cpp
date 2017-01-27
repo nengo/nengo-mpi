@@ -1,5 +1,7 @@
 #include "_mpi_sim.hpp"
 
+static char module_name[] = "mpi_sim";
+
 static char module_docstring[] = "TODO";
 
 static char init_docstring[] = "TODO";
@@ -38,7 +40,7 @@ extern "C" PyObject* mpi_sim_reset_simulator(PyObject *self, PyObject *args);
 extern "C" PyObject* mpi_sim_close_simulator(PyObject *self, PyObject *args);
 extern "C" PyObject* mpi_sim_create_PyFunc(PyObject *self, PyObject *args);
 
-static PyMethodDef module_methods[] = {
+static PyMethodDef module_functions[] = {
     {"init", mpi_sim_init, METH_VARARGS, init_docstring},
     {"finalize", mpi_sim_finalize, METH_VARARGS, finalize_docstring},
     {"get_rank", mpi_sim_get_rank, METH_VARARGS, get_rank_docstring},
@@ -59,14 +61,36 @@ static PyMethodDef module_methods[] = {
     {NULL, NULL, 0, NULL}
 };
 
-PyMODINIT_FUNC initmpi_sim(void)
+#if PY_MAJOR_VERSION >= 3
+  #define MOD_ERROR_VAL NULL
+  #define MOD_SUCCESS_VAL(val) val
+  #define MOD_INIT(name) extern "C" PyMODINIT_FUNC PyInit_##name(void)
+  #define MOD_DEF(ob, name, doc, methods) \
+          static struct PyModuleDef moduledef = { \
+            PyModuleDef_HEAD_INIT, name, doc, -1, methods, }; \
+          ob = PyModule_Create(&moduledef);
+#else
+  #define MOD_ERROR_VAL
+  #define MOD_SUCCESS_VAL(val)
+  #define MOD_INIT(name) PyMODINIT_FUNC init##name(void)
+  #define MOD_DEF(ob, name, doc, methods) \
+          ob = Py_InitModule3(name, methods, doc);
+#endif
+
+MOD_INIT(mpi_sim)
 {
-    PyObject *m = Py_InitModule3("mpi_sim", module_methods, module_docstring);
-    if (m == NULL)
-        return;
+    PyObject *m;
+
+    MOD_DEF(m, "mpi_sim", module_docstring, module_functions)
+
+    if(m == NULL){
+        return MOD_ERROR_VAL;
+    }
 
     /* Load `numpy` functionality. */
     import_array();
+
+    return MOD_SUCCESS_VAL(m);
 }
 
 extern "C" PyObject *mpi_sim_init(PyObject *self, PyObject *args){
