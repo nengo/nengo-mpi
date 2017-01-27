@@ -5,8 +5,9 @@ User Guide
 .. toctree::
    :maxdepth: 2
 
+   installation
    how_it_works
-   modules
    workflows
+   modules
    benchmarks
    faq

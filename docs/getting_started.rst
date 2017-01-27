@@ -7,27 +7,33 @@ Getting Started
 Installation
 ============
 
-At the present time, nengo_mpi is only known to be usable on Linux.
-Obtaining all nengo_mpi functionality requires a working
-installation of MPI, and the most recent version of nengo
-and all associated dependencies.
+As of this writing, nengo_mpi is only known to be usable on Linux.
+Installation is straightforward. On an Ubuntu workstation (as opposed to a cluster)
+an OpenMPI based installation can be obtained by first installing dependencies: ::
 
-Basic installation
-------------------
+    sudo apt-get install openmpi-bin libopenmpi-dev libhdf5-openmpi-dev
+    sudo apt-get install libboost-dev libatlas-base-dev
 
-To install nengo_mpi, we use ``git``: ::
+Then download the code: ::
 
-   git clone https://github.com/nengo/nengo_mpi.git
-   cd nengo_mpi
-   python setup.py develop --user
+    git clone https://github.com/nengo/nengo_mpi.git
 
-If you're using a ``virtualenv`` (recommended!) then you can omit the ``--user`` flag.
-The last step is compile the ``mpi_sim`` C++ library, which contains most of the functionality.
-To do this, ``cd`` into ``nengo_mpi/mpi_sim`` and type ``make``. If an MPI implementation
-is present on the system, then this process be relatively straightforward.
+And install nengo_mpi and all its python dependencies (including nengo): ::
 
-Coming soon: More info on trouble-shooting the compilation process.
+    cd nengo_mpi
+    pip install --user .
 
+or if inside a virtualenv: ::
+
+    cd nengo_mpi
+    pip install .
+
+And run the test to make sure it works: ::
+
+    py.test
+
+See :ref:`installation` for more detailed installation instructions, especially for installing on
+high-performance clusters.
 
 Adapting Existing Nengo Scripts
 ===============================

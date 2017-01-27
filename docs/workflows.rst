@@ -34,8 +34,8 @@ allowed are passthrough nodes, nodes that output a constant signal, and
 SpaunStimulus nodes. The first two are trivial to implement, and the third we have
 made special accommodations for.
 
-Building
-********
+Building and Saving a Network
+*****************************
 
 The first step is to build a network and save it to a file. To do this, we need
 to make a change to how we call ``nengo_mpi.Simulator``. In particular, we supply
@@ -52,8 +52,8 @@ invocation: ::
 
     python nengo_script.py
 
-Simulating
-**********
+Loading and Simulating a Network
+********************************
 
 Now we can make use of the network file we've created using the ``nengo_mpi``
 executable (see :ref:`modules` for more info on the executable). Assuming that
