@@ -154,6 +154,7 @@ metadata = {
     'author_email'     : 'eric.crawford@mail.mcgill.ca',
     'maintainer'       : 'Eric Crawford',
     'maintainer_email' : 'eric.crawford@mail.mcgill.ca',
+    'setup_requires'   : ['numpy>=1.7'],
     'install_requires' : ["nengo==2.1",
                           "h5py",
                           "networkx",
@@ -337,10 +338,10 @@ class build(_build):
             self.target = 'all'
 
     def run(self):
+        _build.run(self)
+
         if not os.path.isfile(os.path.join('mpi_sim', MAKEFILE_CONFIGURED)):
             self.run_command('config')
-
-        _build.run(self)
 
         print("Building mpi_sim.so, nengo_mpi and nengo_cpp.")
         directory = 'mpi_sim'
