@@ -26,7 +26,7 @@ To satisfy the Boost and BLAS requirements, the following should work on any Ubu
 
     sudo apt-get install libboost-dev libatlas-base-dev
 
-Installing MPI depends on which implementation you want to use.
+Installing MPI depends on which implementation you want to use:
 
 #. **OpenMPI** - On Ubuntu 14.04 and later the following should be sufficient for getting obtaining OpenMPI and the remaining requirements: ::
 

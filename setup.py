@@ -1,33 +1,12 @@
 #!/usr/bin/env python
 """
+MPI backend for the nengo neural simulator
+
 Author:  Eric Crawford (Adapted from mpi4py and nengo)
 Contact: eric.crawford@mail.mcgill.ca
 
-This setup script does a bit more than usual setup scripts because it
-has to build and install the mpi_sim shared library and its non-python
-entry points nengo_mpi and nengo_cpp. An important note is that these files
-cannot be built as basic python extension modules for two reasons:
-
-    1. We need to use the mpicxx compiler, and setuptools doesn't allow
-       us to use that compiler, even using the --compiler option to the setuptools
-        ``build`` command.
-
-    2. The three entry points share most of their object files, but we would
-       not be able to easily avoid building each object file repeatedly (once
-       for each entry point.
-
-To solve these issues, we just build all three entry points using a Makefile
-generated from a template Makefile. ``make`` takes care of all the dependencies
-and makes sure the objects files aren't built multiple times. The concrete
-Makefile is generated from the template Makefile as part of the configuration
-step. This is all achieved this by overriding a few of the usual
-distutils/setuptools commands, in particular ``config``, ``build``, ``install``,
-``clean``, and adds a new command ``install_mpi``. Care has been taken to override
-these commands in such a way that nengo_mpi is fully pip-installable.
-
 """
 from __future__ import print_function
-import imp
 import sys
 import os
 import io
@@ -44,45 +23,21 @@ except ImportError:
     setuptools = use_setuptools()
 
 from setuptools import find_packages, setup  # noqa: F811
-from distutils.util import split_quoted
 from distutils import log
 from distutils.cmd import Command
 
 root = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(root, 'conf'))  # To have access to the contents of dir ``conf``
+sys.path.insert(0, os.path.join(root, 'conf'))
 
 from mpi_config import get_configuration, configure_compiler, ConfigTest
-
-__doc__ = """ MPI backend for the nengo neural simulator """
 
 MAKEFILE_TEMPLATE = 'Makefile.template'
 MAKEFILE_CONFIGURED = 'Makefile.configured'
 
 
-def import_command(cmd):
-    try:
-        from importlib import import_module
-    except ImportError:
-        import_module = lambda n:  __import__(n, fromlist=[None])
-    try:
-        if not setuptools:
-            raise ImportError
-        return import_module('setuptools.command.' + cmd)
-    except ImportError:
-        return import_module('distutils.command.' + cmd)
-
-
-_config = import_command('config').config
-_build = import_command('build').build
-_install = import_command('install').install
-_develop = import_command('develop').develop
-_clean = import_command('clean').clean
-
 pyver = sys.version_info[:2]
-if pyver < (2, 6) or (3, 0) <= pyver < (3, 2):
-    raise RuntimeError("Python version 2.7 or >= 3.2 required")
-if (hasattr(sys, 'pypy_version_info') and sys.pypy_version_info[:2] < (2, 0)):
-    raise RuntimeError("PyPy version >= 2.0 required")
+if pyver < (2, 6) or (3, 0) <= pyver < (3, 4):
+    raise RuntimeError("Python version 2.7 or >= 3.4 required")
 
 
 def read(*filenames, **kwargs):
@@ -95,8 +50,10 @@ def read(*filenames, **kwargs):
     return sep.join(buf)
 
 
-version_module = imp.load_source(
-    'version', os.path.join(root, 'nengo_mpi', 'version.py'))
+base_dir = os.path.abspath(os.path.dirname(__file__))
+about = {}
+with open(os.path.join(base_dir, "nengo_mpi", "__about__.py")) as f:
+    exec(f.read(), about)
 
 description = (
     "An MPI backend for the nengo python package. Supports running "
@@ -115,7 +72,6 @@ Programming Language :: Python
 Programming Language :: Python :: 2
 Programming Language :: Python :: 2.7
 Programming Language :: Python :: 3
-Programming Language :: Python :: 3.3
 Programming Language :: Python :: 3.4
 Programming Language :: Python :: 3.5
 Programming Language :: Python :: 3.6
@@ -142,19 +98,18 @@ Unix
 
 metadata = {
     'name'             : 'nengo_mpi',
-    'version'          : version_module.version,
+    'version'          : about["__version__"],
     'description'      : description,
     'long_description' : long_description,
-    'url'              : "https://github.com/nengo/nengo_mpi",
-    'license'          : "See LICENSE.rst",
+    'url'              : about["__uri__"],
+    'license'          : about["__license__"],
     'classifiers'      : [c for c in classifiers.split('\n') if c],
-    'keywords'         : [k for k in keywords.split('\n')    if k],
-    'platforms'        : [p for p in platforms.split('\n')   if p],
-    'author'           : 'Eric Crawford',
-    'author_email'     : 'eric.crawford@mail.mcgill.ca',
-    'maintainer'       : 'Eric Crawford',
-    'maintainer_email' : 'eric.crawford@mail.mcgill.ca',
-    'setup_requires'   : ['numpy>=1.7'],
+    'keywords'         : [k for k in keywords.split('\n') if k],
+    'platforms'        : [p for p in platforms.split('\n') if p],
+    'author'           : about["__author__"],
+    'author_email'     : about["__email__"],
+    'maintainer'       : about["__author__"],
+    'maintainer_email' : about["__email__"],
     'install_requires' : ["nengo==2.1",
                           "h5py",
                           "networkx",
@@ -164,8 +119,54 @@ metadata = {
 
 metadata['provides'] = ['nengo_mpi']
 
+"""
+This setup script does a bit more than usual setup scripts because it
+has to build and install the mpi_sim shared library and its non-python
+entry points nengo_mpi and nengo_cpp. An important note is that these files
+cannot be built as basic python extension modules for two reasons:
 
-class config(_config):
+    1. We need to use the mpicxx compiler, and setuptools doesn't allow
+       us to use that compiler, even using the --compiler option to the setuptools
+        ``build`` command.
+
+    2. The three entry points share most of their object files, but we would
+       not be able to easily avoid building each object file repeatedly (once
+       for each entry point.
+
+To solve these issues, we just build all three entry points using a Makefile
+generated from a template Makefile. ``make`` takes care of all the dependencies
+and makes sure the objects files aren't built multiple times. The concrete
+Makefile is generated from the template Makefile as part of the configuration
+step. This is all achieved this by overriding a few of the usual
+distutils/setuptools commands, in particular ``config``, ``build``, ``install``,
+``clean``, and adds a new command ``install_mpi``. Care has been taken to override
+these commands in such a way that nengo_mpi is fully pip-installable.
+
+"""
+
+
+def import_command(cmd):
+    try:
+        from importlib import import_module
+    except ImportError:
+        import_module = lambda n: __import__(n, fromlist=[None])
+
+    try:
+        if not setuptools:
+            raise ImportError
+        return import_module('setuptools.command.' + cmd)
+    except ImportError:
+        return import_module('distutils.command.' + cmd)
+
+
+_config = import_command('config').config
+_build = import_command('build').build
+_install = import_command('install').install
+_develop = import_command('develop').develop
+_clean = import_command('clean').clean
+
+
+class config_mpi(_config):
     user_options = [('target=', None, "Target to build. If not supplied, all targets are built.")]
 
     def initialize_options(self):
@@ -173,7 +174,7 @@ class config(_config):
         self.noisy = 0
         self.target = None
 
-    def finalize_options (self):
+    def finalize_options(self):
         _config.finalize_options(self)
         if self.target is None:
             self.target = 'all'
@@ -184,7 +185,7 @@ class config(_config):
         _config._clean(self, *a, **kw)
 
     def check_header(self, header, headers=None, include_dirs=None):
-        if headers is None: headers = []
+        headers = headers or []
         log.info("checking for header '%s' ..." % header)
         body = "int main(int n, char**v) { (void)n; (void)v; return 0; }"
         ok = self.try_compile(body, list(headers) + [header], include_dirs)
@@ -201,47 +202,46 @@ class config(_config):
         return ok
 
     def check_library(self, library, library_dirs=None,
-                   headers=None, include_dirs=None,
-                   other_libraries=[], lang="c"):
+                      headers=None, include_dirs=None,
+                      other_libraries=[], lang="c"):
         log.info("checking for library '%s' ..." % library)
         body = "int main(int n, char**v) { (void)n; (void)v; return 0; }"
-        ok = self.try_link(body,  headers, include_dirs,
-                           [library]+other_libraries, library_dirs,
+        ok = self.try_link(body, headers, include_dirs,
+                           [library] + other_libraries, library_dirs,
                            lang=lang)
         return ok
 
-    def check_function (self, function,
-                        headers=None, include_dirs=None,
-                        libraries=None, library_dirs=None,
-                        decl=0, call=0, lang="c"):
+    def check_function(self, function,
+                       headers=None, include_dirs=None,
+                       libraries=None, library_dirs=None,
+                       decl=0, call=0, lang="c"):
         log.info("checking for function '%s' ..." % function)
         body = []
         if decl:
-            if call: proto = "int %s (void);"
-            else:    proto = "int %s;"
+            if call:
+                proto = "int %s (void);"
+            else:
+                proto = "int %s;"
             if lang == "c":
                 proto = "\n".join([
                         "#ifdef __cplusplus",
                         "extern \"C\"",
                         "#endif", proto])
             body.append(proto % function)
-        body.append(    "int main (int n, char**v) {")
-        if call:
-            body.append("  (void)%s();" % function)
-        else:
-            body.append("  %s;" % function)
-        body.append(    "  (void)n; (void)v;")
-        body.append(    "  return 0;")
-        body.append(    "}")
+        body.append("int main (int n, char**v) {")
+        body.append(("  (void)%s();" if call else "  %s;") % function)
+        body.append("  (void)n; (void)v;")
+        body.append("  return 0;")
+        body.append("}")
         body = "\n".join(body) + "\n"
         ok = self.try_link(body, headers, include_dirs,
                            libraries, library_dirs, lang=lang)
         return ok
 
-    def check_symbol (self, symbol, type="int",
-                      headers=None, include_dirs=None,
-                      libraries=None, library_dirs=None,
-                      decl=0, lang="c"):
+    def check_symbol(self, symbol, type="int",
+                     headers=None, include_dirs=None,
+                     libraries=None, library_dirs=None,
+                     decl=0, lang="c"):
         log.info("checking for symbol '%s' ..." % symbol)
         body = []
         if decl:
@@ -256,10 +256,10 @@ class config(_config):
                            libraries, library_dirs, lang=lang)
         return ok
 
-    def check_function_call (self, function, args='',
-                             headers=None, include_dirs=None,
-                             libraries=None, library_dirs=None,
-                             lang="c"):
+    def check_function_call(self, function, args='',
+                            headers=None, include_dirs=None,
+                            libraries=None, library_dirs=None,
+                            lang="c"):
         log.info("checking for function '%s' ..." % function)
         body = []
         body.append("int main (int n, char**v) {")
@@ -272,10 +272,10 @@ class config(_config):
                            libraries, library_dirs, lang=lang)
         return ok
 
-    check_hdr  = check_header
-    check_lib  = check_library
+    check_hdr = check_header
+    check_lib = check_library
     check_func = check_function
-    check_sym  = check_symbol
+    check_sym = check_symbol
 
     def run(self):
         config = get_configuration(self, verbose=True)
@@ -321,46 +321,55 @@ class config(_config):
         with open(concrete_makefile, 'w') as f:
             f.write(final)
 
+    def get_outputs(self):
+        return [os.path.join('mpi_sim', MAKEFILE_CONFIGURED)]
 
-class build(_build):
+    def get_inputs(self):
+        return [os.path.join('mpi_sim', MAKEFILE_TEMPLATE)]
+
+
+class build_mpi(Command):
     description = "Build mpi_sim.so shared library and nengo_mpi/nengo_cpp executables."
-
     user_options = [('target=', None, "Target to build. If not supplied, all targets are built.")]
-    user_options = user_options + _build.user_options
 
-    def initialize_options (self):
-        _build.initialize_options(self)
+    def initialize_options(self):
         self.target = None
 
-    def finalize_options (self):
-        _build.finalize_options(self)
+    def finalize_options(self):
         if self.target is None:
             self.target = 'all'
 
     def run(self):
-        _build.run(self)
-
         if not os.path.isfile(os.path.join('mpi_sim', MAKEFILE_CONFIGURED)):
-            self.run_command('config')
+            self.run_command('config_mpi')
 
         print("Building mpi_sim.so, nengo_mpi and nengo_cpp.")
         directory = 'mpi_sim'
+        build_base = self.get_finalized_command('build').build_base
         run_make(
             self.target, directory,
-            assignments={'EXE_DEST': os.path.join("..", self.build_base),
-                         'LIB_DEST': os.path.join("..", self.build_base)},
+            assignments={'EXE_DEST': os.path.join("..", build_base),
+                         'LIB_DEST': os.path.join("..", build_base)},
             makefile_name=MAKEFILE_CONFIGURED)
+
+    def get_outputs(self):
+        build_base = self.get_finalized_command('build').build_base
+        return [os.path.join(build_base, f)
+                for f in ['nengo_mpi', 'nengo_cpp', 'mpi_sim.so']]
+
 
 class install_mpi(Command):
     user_options = []
 
-    def initialize_options (self):
+    def initialize_options(self):
         pass
 
-    def finalize_options (self):
+    def finalize_options(self):
         pass
 
     def run(self):
+        self.run_command('build_mpi')
+
         build_base = self.get_finalized_command('build').build_base
         install = self.get_finalized_command('install')
         install_scripts = install.install_scripts
@@ -394,21 +403,28 @@ class install_mpi(Command):
 
 
 class install(_install):
-    sub_commands = _install.sub_commands[:] + [('install_mpi', lambda *a, **k: True)]
-
+    """ Treat install_mpi almost like a sub-command, except that we need it to happen after everything
+        else has been installed so that we can be sure that numpy will have been installed. """
     def run(self):
         _install.run(self)
+        self.run_command('install_mpi')
 
+    def get_outputs(self):
+        return _install.get_outputs(self) + self.get_finalized_command('install_mpi').get_outputs()
 
 class develop(_develop):
     def run(self):
         _develop.run(self)
-        self.run_command('build')
         self.run_command('install_mpi')
+
+    def get_outputs(self):
+        return _install.get_outputs(self) + self.get_finalized_command('install_mpi').get_outputs()
 
 
 class clean(_clean):
     def run(self):
+        _clean.run(self)
+
         print("Cleaning mpi.")
         for o in glob("mpi_sim/*.o"):
             try:
@@ -420,8 +436,6 @@ class clean(_clean):
             os.remove(os.path.join('mpi_sim', MAKEFILE_CONFIGURED))
         except:
             pass
-
-        _clean.run(self)
 
 
 @contextmanager
@@ -452,8 +466,6 @@ def run_make(target, directory, assignments=None, makefile_name=None):
 
     """
     with cd(directory):
-        pid = os.getpid()
-
         command = ["make"]
         if target:
             command.append(target)
@@ -523,11 +535,11 @@ def run_setup():
     setup_args['zip_safe'] = False
 
     setup(packages=find_packages(),
-          cmdclass={'config': config,
-                    'build': build,
+          cmdclass={'config_mpi': config_mpi,
+                    'build_mpi': build_mpi,
+                    'install_mpi': install_mpi,
                     'install': install,
                     'develop': develop,
-                    'install_mpi': install_mpi,
                     'clean': clean},
           **setup_args)
 
