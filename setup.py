@@ -345,7 +345,11 @@ class build_mpi(Command):
 
         print("Building mpi_sim.so, nengo_mpi and nengo_cpp.")
         directory = 'mpi_sim'
+
         build_base = self.get_finalized_command('build').build_base
+        if not os.path.isdir(build_base):
+            os.makedirs(build_base)
+
         run_make(
             self.target, directory,
             assignments={'EXE_DEST': os.path.join("..", build_base),
@@ -377,13 +381,11 @@ class install_mpi(Command):
 
         exes = [os.path.join(build_base, f) for f in ['nengo_mpi', 'nengo_cpp']]
         libs = [os.path.join(build_base, 'mpi_sim.so')]
-        self.outputs = []
 
         for exe in exes:
             if os.path.isfile(exe):
                 print("Copying {0} to {1}.".format(os.path.basename(exe), install_scripts))
                 shutil.copy(exe, install_scripts)
-                self.outputs.append(os.path.join(install_scripts, os.path.basename(exe)))
             else:
                 print("Not installing {0}, no such file.".format(os.path.basename(exe)))
 
@@ -391,34 +393,71 @@ class install_mpi(Command):
             if os.path.isfile(lib):
                 print("Copying {0} to {1}.".format(os.path.basename(lib), install_lib))
                 shutil.copy(lib, install_lib)
-                self.outputs.append(os.path.join(install_lib, os.path.basename(lib)))
             else:
                 print("Not installing {0}, no such file.".format(os.path.basename(lib)))
 
     def get_outputs(self):
-        if hasattr(self, 'outputs'):
-            return self.outputs[:]
-        else:
-            return []
+        install = self.get_finalized_command('install')
+        install_scripts = install.install_scripts
+        install_lib = install.install_lib
+        outputs = [os.path.join(install_scripts, f) for f in ['nengo_mpi', 'nengo_cpp']]
+        outputs += [os.path.join(install_lib, f) for f in ['mpi_sim.so']]
+        return outputs
+
+
+no_make = ('no-make', 'n', 'If supplied, will install without attempting to build '
+                           'native nengo_mpi code (nengo_mpi, nengo_cpp and mpi_sim.so). '
+                           'Useful when installing nengo_mpi for creating network files '
+                           'meant to be simulated on another machine.')
+
 
 
 class install(_install):
     """ Treat install_mpi almost like a sub-command, except that we need it to happen after everything
         else has been installed so that we can be sure that numpy will have been installed. """
+
+    user_options = _install.user_options + [no_make]
+
+    def initialize_options(self):
+        _install.initialize_options(self)
+        self.no_make = 0
+
+    def finalize_options(self):
+        _install.finalize_options(self)
+
     def run(self):
         _install.run(self)
-        self.run_command('install_mpi')
+
+        if not self.no_make:
+            self.run_command('install_mpi')
 
     def get_outputs(self):
-        return _install.get_outputs(self) + self.get_finalized_command('install_mpi').get_outputs()
+        outputs = _install.get_outputs(self)
+        if not self.no_make:
+            outputs.extend(self.get_finalized_command('install_mpi').get_outputs())
+        return outputs
 
 class develop(_develop):
+    user_options = _develop.user_options + [no_make]
+
+    def initialize_options(self):
+        _develop.initialize_options(self)
+        self.no_make = 0
+
+    def finalize_options(self):
+        _develop.finalize_options(self)
+
     def run(self):
         _develop.run(self)
-        self.run_command('install_mpi')
+
+        if not self.no_make:
+            self.run_command('install_mpi')
 
     def get_outputs(self):
-        return _install.get_outputs(self) + self.get_finalized_command('install_mpi').get_outputs()
+        outputs = _install.get_outputs(self)
+        if not self.no_make:
+            outputs.extend(self.get_finalized_command('install_mpi').get_outputs())
+        return outputs
 
 
 class clean(_clean):

@@ -63,7 +63,7 @@ Finally install nengo_mpi: ::
 
    pip install --user .
 
-If you're inside a virtualenv (recommended!) you can omit the ``--user`` flag. If you're developing on nengo_mpi, you can also add the ``-e`` flag so that changes you make to the code will be reflected in your python environment.
+If you're inside a virtualenv (recommended!) you can omit the ``--user`` flag. If you're developing on nengo_mpi, you can also add the ``-e`` flag so that changes you make to the code will be reflected in your python environment. You can also add ``--install-options="-n"`` to install without building the C++ portion of nengo_mpi, which can be useful when installing nengo_mpi for building network files that you intend to simulate on a different machine.
 
 .. _hpc_installation:
 
