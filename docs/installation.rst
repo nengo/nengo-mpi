@@ -38,7 +38,7 @@ Installing MPI depends on which implementation you want to use:
 
    and on Ubuntu 14.04 (Trusty) the following will do the trick: ::
 
-      sudo apt-get install openmpi-bin libopenmpi-dev libhdf5-openmpi-dev
+      sudo apt-get install mpich libmpich-dev libhdf5-mpich2-dev
 
 #. **Other MPI Implementations** - May work but have not been tested.
 
