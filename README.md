@@ -1,6 +1,6 @@
 <p>
-    <a href="https://travis-ci.org/nengo/nengo_mpi">
-        <img src="https://img.shields.io/travis/nengo/nengo_mpi.svg"
+    <a href="https://travis-ci.org/nengo/nengo-mpi">
+        <img src="https://img.shields.io/travis/nengo/nengo-mpi.svg"
              alt="Travis-CI Build Status">
     </a>
 </p>

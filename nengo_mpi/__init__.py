@@ -5,7 +5,7 @@ nengo_mpi
 nengo_mpi provides an MPI backend for the Nengo neural simulation package.
 
 The source code repository for this package is found at
-https://www.github.com/e2crawfo/nengo_mpi.
+https://www.github.com/nengo/nengo-mpi.
 """
 
 from .__about__ import (

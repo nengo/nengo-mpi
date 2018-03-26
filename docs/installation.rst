@@ -46,8 +46,8 @@ Installation
 ------------
 nengo_mpi is not currently available on PyPI, but can nevertheless be installed via pip once you've downloaded the code. First obtain a copy of the code from github: ::
 
-   git clone https://github.com/nengo/nengo_mpi.git
-   cd nengo_mpi
+   git clone https://github.com/nengo/nengo-mpi.git
+   cd nengo-mpi
 
 If using the MPICH MPI implementation, we also have to tell the compiler where to find various header files and libraries. Such information is read from the file ``mpi.cfg``. The default ``mpi.cfg`` is setup to work with OpenMPI. We've included configuration files for MPICH in the ``conf`` directory, and making use of them is just a matter of putting them in the right place.
 

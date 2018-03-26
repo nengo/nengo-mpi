@@ -16,16 +16,16 @@ an OpenMPI based installation can be obtained by first installing dependencies: 
 
 Then download the code: ::
 
-    git clone https://github.com/nengo/nengo_mpi.git
+    git clone https://github.com/nengo/nengo-mpi.git
 
 And install nengo_mpi and all its python dependencies (including nengo): ::
 
-    cd nengo_mpi
+    cd nengo-mpi
     pip install --user .
 
 or if inside a virtualenv: ::
 
-    cd nengo_mpi
+    cd nengo-mpi
     pip install .
 
 And run the test to make sure it works: ::

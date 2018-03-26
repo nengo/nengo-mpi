@@ -2,8 +2,8 @@
 nengo_mpi
 *********
 
-`nengo_mpi <https://github.com/e2crawfo/nengo_mpi>`_ is a C++/MPI backend for
-`nengo <https://pythonhosted.org/nengo/index.html>`_, a python library
+`nengo_mpi <https://github.com/nengo/nengo-mpi>`_ is a C++/MPI backend for
+`nengo <https://www.nengo.ai/>`_, a python library
 for building and simulating biologically realistic neural networks.
 nengo_mpi makes it possible to run nengo simulations in parallel on
 thousands of processors, and existing nengo scripts can be adapted to

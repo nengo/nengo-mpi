@@ -8,7 +8,7 @@ We use `the same process as nengo <https://pythonhosted.org/nengo/workflow.html>
 
 Development workflow
 ====================
-Development happens on `Github <https://github.com/nengo/nengo_mpi>`_.
+Development happens on `Github <https://github.com/nengo/nengo-mpi>`_.
 Feel free to fork any of our repositories and send a pull request!
 However, note that we ask contributors to sign
 `a copyright assignment agreement <https://github.com/nengo/nengo/blob/master/LICENSE.rst>`_.
@@ -27,4 +27,3 @@ We run nengo's full test-suite using nengo_mpi as a back-end.  We also have a nu
 Tests are run using the invocation: ::
 
     py.test
-

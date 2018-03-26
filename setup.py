@@ -97,7 +97,7 @@ Unix
 """
 
 metadata = {
-    'name'             : 'nengo_mpi',
+    'name'             : 'nengo-mpi',
     'version'          : about["__version__"],
     'description'      : description,
     'long_description' : long_description,
